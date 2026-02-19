@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import Label, Static
@@ -6,6 +7,7 @@ from textual.containers import Horizontal
 from rich.syntax import Syntax
 from bib.models import BibEntry, ENTRY_TYPES
 from bib.parser import entry_to_bibtex_str
+from utils.config import parse_jabref_path
 
 
 def _render_entry(entry: BibEntry) -> str:
@@ -78,12 +80,6 @@ def _render_entry(entry: BibEntry) -> str:
         if current:
             lines.append(f"  {current}")
 
-    # PDF
-    lines.append("")
-    if entry.file:
-        lines.append(f"[bold]PDF:[/bold] [link]{entry.file}[/link]")
-    else:
-        lines.append("[bold]PDF:[/bold] [dim](not linked)[/dim]")
 
     return "\n".join(lines)
 
@@ -113,6 +109,10 @@ class EntryDetail(Widget):
     }
     #detail-rating {
         width: auto;
+        margin-right: 3;
+    }
+    #detail-file {
+        width: auto;
     }
     #detail-content {
         height: auto;
@@ -123,11 +123,16 @@ class EntryDetail(Widget):
         super().__init__(**kwargs)
         self._entry: BibEntry | None = None
         self._raw_mode: bool = False
+        self._pdf_base_dir: str = ""
+
+    def set_pdf_base_dir(self, base_dir: str) -> None:
+        self._pdf_base_dir = base_dir
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="detail-meta"):
             yield Label("", id="detail-read-state")
             yield Label("", id="detail-rating")
+            yield Label("", id="detail-file")
         yield Static("Select an entry to view details.", id="detail-content")
 
     def show_entry(self, entry: BibEntry | None) -> None:
@@ -144,14 +149,22 @@ class EntryDetail(Widget):
         mode = "raw BibTeX" if self._raw_mode else "formatted"
         self.border_title = f"Entry Detail [{mode}]"
 
+    def _file_icon(self, entry: BibEntry) -> str:
+        if not entry.file:
+            return " "
+        path = parse_jabref_path(entry.file, self._pdf_base_dir)
+        return "■" if os.path.exists(path) else "□"
+
     def _refresh_content(self) -> None:
         read_label = self.query_one("#detail-read-state", Label)
         rating_label = self.query_one("#detail-rating", Label)
+        file_label = self.query_one("#detail-file", Label)
         content = self.query_one("#detail-content", Static)
 
         if self._entry is None:
             read_label.update("")
             rating_label.update("")
+            file_label.update("")
             content.update("Select an entry to view details.")
             return
 
@@ -161,6 +174,14 @@ class EntryDetail(Widget):
 
         stars = e.rating_stars or "[dim]unrated[/dim]"
         rating_label.update(f"[bold]Rating:[/bold] [yellow]{stars}[/yellow]")
+
+        icon = self._file_icon(e)
+        if not e.file:
+            file_label.update("[dim]PDF: —[/dim]")
+        elif icon == "■":
+            file_label.update(f"[bold]PDF:[/bold] ■")
+        else:
+            file_label.update(f"[bold]PDF:[/bold] [dim]□ not found[/dim]")
 
         if self._raw_mode:
             content.update(_render_raw(e))
