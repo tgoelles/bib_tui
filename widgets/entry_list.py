@@ -31,6 +31,8 @@ class EntryList(Widget):
         super().__init__(**kwargs)
         self._all_entries: list[BibEntry] = entries
         self._filtered: list[BibEntry] = list(entries)
+        self._col_state = None
+        self._col_rating = None
 
     def compose(self) -> ComposeResult:
         yield Input(placeholder="Search (title, author, tags)...", id="search-input")
@@ -38,7 +40,9 @@ class EntryList(Widget):
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
-        table.add_columns("", "Type", "Year", "Author", "Title", "★")
+        # Store column keys so update_cell can find them reliably
+        keys = table.add_columns("◉", "Type", "Year", "Author", "Title", "★")
+        self._col_state, self._col_rating = keys[0], keys[5]
         self._populate_table(self._all_entries)
 
     def _populate_table(self, entries: list[BibEntry]) -> None:
@@ -111,11 +115,8 @@ class EntryList(Widget):
     def refresh_row(self, entry: BibEntry) -> None:
         """Update the read-state and rating cells for a single row."""
         table = self.query_one(DataTable)
-        try:
-            table.update_cell(entry.key, "", entry.read_state_icon, update_width=False)
-            table.update_cell(entry.key, "★", entry.rating_stars, update_width=False)
-        except Exception:
-            self.refresh_entries(self._all_entries)
+        table.update_cell(entry.key, self._col_state, entry.read_state_icon, update_width=False)
+        table.update_cell(entry.key, self._col_rating, entry.rating_stars, update_width=False)
 
     @property
     def selected_entry(self) -> BibEntry | None:
