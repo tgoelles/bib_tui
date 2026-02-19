@@ -57,6 +57,11 @@ class BibTuiApp(App):
         self.title = f"bib-tui — {os.path.basename(self._bib_path)}"
         self._load_entries()
 
+    def on_resize(self, event) -> None:
+        self.query_one("#main-content").set_class(
+            event.size.height > event.size.width, "vertical"
+        )
+
     def _load_entries(self) -> None:
         self.notify("Loading bibliography...", timeout=2)
         try:

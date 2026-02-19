@@ -16,13 +16,30 @@ Screen {
 
 #entry-list {
     width: 50%;
+    height: 1fr;
     border: solid $panel;
 }
 
 #entry-detail {
     width: 1fr;
+    height: 1fr;
     border: solid $panel;
     overflow-y: scroll;
+}
+
+/* Vertical layout: list on top, detail below */
+#main-content.vertical {
+    layout: vertical;
+}
+
+#main-content.vertical #entry-list {
+    width: 100%;
+    height: 50%;
+}
+
+#main-content.vertical #entry-detail {
+    width: 100%;
+    height: 1fr;
 }
 
 #footer-bar {
