@@ -1,0 +1,118 @@
+/* Main app layout */
+Screen {
+    layout: vertical;
+}
+
+#search-bar {
+    height: 3;
+    border: solid $accent;
+    margin: 0 1;
+}
+
+#main-content {
+    layout: horizontal;
+    height: 1fr;
+}
+
+#entry-list {
+    width: 50%;
+    border: solid $panel;
+}
+
+#entry-detail {
+    width: 1fr;
+    border: solid $panel;
+    overflow-y: scroll;
+}
+
+#footer-bar {
+    height: 3;
+    layout: horizontal;
+    background: $panel;
+    padding: 0 1;
+    align: left middle;
+}
+
+.footer-key {
+    background: $accent;
+    color: $text;
+    padding: 0 1;
+    margin-right: 2;
+}
+
+/* Entry detail styling */
+.field-label {
+    color: $accent;
+    text-style: bold;
+}
+
+.field-required {
+    color: $success;
+}
+
+.field-optional {
+    color: $text-muted;
+}
+
+.tag-badge {
+    background: $accent-darken-2;
+    color: $text;
+    padding: 0 1;
+    margin-right: 1;
+}
+
+/* Modals */
+DOIModal {
+    align: center middle;
+}
+
+DOIModal > Vertical {
+    width: 70;
+    height: auto;
+    border: double $accent;
+    background: $surface;
+    padding: 1 2;
+}
+
+EditModal {
+    align: center middle;
+}
+
+EditModal > Vertical {
+    width: 80;
+    height: auto;
+    max-height: 40;
+    border: double $accent;
+    background: $surface;
+    padding: 1 2;
+    overflow-y: scroll;
+}
+
+ConfirmModal {
+    align: center middle;
+}
+
+ConfirmModal > Vertical {
+    width: 50;
+    height: auto;
+    border: double $warning;
+    background: $surface;
+    padding: 1 2;
+}
+
+.modal-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+.modal-buttons {
+    layout: horizontal;
+    align: right middle;
+    margin-top: 1;
+    height: 3;
+}
+
+.modal-buttons Button {
+    margin-left: 1;
+}
