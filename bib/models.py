@@ -74,9 +74,9 @@ class BibEntry:
 
     @property
     def rating_stars(self) -> str:
-        filled = "★" * self.rating
-        empty = "☆" * (5 - self.rating)
-        return filled + empty
+        if self.rating == 0:
+            return ""
+        return "★" * self.rating
 
     def get_field(self, name: str) -> str:
         if name == "title":
