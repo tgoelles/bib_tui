@@ -27,7 +27,7 @@ class BibTuiApp(App):
         Binding("s", "save", "Save"),
         Binding("e", "edit_entry", "Edit"),
         Binding("d", "doi_import", "From DOI"),
-        Binding("o", "open_pdf", "Open PDF"),
+        Binding("space", "open_pdf", "Open PDF"),
         Binding("t", "edit_tags", "Tags"),
         Binding("r", "cycle_read_state", "Read state"),
         Binding("f,/", "focus_search", "Search"),
