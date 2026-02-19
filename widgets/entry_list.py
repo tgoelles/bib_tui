@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.widget import Widget
@@ -7,6 +8,7 @@ from textual.widgets._data_table import ColumnKey
 from textual.reactive import reactive
 from textual import on, events
 from bib.models import BibEntry, READ_STATES
+from utils.config import parse_jabref_path
 
 # Original header labels in column order
 _COL_LABELS = ("◉", "◫", "Type", "Year", "Author", "Journal", "Title", "★")
@@ -41,6 +43,16 @@ class EntryList(Widget):
         self._col_rating: ColumnKey | None = None
         self._sort_key: ColumnKey | None = None
         self._sort_reverse: bool = False
+        self._pdf_base_dir: str = ""
+
+    def set_pdf_base_dir(self, base_dir: str) -> None:
+        self._pdf_base_dir = base_dir
+
+    def _file_icon(self, entry: BibEntry) -> str:
+        if not entry.file:
+            return " "
+        path = parse_jabref_path(entry.file, self._pdf_base_dir)
+        return "■" if os.path.exists(path) else "□"
 
     def compose(self) -> ComposeResult:
         yield Input(placeholder="Search (title, author, tags)...", id="search-input")
@@ -64,7 +76,7 @@ class EntryList(Widget):
             journal = e.journal or e.raw_fields.get("booktitle", "")
             table.add_row(
                 e.read_state_icon,
-                e.file_icon,
+                self._file_icon(e),
                 e.entry_type[:8],
                 e.year[:4] if e.year else "",
                 e.authors_short[:20],
@@ -123,7 +135,7 @@ class EntryList(Widget):
             journal = e.journal or e.raw_fields.get("booktitle", "")
             table.add_row(
                 e.read_state_icon,
-                e.file_icon,
+                self._file_icon(e),
                 e.entry_type[:8],
                 e.year[:4] if e.year else "",
                 e.authors_short[:20],
@@ -206,7 +218,7 @@ class EntryList(Widget):
         """Update the read-state, file, and rating cells for a single row."""
         table = self.query_one(DataTable)
         table.update_cell(entry.key, self._col_state, entry.read_state_icon, update_width=False)
-        table.update_cell(entry.key, self._col_file, entry.file_icon, update_width=False)
+        table.update_cell(entry.key, self._col_file, self._file_icon(entry), update_width=False)
         table.update_cell(entry.key, self._col_rating, entry.rating_stars, update_width=False)
 
     @property

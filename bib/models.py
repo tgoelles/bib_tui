@@ -87,10 +87,6 @@ class BibEntry:
     def read_state_icon(self) -> str:
         return READ_STATE_ICONS.get(self.read_state, " ")
 
-    @property
-    def file_icon(self) -> str:
-        return "◫" if self.file else " "
-
     def cycle_read_state(self) -> None:
         idx = READ_STATES.index(self.read_state) if self.read_state in READ_STATES else 0
         self.read_state = READ_STATES[(idx + 1) % len(READ_STATES)]

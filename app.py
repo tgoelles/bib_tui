@@ -78,6 +78,7 @@ class BibTuiApp(App):
         try:
             self._entries = parser.load(self._bib_path)
             entry_list = self.query_one(EntryList)
+            entry_list.set_pdf_base_dir(self._config.pdf_base_dir)
             entry_list.refresh_entries(self._entries)
             self.notify(f"Loaded {len(self._entries)} entries.", timeout=3)
         except Exception as e:
@@ -225,6 +226,8 @@ class BibTuiApp(App):
             return
         self._config = result
         save_config(result)
+        self.query_one(EntryList).set_pdf_base_dir(result.pdf_base_dir)
+        self.query_one(EntryList).refresh_entries(self._entries)
         self.notify("Settings saved.", timeout=2)
 
     def action_toggle_view(self) -> None:
