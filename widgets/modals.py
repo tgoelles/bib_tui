@@ -74,7 +74,7 @@ class DOIModal(ModalScreen[BibEntry | None]):
                 yield Button("Cancel", id="btn-cancel")
 
     def on_mount(self) -> None:
-        self.query_one("#doi-input", Input).focus()
+        self.call_after_refresh(self.query_one("#doi-input", Input).focus)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
@@ -281,7 +281,7 @@ class SettingsModal(ModalScreen["Config | None"]):
                 yield Button("Cancel", id="btn-cancel")
 
     def on_mount(self) -> None:
-        self.query_one("#pdf-base-dir", Input).focus()
+        self.call_after_refresh(self.query_one("#pdf-base-dir", Input).focus)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
