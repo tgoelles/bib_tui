@@ -4,25 +4,8 @@ from textual.widget import Widget
 from textual.widgets import Label, Static
 from textual.containers import Horizontal
 from rich.syntax import Syntax
-from bib.models import BibEntry, ENTRY_TYPES, READ_STATE_ICONS
+from bib.models import BibEntry, ENTRY_TYPES
 from bib.parser import entry_to_bibtex_str
-
-_READ_STATE_TOOLTIP = (
-    "Read state — press [r] to cycle:\n"
-    "  (unset)  nothing yet\n"
-    "  ○  to-read\n"
-    "  ◑  skimmed\n"
-    "  ●  read"
-)
-
-_RATING_TOOLTIP = (
-    "Rating — press [1]–[5] to set, [0] to clear\n"
-    "  ★       1 star\n"
-    "  ★★      2 stars\n"
-    "  ★★★     3 stars\n"
-    "  ★★★★    4 stars\n"
-    "  ★★★★★   5 stars"
-)
 
 
 def _render_entry(entry: BibEntry) -> str:
@@ -146,10 +129,6 @@ class EntryDetail(Widget):
             yield Label("", id="detail-read-state")
             yield Label("", id="detail-rating")
         yield Static("Select an entry to view details.", id="detail-content")
-
-    def on_mount(self) -> None:
-        self.query_one("#detail-read-state", Label).tooltip = _READ_STATE_TOOLTIP
-        self.query_one("#detail-rating", Label).tooltip = _RATING_TOOLTIP
 
     def show_entry(self, entry: BibEntry | None) -> None:
         self._entry = entry
