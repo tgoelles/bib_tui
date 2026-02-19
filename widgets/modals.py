@@ -118,13 +118,14 @@ class EditModal(ModalScreen[BibEntry | None]):
     }
     EditModal > Vertical {
         width: 80;
-        height: 90%;
+        height: auto;
+        max-height: 92%;
         border: double $accent;
         background: $surface;
         padding: 1 2;
     }
     EditModal #edit-fields {
-        height: 1fr;
+        height: 22;
     }
     EditModal Input {
         margin-bottom: 1;
