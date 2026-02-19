@@ -9,7 +9,7 @@ from textual import on, events
 from bib.models import BibEntry, READ_STATES
 
 # Original header labels in column order
-_COL_LABELS = ("◉", "Type", "Year", "Author", "Journal", "Title", "★")
+_COL_LABELS = ("◉", "▪", "Type", "Year", "Author", "Journal", "Title", "★")
 
 
 class EntryList(Widget):
@@ -50,7 +50,8 @@ class EntryList(Widget):
         table = self.query_one(DataTable)
         self._col_keys = table.add_columns(*_COL_LABELS)
         self._col_state = self._col_keys[0]
-        self._col_rating = self._col_keys[6]
+        self._col_file = self._col_keys[1]
+        self._col_rating = self._col_keys[7]
         self._populate_table(self._all_entries)
 
     def _populate_table(self, entries: list[BibEntry]) -> None:
@@ -61,6 +62,7 @@ class EntryList(Widget):
             journal = e.journal or e.raw_fields.get("booktitle", "")
             table.add_row(
                 e.read_state_icon,
+                e.file_icon,
                 e.entry_type[:8],
                 e.year[:4] if e.year else "",
                 e.authors_short[:20],
@@ -88,17 +90,19 @@ class EntryList(Widget):
         idx = list(self._col_keys).index(col_key)
         if idx == 0:   # ◉ read state
             return lambda e: READ_STATES.index(e.read_state) if e.read_state in READ_STATES else 0
-        if idx == 1:   # Type
+        if idx == 1:   # ▪ file
+            return lambda e: (0 if e.file else 1)
+        if idx == 2:   # Type
             return lambda e: e.entry_type
-        if idx == 2:   # Year
+        if idx == 3:   # Year
             return lambda e: int(e.year) if e.year.isdigit() else 0
-        if idx == 3:   # Author
+        if idx == 4:   # Author
             return lambda e: e.authors_short.lower()
-        if idx == 4:   # Journal
+        if idx == 5:   # Journal
             return lambda e: (e.journal or e.raw_fields.get("booktitle", "")).lower()
-        if idx == 5:   # Title
+        if idx == 6:   # Title
             return lambda e: e.title.lower()
-        if idx == 6:   # ★ rating
+        if idx == 7:   # ★ rating
             return lambda e: e.rating
         return lambda e: ""
 
@@ -117,6 +121,7 @@ class EntryList(Widget):
             journal = e.journal or e.raw_fields.get("booktitle", "")
             table.add_row(
                 e.read_state_icon,
+                e.file_icon,
                 e.entry_type[:8],
                 e.year[:4] if e.year else "",
                 e.authors_short[:20],
@@ -196,9 +201,10 @@ class EntryList(Widget):
                 self._apply_sort()
 
     def refresh_row(self, entry: BibEntry) -> None:
-        """Update the read-state and rating cells for a single row."""
+        """Update the read-state, file, and rating cells for a single row."""
         table = self.query_one(DataTable)
         table.update_cell(entry.key, self._col_state, entry.read_state_icon, update_width=False)
+        table.update_cell(entry.key, self._col_file, entry.file_icon, update_width=False)
         table.update_cell(entry.key, self._col_rating, entry.rating_stars, update_width=False)
 
     @property
