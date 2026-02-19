@@ -65,12 +65,15 @@ class DOIModal(ModalScreen[BibEntry | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label("[bold cyan]Add Entry by DOI[/bold cyan]")
+            yield Label("[bold cyan]Entry from DOI[/bold cyan]")
             yield Input(placeholder="Enter DOI (e.g. 10.1038/nature12345)", id="doi-input")
             yield Static("", id="doi-status")
             with Horizontal(id="modal-buttons"):
                 yield Button("Fetch", variant="primary", id="btn-fetch")
                 yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#doi-input", Input).focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
