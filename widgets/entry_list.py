@@ -41,8 +41,8 @@ class EntryList(Widget):
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
         # Store column keys so update_cell can find them reliably
-        keys = table.add_columns("◉", "Type", "Year", "Author", "Title", "★")
-        self._col_state, self._col_rating = keys[0], keys[5]
+        keys = table.add_columns("◉", "Type", "Year", "Author", "Journal", "Title", "★")
+        self._col_state, self._col_rating = keys[0], keys[6]
         table.tooltip = (
             "◉  Read state — [r] to cycle: ○ to-read → ◑ skimmed → ● read\n"
             "★  Rating — [1]–[5] to set, [0] to clear"
@@ -54,12 +54,14 @@ class EntryList(Widget):
         table.clear()
         self._filtered = entries
         for e in entries:
+            journal = e.journal or e.raw_fields.get("booktitle", "")
             table.add_row(
                 e.read_state_icon,
                 e.entry_type[:8],
                 e.year[:4] if e.year else "",
                 e.authors_short[:20],
-                e.title[:55] + "…" if len(e.title) > 55 else e.title,
+                journal[:22] + "…" if len(journal) > 22 else journal,
+                e.title[:35] + "…" if len(e.title) > 35 else e.title,
                 e.rating_stars,
                 key=e.key,
             )
