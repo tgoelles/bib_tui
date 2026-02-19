@@ -110,7 +110,7 @@ class DOIModal(ModalScreen[BibEntry | None]):
 class EditModal(ModalScreen[BibEntry | None]):
     """Modal to edit key fields of an entry."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+    BINDINGS = [Binding("escape", "save_and_close", "Save", show=False)]
 
     DEFAULT_CSS = """
     EditModal {
@@ -118,7 +118,8 @@ class EditModal(ModalScreen[BibEntry | None]):
     }
     EditModal > Vertical {
         width: 80;
-        height: 36;
+        height: auto;
+        max-height: 90%;
         border: double $accent;
         background: $surface;
         padding: 1 2;
@@ -129,6 +130,10 @@ class EditModal(ModalScreen[BibEntry | None]):
     }
     EditModal Label {
         color: $accent;
+    }
+    EditModal TextArea {
+        height: 6;
+        margin-bottom: 1;
     }
     """
 
@@ -186,8 +191,8 @@ class EditModal(ModalScreen[BibEntry | None]):
         e.abstract = self.query_one("#edit-abstract", TextArea).text
         self.dismiss(e)
 
-    def action_cancel(self) -> None:
-        self.dismiss(None)
+    def action_save_and_close(self) -> None:
+        self._save()
 
 
 class TagsModal(ModalScreen[list[str] | None]):
