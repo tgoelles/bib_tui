@@ -9,7 +9,7 @@ from textual import on, events
 from bib.models import BibEntry, READ_STATES
 
 # Original header labels in column order
-_COL_LABELS = ("◉", "▪", "Type", "Year", "Author", "Journal", "Title", "★")
+_COL_LABELS = ("◉", "◫", "Type", "Year", "Author", "Journal", "Title", "★")
 
 
 class EntryList(Widget):
