@@ -59,7 +59,7 @@ class BibTuiApp(App):
 
     def on_resize(self, event) -> None:
         self.query_one("#main-content").set_class(
-            event.size.height > event.size.width, "vertical"
+            event.size.width < event.size.height * 2, "vertical"
         )
 
     def _load_entries(self) -> None:
