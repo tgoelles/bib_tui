@@ -6,6 +6,7 @@ from textual.widgets import Button, Input, Label, Static, TextArea
 from textual.containers import Vertical, Horizontal
 from bib.models import BibEntry
 from bib.parser import entry_to_bibtex_str, bibtex_str_to_entry
+from utils.config import Config
 
 
 class ConfirmModal(ModalScreen[bool]):
@@ -235,6 +236,63 @@ class TagsModal(ModalScreen[list[str] | None]):
         val = self.query_one("#tags-input", Input).value
         tags = [t.strip() for t in val.split(",") if t.strip()]
         self.dismiss(tags)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class SettingsModal(ModalScreen["Config | None"]):
+    """Settings dialog — currently just the PDF base directory."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    DEFAULT_CSS = """
+    SettingsModal {
+        align: center middle;
+    }
+    SettingsModal > Vertical {
+        width: 70;
+        height: auto;
+        border: double $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    SettingsModal Input {
+        margin-bottom: 1;
+    }
+    """
+
+    def __init__(self, config: Config, **kwargs):
+        super().__init__(**kwargs)
+        self._config = config
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold cyan]Settings[/bold cyan]")
+            yield Label("PDF base directory")
+            yield Input(
+                value=self._config.pdf_base_dir,
+                placeholder="/home/user/Papers",
+                id="pdf-base-dir",
+            )
+            yield Static("[dim]Filenames in the file field are resolved relative to this path.[/dim]")
+            with Horizontal(id="modal-buttons"):
+                yield Button("Save", variant="primary", id="btn-save")
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#pdf-base-dir", Input).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-save":
+            self._config.pdf_base_dir = self.query_one("#pdf-base-dir", Input).value.strip()
+            self.dismiss(self._config)
+
+    def on_input_submitted(self, _: Input.Submitted) -> None:
+        self._config.pdf_base_dir = self.query_one("#pdf-base-dir", Input).value.strip()
+        self.dismiss(self._config)
 
     def action_cancel(self) -> None:
         self.dismiss(None)

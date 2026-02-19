@@ -11,9 +11,10 @@ from textual.binding import Binding
 from bib.models import BibEntry
 from bib import parser
 from utils.git import commit
+from utils.config import Config, load_config, save_config, parse_jabref_path
 from widgets.entry_list import EntryList
 from widgets.entry_detail import EntryDetail
-from widgets.modals import ConfirmModal, DOIModal, EditModal, RawEditModal, TagsModal
+from widgets.modals import ConfirmModal, DOIModal, EditModal, RawEditModal, SettingsModal, TagsModal
 
 
 class BibTuiApp(App):
@@ -37,6 +38,7 @@ class BibTuiApp(App):
         Binding("5", "set_rating('5')", "★★★★★"),
         Binding("0", "set_rating('0')", "Clear ★"),
         Binding("v", "toggle_view", "Raw/Fmt"),
+        Binding("p", "settings", "Settings"),
         Binding("escape", "clear_search", "Clear search", show=False),
     ]
 
@@ -45,6 +47,7 @@ class BibTuiApp(App):
         self._bib_path = bib_path
         self._entries: list[BibEntry] = []
         self._dirty = False
+        self._config: Config = load_config()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -172,12 +175,7 @@ class BibTuiApp(App):
         if not entry.file:
             self.notify("No PDF linked for this entry.", severity="warning")
             return
-        path = entry.file
-        # Handle BibDesk-style file field: {:path/to/file.pdf:PDF}
-        if path.startswith("{") and ":" in path:
-            parts = path.strip("{}").split(":")
-            if len(parts) >= 2:
-                path = parts[1]
+        path = parse_jabref_path(entry.file, self._config.pdf_base_dir)
         try:
             if platform.system() == "Darwin":
                 subprocess.Popen(["open", path])
@@ -207,6 +205,16 @@ class BibTuiApp(App):
         self._dirty = True
         self.query_one(EntryList).refresh_row(entry)
         self.query_one(EntryDetail).show_entry(entry)
+
+    def action_settings(self) -> None:
+        self.push_screen(SettingsModal(self._config), self._on_settings_done)
+
+    def _on_settings_done(self, result: Config | None) -> None:
+        if result is None:
+            return
+        self._config = result
+        save_config(result)
+        self.notify("Settings saved.", timeout=2)
 
     def action_toggle_view(self) -> None:
         self.query_one(EntryDetail).toggle_view()
