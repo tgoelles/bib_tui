@@ -184,13 +184,16 @@ class BibTuiApp(App):
             self.notify("No PDF linked for this entry.", severity="warning")
             return
         path = parse_jabref_path(entry.file, self._config.pdf_base_dir)
+        if not os.path.exists(path):
+            self.notify(f"PDF not found: {path}", severity="error", timeout=5)
+            return
         try:
             if platform.system() == "Darwin":
                 subprocess.Popen(["open", path])
             else:
                 subprocess.Popen(["xdg-open", path])
         except Exception as e:
-            self.notify(f"Could not open PDF: {e}", severity="error")
+            self.notify(f"Could not open PDF: {e}", severity="error", timeout=5)
 
     def action_set_rating(self, value: str) -> None:
         entry = self.query_one(EntryList).selected_entry
