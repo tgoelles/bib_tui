@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import datetime
 from habanero import Crossref
 from .models import BibEntry
 
@@ -60,7 +61,9 @@ def fetch_by_doi(doi: str) -> BibEntry:
     key_author = authors[0].get("family", "Unknown").replace(" ", "") if authors else "Unknown"
     key = f"{key_author}{year}"
 
-    raw: dict[str, str] = {}
+    raw: dict[str, str] = {
+        "date-added": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+    }
     if msg.get("volume"):
         raw["volume"] = str(msg["volume"])
     if msg.get("issue"):

@@ -139,7 +139,15 @@ class BibTuiApp(App):
             result.key = result.key + "a"
         self._entries.append(result)
         self._dirty = True
-        self.query_one(EntryList).refresh_entries(self._entries)
+        el = self.query_one(EntryList)
+        el.refresh_entries(self._entries)
+        # Jump cursor to the newly added entry
+        try:
+            idx = next(i for i, e in enumerate(el._filtered) if e.key == result.key)
+            self.query_one(DataTable).move_cursor(row=idx)
+            self.query_one(EntryDetail).show_entry(result)
+        except StopIteration:
+            pass
         self.notify(f"Added: {result.key}", timeout=3)
 
     def action_open_pdf(self) -> None:
