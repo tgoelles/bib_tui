@@ -3,7 +3,7 @@ from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import Static
 from rich.syntax import Syntax
-from bib.models import BibEntry, ENTRY_TYPES
+from bib.models import BibEntry, ENTRY_TYPES, READ_STATE_ICONS
 from bib.parser import entry_to_bibtex_str
 
 
@@ -18,6 +18,10 @@ def _render_entry(entry: BibEntry) -> str:
     # Entry type badge
     lines.append(f"[dim]@{entry.entry_type}[/dim]  [dim]key:[/dim] [yellow]{entry.key}[/yellow]")
     lines.append("")
+
+    # Read state
+    state_label = entry.read_state if entry.read_state else "unset"
+    lines.append(f"[bold]Read:[/bold]   {entry.read_state_icon} {state_label}")
 
     # Rating
     lines.append(f"[bold]Rating:[/bold] [yellow]{entry.rating_stars}[/yellow]")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import bibtexparser
 from bibtexparser import model as bpmodel
-from .models import BibEntry
+from .models import BibEntry, READ_STATES
 
 
 def _field_str(entry: bpmodel.Entry, key: str) -> str:
@@ -20,7 +20,7 @@ def _field_str(entry: bpmodel.Entry, key: str) -> str:
 
 
 def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
-    known = {"title", "author", "year", "journal", "doi", "abstract", "keywords", "rating", "tags", "file"}
+    known = {"title", "author", "year", "journal", "doi", "abstract", "keywords", "rating", "readstate", "tags", "file"}
     raw = {}
     for k, f in entry.fields_dict.items():
         if k not in known:
@@ -36,6 +36,10 @@ def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
     tags_str = _field_str(entry, "tags")
     tags = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
 
+    read_state = _field_str(entry, "readstate")
+    if read_state not in READ_STATES:
+        read_state = ""
+
     return BibEntry(
         key=entry.key,
         entry_type=entry.entry_type,
@@ -47,6 +51,7 @@ def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
         abstract=_field_str(entry, "abstract"),
         keywords=_field_str(entry, "keywords"),
         rating=rating,
+        read_state=read_state,
         tags=tags,
         file=_field_str(entry, "file"),
         raw_fields=raw,
@@ -70,6 +75,8 @@ def _to_bp_entry(entry: BibEntry) -> bpmodel.Entry:
 
     if entry.rating:
         add("rating", str(entry.rating))
+    if entry.read_state:
+        add("readstate", entry.read_state)
     if entry.tags:
         add("tags", ", ".join(entry.tags))
     if entry.file:

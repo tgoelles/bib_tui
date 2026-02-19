@@ -28,6 +28,7 @@ class BibTuiApp(App):
         Binding("d", "doi_import", "Add DOI"),
         Binding("o", "open_pdf", "Open PDF"),
         Binding("t", "edit_tags", "Tags"),
+        Binding("r", "cycle_read_state", "Read state"),
         Binding("f,/", "focus_search", "Search"),
         Binding("1", "set_rating('1')", "★"),
         Binding("2", "set_rating('2')", "★★"),
@@ -172,6 +173,15 @@ class BibTuiApp(App):
         except ValueError:
             return
         entry.rating = rating
+        self._dirty = True
+        self.query_one(EntryList).refresh_row(entry)
+        self.query_one(EntryDetail).show_entry(entry)
+
+    def action_cycle_read_state(self) -> None:
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            return
+        entry.cycle_read_state()
         self._dirty = True
         self.query_one(EntryList).refresh_row(entry)
         self.query_one(EntryDetail).show_entry(entry)

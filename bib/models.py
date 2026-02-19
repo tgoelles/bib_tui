@@ -2,6 +2,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+READ_STATES: list[str] = ["", "to-read", "skimmed", "read"]
+
+# Standard Unicode — readable without nerd fonts, pretty with them
+READ_STATE_ICONS: dict[str, str] = {
+    "": " ",
+    "to-read": "○",
+    "skimmed": "◑",
+    "read": "●",
+}
+
 ENTRY_TYPES: dict[str, dict[str, list[str]]] = {
     "article": {
         "required": ["author", "title", "journal", "year"],
@@ -50,6 +60,7 @@ class BibEntry:
     abstract: str = ""
     keywords: str = ""
     rating: int = 0
+    read_state: str = ""  # one of READ_STATES
     tags: list[str] = field(default_factory=list)
     file: str = ""
     raw_fields: dict[str, str] = field(default_factory=dict)
@@ -71,6 +82,14 @@ class BibEntry:
         if len(self.title) <= 60:
             return self.title
         return self.title[:57] + "..."
+
+    @property
+    def read_state_icon(self) -> str:
+        return READ_STATE_ICONS.get(self.read_state, " ")
+
+    def cycle_read_state(self) -> None:
+        idx = READ_STATES.index(self.read_state) if self.read_state in READ_STATES else 0
+        self.read_state = READ_STATES[(idx + 1) % len(READ_STATES)]
 
     @property
     def rating_stars(self) -> str:

@@ -38,7 +38,7 @@ class EntryList(Widget):
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
-        table.add_columns("Type", "Year", "Author", "Title", "★")
+        table.add_columns("", "Type", "Year", "Author", "Title", "★")
         self._populate_table(self._all_entries)
 
     def _populate_table(self, entries: list[BibEntry]) -> None:
@@ -47,6 +47,7 @@ class EntryList(Widget):
         self._filtered = entries
         for e in entries:
             table.add_row(
+                e.read_state_icon,
                 e.entry_type[:8],
                 e.year[:4] if e.year else "",
                 e.authors_short[:20],
@@ -108,14 +109,11 @@ class EntryList(Widget):
             self._populate_table(entries)
 
     def refresh_row(self, entry: BibEntry) -> None:
-        """Update a single row in the table."""
+        """Update the read-state and rating cells for a single row."""
         table = self.query_one(DataTable)
         try:
-            table.update_cell(
-                entry.key, "★",
-                entry.rating_stars,
-                update_width=False,
-            )
+            table.update_cell(entry.key, "", entry.read_state_icon, update_width=False)
+            table.update_cell(entry.key, "★", entry.rating_stars, update_width=False)
         except Exception:
             self.refresh_entries(self._all_entries)
 
