@@ -82,6 +82,15 @@ class BibTuiApp(App):
 
     # ── Actions ───────────────────────────────────────────────────────────
 
+    def action_quit(self) -> None:
+        if not self._dirty:
+            self.exit()
+            return
+        self.push_screen(
+            ConfirmModal("You have unsaved changes. Quit without saving?"),
+            lambda confirmed: self.exit() if confirmed else None,
+        )
+
     def action_focus_search(self) -> None:
         self.query_one("#search-input", Input).focus()
 
