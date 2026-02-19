@@ -43,6 +43,10 @@ class EntryList(Widget):
         # Store column keys so update_cell can find them reliably
         keys = table.add_columns("◉", "Type", "Year", "Author", "Title", "★")
         self._col_state, self._col_rating = keys[0], keys[5]
+        table.tooltip = (
+            "◉  Read state — [r] to cycle: ○ to-read → ◑ skimmed → ● read\n"
+            "★  Rating — [1]–[5] to set, [0] to clear"
+        )
         self._populate_table(self._all_entries)
 
     def _populate_table(self, entries: list[BibEntry]) -> None:
