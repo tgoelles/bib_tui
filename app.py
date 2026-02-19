@@ -35,6 +35,7 @@ class BibTuiApp(App):
         Binding("4", "set_rating('4')", "★★★★"),
         Binding("5", "set_rating('5')", "★★★★★"),
         Binding("0", "set_rating('0')", "Clear ★"),
+        Binding("v", "toggle_view", "Raw/Fmt"),
         Binding("escape", "clear_search", "Clear search", show=False),
     ]
 
@@ -64,6 +65,7 @@ class BibTuiApp(App):
             self.notify(f"Loaded {len(self._entries)} entries.", timeout=3)
         except Exception as e:
             self.notify(f"Error loading file: {e}", severity="error")
+        self.query_one(DataTable).focus()
 
     # ── Entry selection ────────────────────────────────────────────────────
 
@@ -170,6 +172,9 @@ class BibTuiApp(App):
         self._dirty = True
         self.query_one(EntryList).refresh_row(entry)
         self.query_one(EntryDetail).show_entry(entry)
+
+    def action_toggle_view(self) -> None:
+        self.query_one(EntryDetail).toggle_view()
 
     def action_edit_tags(self) -> None:
         entry = self.query_one(EntryList).selected_entry

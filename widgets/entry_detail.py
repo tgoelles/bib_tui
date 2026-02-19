@@ -2,11 +2,7 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import Static
-from textual.scroll_view import ScrollView
-from rich.text import Text
-from rich.table import Table
-from rich.console import Console
-from rich.panel import Panel
+from rich.syntax import Syntax
 from bib.models import BibEntry, ENTRY_TYPES
 
 
@@ -72,7 +68,6 @@ def _render_entry(entry: BibEntry) -> str:
     if entry.abstract:
         lines.append("")
         lines.append("[bold]Abstract:[/bold]")
-        # Word-wrap to ~70 chars
         words = entry.abstract.split()
         current = ""
         for word in words:
@@ -94,8 +89,44 @@ def _render_entry(entry: BibEntry) -> str:
     return "\n".join(lines)
 
 
+def _render_raw(entry: BibEntry) -> Syntax:
+    """Render entry as raw BibTeX with syntax highlighting."""
+    all_fields: list[tuple[str, str]] = []
+    if entry.title:
+        all_fields.append(("title", entry.title))
+    if entry.author:
+        all_fields.append(("author", entry.author))
+    if entry.year:
+        all_fields.append(("year", entry.year))
+    if entry.journal:
+        all_fields.append(("journal", entry.journal))
+    if entry.doi:
+        all_fields.append(("doi", entry.doi))
+    if entry.abstract:
+        all_fields.append(("abstract", entry.abstract))
+    if entry.keywords:
+        all_fields.append(("keywords", entry.keywords))
+    if entry.rating:
+        all_fields.append(("rating", str(entry.rating)))
+    if entry.tags:
+        all_fields.append(("tags", ", ".join(entry.tags)))
+    if entry.file:
+        all_fields.append(("file", entry.file))
+    for k, v in entry.raw_fields.items():
+        if v:
+            all_fields.append((k, v))
+
+    lines = [f"@{entry.entry_type}{{{entry.key},"]
+    for k, v in all_fields:
+        lines.append(f"  {k} = {{{v}}},")
+    lines.append("}")
+    raw_text = "\n".join(lines)
+
+    return Syntax(raw_text, "bibtex", theme="monokai", word_wrap=True)
+
+
 class EntryDetail(Widget):
-    """Right pane: formatted entry detail view."""
+    """Right pane: formatted entry detail view, togglable to raw BibTeX."""
 
     DEFAULT_CSS = """
     EntryDetail {
@@ -105,19 +136,29 @@ class EntryDetail(Widget):
     }
     """
 
-    BORDER_TITLE = "Entry Detail"
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._entry: BibEntry | None = None
+        self._raw_mode: bool = False
 
     def compose(self) -> ComposeResult:
         yield Static("Select an entry to view details.", id="detail-content")
 
     def show_entry(self, entry: BibEntry | None) -> None:
         self._entry = entry
+        self._refresh_content()
+
+    def toggle_view(self) -> None:
+        self._raw_mode = not self._raw_mode
+        self._refresh_content()
+        mode = "raw BibTeX" if self._raw_mode else "formatted"
+        self.border_title = f"Entry Detail [{mode}]"
+
+    def _refresh_content(self) -> None:
         content = self.query_one("#detail-content", Static)
-        if entry is None:
+        if self._entry is None:
             content.update("Select an entry to view details.")
+        elif self._raw_mode:
+            content.update(_render_raw(self._entry))
         else:
-            content.update(_render_entry(entry))
+            content.update(_render_entry(self._entry))
