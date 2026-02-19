@@ -5,6 +5,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static, TextArea
 from textual.containers import Vertical, Horizontal
 from bib.models import BibEntry
+from bib.parser import entry_to_bibtex_str, bibtex_str_to_entry
 
 
 class ConfirmModal(ModalScreen[bool]):
@@ -231,6 +232,62 @@ class TagsModal(ModalScreen[list[str] | None]):
         val = self.query_one("#tags-input", Input).value
         tags = [t.strip() for t in val.split(",") if t.strip()]
         self.dismiss(tags)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class RawEditModal(ModalScreen[BibEntry | None]):
+    """Edit a BibTeX entry as raw text."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    DEFAULT_CSS = """
+    RawEditModal {
+        align: center middle;
+    }
+    RawEditModal > Vertical {
+        width: 90;
+        height: 40;
+        border: double $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    RawEditModal TextArea {
+        height: 1fr;
+    }
+    """
+
+    def __init__(self, entry: BibEntry, **kwargs):
+        super().__init__(**kwargs)
+        self._entry = entry
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label(f"[bold cyan]Edit Raw BibTeX[/bold cyan]  [dim]{self._entry.key}[/dim]")
+            yield TextArea(
+                entry_to_bibtex_str(self._entry),
+                id="raw-edit-area",
+            )
+            yield Static("", id="raw-edit-error")
+            with Horizontal(id="modal-buttons"):
+                yield Button("Save", variant="primary", id="btn-save")
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-save":
+            self._save()
+
+    def _save(self) -> None:
+        text = self.query_one("#raw-edit-area", TextArea).text
+        error = self.query_one("#raw-edit-error", Static)
+        try:
+            entry = bibtex_str_to_entry(text)
+            self.dismiss(entry)
+        except Exception as e:
+            error.update(f"[red]Parse error:[/red] {e}")
 
     def action_cancel(self) -> None:
         self.dismiss(None)

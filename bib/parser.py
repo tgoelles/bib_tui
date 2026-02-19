@@ -82,6 +82,24 @@ def _to_bp_entry(entry: BibEntry) -> bpmodel.Entry:
     return bpmodel.Entry(key=entry.key, entry_type=entry.entry_type, fields=fields)
 
 
+def entry_to_bibtex_str(entry: BibEntry) -> str:
+    """Serialize a single BibEntry to a BibTeX string."""
+    lib = bibtexparser.Library()
+    lib.add(_to_bp_entry(entry))
+    return bibtexparser.write_string(lib)
+
+
+def bibtex_str_to_entry(text: str) -> BibEntry:
+    """Parse a BibTeX string containing a single entry back to a BibEntry.
+
+    Raises ValueError if parsing fails or no entry is found.
+    """
+    lib = bibtexparser.parse_string(text)
+    if not lib.entries:
+        raise ValueError("No valid BibTeX entry found in the text.")
+    return _to_bib_entry(lib.entries[0])
+
+
 def load(path: str) -> list[BibEntry]:
     lib = bibtexparser.parse_file(path)
     return [_to_bib_entry(e) for e in lib.entries]

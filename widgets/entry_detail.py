@@ -4,6 +4,7 @@ from textual.widget import Widget
 from textual.widgets import Static
 from rich.syntax import Syntax
 from bib.models import BibEntry, ENTRY_TYPES
+from bib.parser import entry_to_bibtex_str
 
 
 def _render_entry(entry: BibEntry) -> str:
@@ -91,38 +92,7 @@ def _render_entry(entry: BibEntry) -> str:
 
 def _render_raw(entry: BibEntry) -> Syntax:
     """Render entry as raw BibTeX with syntax highlighting."""
-    all_fields: list[tuple[str, str]] = []
-    if entry.title:
-        all_fields.append(("title", entry.title))
-    if entry.author:
-        all_fields.append(("author", entry.author))
-    if entry.year:
-        all_fields.append(("year", entry.year))
-    if entry.journal:
-        all_fields.append(("journal", entry.journal))
-    if entry.doi:
-        all_fields.append(("doi", entry.doi))
-    if entry.abstract:
-        all_fields.append(("abstract", entry.abstract))
-    if entry.keywords:
-        all_fields.append(("keywords", entry.keywords))
-    if entry.rating:
-        all_fields.append(("rating", str(entry.rating)))
-    if entry.tags:
-        all_fields.append(("tags", ", ".join(entry.tags)))
-    if entry.file:
-        all_fields.append(("file", entry.file))
-    for k, v in entry.raw_fields.items():
-        if v:
-            all_fields.append((k, v))
-
-    lines = [f"@{entry.entry_type}{{{entry.key},"]
-    for k, v in all_fields:
-        lines.append(f"  {k} = {{{v}}},")
-    lines.append("}")
-    raw_text = "\n".join(lines)
-
-    return Syntax(raw_text, "bibtex", theme="monokai", word_wrap=True)
+    return Syntax(entry_to_bibtex_str(entry), "bibtex", theme="monokai", word_wrap=True)
 
 
 class EntryDetail(Widget):
@@ -147,6 +117,10 @@ class EntryDetail(Widget):
     def show_entry(self, entry: BibEntry | None) -> None:
         self._entry = entry
         self._refresh_content()
+
+    @property
+    def raw_mode(self) -> bool:
+        return self._raw_mode
 
     def toggle_view(self) -> None:
         self._raw_mode = not self._raw_mode

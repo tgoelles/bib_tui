@@ -13,7 +13,7 @@ from bib import parser
 from utils.git import commit
 from widgets.entry_list import EntryList
 from widgets.entry_detail import EntryDetail
-from widgets.modals import ConfirmModal, DOIModal, EditModal, TagsModal
+from widgets.modals import ConfirmModal, DOIModal, EditModal, RawEditModal, TagsModal
 
 
 class BibTuiApp(App):
@@ -107,7 +107,10 @@ class BibTuiApp(App):
         if entry is None:
             self.notify("No entry selected.", severity="warning")
             return
-        self.push_screen(EditModal(entry), self._on_edit_done)
+        if self.query_one(EntryDetail).raw_mode:
+            self.push_screen(RawEditModal(entry), self._on_edit_done)
+        else:
+            self.push_screen(EditModal(entry), self._on_edit_done)
 
     def _on_edit_done(self, result: BibEntry | None) -> None:
         if result is None:
