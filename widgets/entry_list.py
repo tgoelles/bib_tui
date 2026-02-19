@@ -48,7 +48,9 @@ class EntryList(Widget):
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
-        self._col_keys = table.add_columns(*_COL_LABELS)
+        non_rating_keys = list(table.add_columns(*_COL_LABELS[:-1]))
+        rating_key = table.add_column("★", width=5)
+        self._col_keys = tuple(non_rating_keys) + (rating_key,)
         self._col_state = self._col_keys[0]
         self._col_file = self._col_keys[1]
         self._col_rating = self._col_keys[7]
