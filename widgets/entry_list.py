@@ -3,7 +3,7 @@ from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import DataTable, Input
 from textual.reactive import reactive
-from textual import on
+from textual import on, events
 from bib.models import BibEntry
 
 
@@ -70,6 +70,33 @@ class EntryList(Widget):
                 or query in e.key.lower()
             ]
             self._populate_table(filtered)
+
+    @on(Input.Submitted, "#search-input")
+    def on_search_submitted(self, event: Input.Submitted) -> None:
+        """Enter in search bar moves focus to the table."""
+        self.query_one(DataTable).focus()
+
+    def on_key(self, event: events.Key) -> None:
+        table = self.query_one(DataTable)
+        search = self.query_one(Input)
+        focused = self.app.focused
+
+        if focused is search:
+            # Arrow keys while searching navigate the table without leaving search
+            if event.key == "down":
+                table.action_cursor_down()
+                event.stop()
+            elif event.key == "up":
+                table.action_cursor_up()
+                event.stop()
+        elif focused is table:
+            # Vim-style j/k navigation in the table
+            if event.key == "j":
+                table.action_cursor_down()
+                event.stop()
+            elif event.key == "k":
+                table.action_cursor_up()
+                event.stop()
 
     def refresh_entries(self, entries: list[BibEntry]) -> None:
         """Reload all entries (e.g. after add/edit)."""
