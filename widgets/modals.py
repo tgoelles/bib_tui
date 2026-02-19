@@ -3,7 +3,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static, TextArea
-from textual.containers import Vertical, Horizontal
+from textual.containers import Vertical, VerticalScroll, Horizontal
 from bib.models import BibEntry
 from bib.parser import entry_to_bibtex_str, bibtex_str_to_entry
 from utils.config import Config
@@ -118,12 +118,13 @@ class EditModal(ModalScreen[BibEntry | None]):
     }
     EditModal > Vertical {
         width: 80;
-        height: auto;
-        max-height: 90%;
+        height: 90%;
         border: double $accent;
         background: $surface;
         padding: 1 2;
-        overflow-y: scroll;
+    }
+    EditModal #edit-fields {
+        height: 1fr;
     }
     EditModal Input {
         margin-bottom: 1;
@@ -145,24 +146,25 @@ class EditModal(ModalScreen[BibEntry | None]):
         e = self._entry
         with Vertical():
             yield Label(f"[bold cyan]Edit Entry[/bold cyan]  [dim]{e.key}[/dim]")
-            yield Label("Title")
-            yield Input(value=e.title, id="edit-title")
-            yield Label("Author")
-            yield Input(value=e.author, id="edit-author")
-            yield Label("Year")
-            yield Input(value=e.year, id="edit-year")
-            yield Label("Journal / Booktitle")
-            yield Input(value=e.journal, id="edit-journal")
-            yield Label("DOI")
-            yield Input(value=e.doi, id="edit-doi")
-            yield Label("Keywords")
-            yield Input(value=e.keywords, id="edit-keywords")
-            yield Label("Tags (comma-separated)")
-            yield Input(value=", ".join(e.tags), id="edit-tags")
-            yield Label("PDF file path")
-            yield Input(value=e.file, id="edit-file")
-            yield Label("Abstract")
-            yield TextArea(e.abstract, id="edit-abstract")
+            with VerticalScroll(id="edit-fields"):
+                yield Label("Title")
+                yield Input(value=e.title, id="edit-title")
+                yield Label("Author")
+                yield Input(value=e.author, id="edit-author")
+                yield Label("Year")
+                yield Input(value=e.year, id="edit-year")
+                yield Label("Journal / Booktitle")
+                yield Input(value=e.journal, id="edit-journal")
+                yield Label("DOI")
+                yield Input(value=e.doi, id="edit-doi")
+                yield Label("Keywords")
+                yield Input(value=e.keywords, id="edit-keywords")
+                yield Label("Tags (comma-separated)")
+                yield Input(value=", ".join(e.tags), id="edit-tags")
+                yield Label("PDF file path")
+                yield Input(value=e.file, id="edit-file")
+                yield Label("Abstract")
+                yield TextArea(e.abstract, id="edit-abstract")
             with Horizontal(id="modal-buttons"):
                 yield Button("Save", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
