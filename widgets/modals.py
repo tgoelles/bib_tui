@@ -1,5 +1,6 @@
 from __future__ import annotations
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static, TextArea
 from textual.containers import Vertical, Horizontal
@@ -8,6 +9,8 @@ from bib.models import BibEntry
 
 class ConfirmModal(ModalScreen[bool]):
     """Generic yes/no confirmation dialog."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
 
     DEFAULT_CSS = """
     ConfirmModal {
@@ -37,9 +40,14 @@ class ConfirmModal(ModalScreen[bool]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id == "btn-yes")
 
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
 
 class DOIModal(ModalScreen[BibEntry | None]):
     """Modal to fetch an entry by DOI."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
 
     DEFAULT_CSS = """
     DOIModal {
@@ -90,9 +98,14 @@ class DOIModal(ModalScreen[BibEntry | None]):
     def _confirm(self, entry: BibEntry) -> None:
         self.dismiss(entry)
 
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
 
 class EditModal(ModalScreen[BibEntry | None]):
     """Modal to edit key fields of an entry."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
 
     DEFAULT_CSS = """
     EditModal {
@@ -168,9 +181,14 @@ class EditModal(ModalScreen[BibEntry | None]):
         e.abstract = self.query_one("#edit-abstract", TextArea).text
         self.dismiss(e)
 
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
 
 class TagsModal(ModalScreen[list[str] | None]):
     """Quick modal to edit tags for an entry."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
 
     DEFAULT_CSS = """
     TagsModal {
@@ -213,3 +231,6 @@ class TagsModal(ModalScreen[list[str] | None]):
         val = self.query_one("#tags-input", Input).value
         tags = [t.strip() for t in val.split(",") if t.strip()]
         self.dismiss(tags)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
