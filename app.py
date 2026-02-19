@@ -3,9 +3,9 @@ import os
 import platform
 import subprocess
 from textual.app import App, ComposeResult
-from textual.widgets import DataTable, Footer, Header, Input, Label, Static
+from textual.widgets import DataTable, Footer, Header, Input, Label, Static, TextArea
 from textual.containers import Horizontal, Vertical
-from textual import on, work
+from textual import events, on, work
 from textual.binding import Binding
 
 from bib.models import BibEntry
@@ -64,6 +64,14 @@ class BibTuiApp(App):
         self.query_one("#main-content").set_class(
             event.size.width < event.size.height * 2, "vertical"
         )
+
+    def on_paste(self, event: events.Paste) -> None:
+        """Forward paste to whichever Input or TextArea currently has focus."""
+        focused = self.focused
+        if isinstance(focused, Input):
+            focused.insert_text_at_cursor(event.text)
+        elif isinstance(focused, TextArea):
+            focused.insert(event.text)
 
     def _load_entries(self) -> None:
         self.notify("Loading bibliography...", timeout=2)
