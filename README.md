@@ -58,18 +58,16 @@ no database, no sync daemon, no account required.
 | ---------------------------------- | ------ | ------ | ------ |
 | Runs in the terminal               | ✅     | ❌     | ❌     |
 | No database / sync daemon          | ✅     | ✅     | ❌     |
-| Git-friendly plain `.bib`          | ✅     | ✅     | ❌     |
+| Git-friendly plain `.bib`        | ✅     | ✅     | ❌     |
 | Works over SSH                     | ✅     | ❌     | ❌     |
 | Full Textual theming               | ✅     | ❌     | ❌     |
 | Pure Python, installs less than 1s | ✅     | ❌     | ❌     |
-
 
 Well, I mostly built this for myself. I was trying many bibliography tools over the years and in the end stuck with JabRef. It worked directly on the bib file, had import from DOI, PDF fetching, ratings and PDF linking. What I did not like was the UI and the many features I don't need. Anyway, I kept using it, more or less frustrated.
 
 Then I switched to Linux on my MacBook M1 and suddenly couldn't install JabRef anymore, even after trying different approaches. That was it, I decided to make my own that does what I want, looks nice, and nothing more.
 
 I also wanted to try out Claude Code for a project from scratch, so yes, most of the code was AI-generated. Otherwise I would never have done it. It still took many hours of work and I used my experience from many Python projects. Did I read every line of code? No. Did I enjoy the process and am I proud of the final product? Yes :)
-
 
 ---
 
@@ -180,6 +178,7 @@ uv run textual run --dev src/bibtui/main.py -- tests/bib_examples/MyCollection.b
 - [JabRef](https://www.jabref.org/) — GUI reference manager, same `.bib` format
 - [cobib](https://github.com/mrossinek/cobib) — another terminal BibTeX manager
 - [bibman](https://codeberg.org/KMIJPH/bibman) — minimal TUI reference manager
+- [bibiman](https://codeberg.org/lukeflo/bibiman) - looks interesting but it did not work
 
 ---
 
