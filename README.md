@@ -119,6 +119,7 @@ updated automatically in JabRef format.
 
 - Your `.bib` file is the source of truth
 - No hidden database
+- No setup, point and shoot possible
 - No lock-in
 - No accounts
 - keyboard and mouse support

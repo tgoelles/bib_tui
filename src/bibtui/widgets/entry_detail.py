@@ -6,7 +6,7 @@ from textual.containers import Horizontal
 from textual.widget import Widget
 from textual.widgets import Label, Static, TextArea
 
-from bibtui.bib.models import ENTRY_TYPES, BibEntry
+from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import entry_to_bibtex_str
 from bibtui.utils.config import parse_jabref_path
 
@@ -238,9 +238,9 @@ class EntryDetail(Widget):
         if not e.file:
             file_label.update("[dim]PDF: —[/dim]")
         elif icon == "■":
-            file_label.update(f"[bold]PDF:[/bold] ■")
+            file_label.update("[bold]PDF:[/bold] ■")
         else:
-            file_label.update(f"[bold]PDF:[/bold] [dim]□ not found[/dim]")
+            file_label.update("[bold]PDF:[/bold] [dim]□ not found[/dim]")
 
         if e.url:
             short = e.url if len(e.url) <= 40 else e.url[:37] + "…"

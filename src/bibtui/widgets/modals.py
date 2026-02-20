@@ -125,16 +125,28 @@ class DOIModal(ModalScreen[BibEntry | None]):
         status = self.query_one("#doi-status", Static)
         status.set_classes("fetching")
         status.update("Fetching…")
+        self._fetch_doi(doi)
+
+    @work(thread=True)
+    def _fetch_doi(self, doi: str) -> None:
         try:
             from bibtui.bib.doi import fetch_by_doi
 
             entry = fetch_by_doi(doi)
-            status.set_classes("success")
-            status.update(f"Found: {entry.title[:60]}")
-            self.app.call_later(self._confirm, entry)
-        except Exception as e:
-            status.set_classes("error")
-            status.update(f"Error: {e}")
+            self.app.call_from_thread(self._on_fetch_success, entry)
+        except Exception as e:  # noqa: BLE001
+            self.app.call_from_thread(self._on_fetch_error, str(e))
+
+    def _on_fetch_success(self, entry: BibEntry) -> None:
+        status = self.query_one("#doi-status", Static)
+        status.set_classes("success")
+        status.update(f"Found: {entry.title[:60]}")
+        self.app.call_later(self._confirm, entry)
+
+    def _on_fetch_error(self, message: str) -> None:
+        status = self.query_one("#doi-status", Static)
+        status.set_classes("error")
+        status.update(f"Error: {message}")
 
     def _confirm(self, entry: BibEntry) -> None:
         self.dismiss(entry)

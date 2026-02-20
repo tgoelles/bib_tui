@@ -41,12 +41,21 @@ def load_config() -> Config:
     )
 
 
+def _toml_escape(value: str) -> str:
+    """Escape a string value for embedding in a TOML double-quoted string."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def save_config(config: Config) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(
-        f'[pdf]\nbase_dir = "{config.pdf_base_dir}"\nunpaywall_email = "{config.unpaywall_email}"\ndownload_dir = "{config.pdf_download_dir}"\n',
-        encoding="utf-8",
-    )
+    lines = [
+        "[pdf]",
+        f'base_dir = "{_toml_escape(config.pdf_base_dir)}"',
+        f'unpaywall_email = "{_toml_escape(config.unpaywall_email)}"',
+        f'download_dir = "{_toml_escape(config.pdf_download_dir)}"',
+        "",
+    ]
+    CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")
 
 
 def parse_jabref_path(file_field: str, base_dir: str = "") -> str:

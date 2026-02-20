@@ -4,12 +4,12 @@ import subprocess
 import webbrowser
 from urllib.parse import urlparse
 
-from textual import events, on, work
+from textual import events, on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.command import DiscoveryHit, Hit, Hits, Provider
-from textual.containers import Horizontal, Vertical
-from textual.widgets import DataTable, Footer, Header, Input, Label, Static, TextArea
+from textual.containers import Horizontal
+from textual.widgets import DataTable, Footer, Header, Input, TextArea
 
 from bibtui.bib import parser
 from bibtui.bib.models import BibEntry
@@ -334,8 +334,6 @@ class BibTuiApp(App):
                 severity="warning",
             )
             return
-        import os
-
         from bibtui.bib.pdf_fetcher import pdf_filename
 
         dest_path = os.path.join(dest_dir, pdf_filename(entry))

@@ -123,7 +123,7 @@ class BibEntry:
         return words[-1] if words else first
 
     @property
-    def title_short(self, max_len: int = 60) -> str:
+    def title_short(self) -> str:
         if len(self.title) <= 60:
             return self.title
         return self.title[:57] + "..."

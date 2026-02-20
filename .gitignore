@@ -10,7 +10,9 @@ wheels/
 .venv
 
 .coverage
+htmlcov/
 *.bib.bak
+*.toml.bak
 
 docs/pictures/.comments/*
 .vscode/
