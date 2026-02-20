@@ -53,7 +53,7 @@ class BibTuiApp(App):
         Binding("p", "cycle_priority", "Priority"),
         Binding("space", "open_pdf", "Open PDF"),
         # Rating
-        Binding("0", "set_rating('0')", "Clear ★"),
+        Binding("0", "set_rating('0')", "Unrated"),
         Binding("1", "set_rating('1')", "★"),
         Binding("2", "set_rating('2')", "★★"),
         Binding("3", "set_rating('3')", "★★★"),
