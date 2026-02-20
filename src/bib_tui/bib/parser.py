@@ -5,8 +5,19 @@ from .models import READ_STATES, BibEntry
 
 
 def _field_str(entry: bpmodel.Entry, key: str) -> str:
-    """Extract string value from a bibtexparser Entry field, stripping outer braces."""
-    f = entry.fields_dict.get(key)
+    """Extract string value from a bibtexparser Entry field, stripping outer braces.
+
+    Field name lookup is case-insensitive: ``AUTHOR`` and ``author`` both work.
+    """
+    # bibtexparser v2 preserves original casing — search case-insensitively
+    f = entry.fields_dict.get(key) or entry.fields_dict.get(key.upper())
+    if f is None:
+        # Full case-insensitive scan as final fallback
+        key_lower = key.lower()
+        for k, v in entry.fields_dict.items():
+            if k.lower() == key_lower:
+                f = v
+                break
     if f is None:
         return ""
     val = f.value
@@ -37,9 +48,11 @@ def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
     }
     raw = {}
     for k, f in entry.fields_dict.items():
-        if k not in known:
+        # Normalise to lowercase so raw_fields are always consistent
+        k_norm = k.lower()
+        if k_norm not in known:
             val = f.value
-            raw[k] = val if isinstance(val, str) else str(val)
+            raw[k_norm] = val if isinstance(val, str) else str(val)
 
     ranking_str = _field_str(entry, "ranking")  # JabRef format: rank1..rank5
     try:

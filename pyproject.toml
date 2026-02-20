@@ -20,12 +20,28 @@ bib-tui = "bib_tui.main:main"
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
     "ruff>=0.15.2",
     "textual-dev>=1.8.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--cov=src/bib_tui --cov-report=term-missing"
 markers = [
     "network: tests that make real HTTP requests (deselect with -m 'not network')",
+]
+
+[tool.coverage.run]
+source = ["src/bib_tui"]
+omit = ["src/bib_tui/main.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "def __repr__",
+    "raise NotImplementedError",
 ]
