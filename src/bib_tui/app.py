@@ -83,6 +83,9 @@ class BibTuiApp(App):
         Binding("5", "set_rating('5')", "★★★★★", show=False),
         # Copy
         Binding("ctrl+c", "copy_key", "Copy key", show=False, priority=True),
+        # Delete
+        Binding("delete", "delete_entry", "Delete", show=False),
+        Binding("backspace", "delete_entry", "Delete", show=False),
         # Help
         Binding("?", "show_help", "Help"),
         Binding("escape", "clear_search", "Clear search", show=False),
@@ -233,6 +236,24 @@ class BibTuiApp(App):
 
     def action_doi_import(self) -> None:
         self.push_screen(DOIModal(), self._on_doi_done)
+
+    def action_delete_entry(self) -> None:
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            self.notify("No entry selected.", severity="warning")
+            return
+        self.push_screen(
+            ConfirmModal(f"Delete entry [bold]{entry.key}[/bold]?\nThis cannot be undone."),
+            lambda confirmed: self._do_delete_entry(entry.key) if confirmed else None,
+        )
+
+    def _do_delete_entry(self, key: str) -> None:
+        self._entries = [e for e in self._entries if e.key != key]
+        self._dirty = True
+        el = self.query_one(EntryList)
+        el.refresh_entries(self._entries)
+        self.query_one(EntryDetail).show_entry(el.selected_entry)
+        self.notify(f"Deleted: {key}", timeout=3)
 
     def _on_doi_done(self, result: BibEntry | None) -> None:
         if result is None:

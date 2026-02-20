@@ -516,6 +516,9 @@ class HelpModal(ModalScreen[None]):
   [bold]ctrl+v[/bold]    Paste a raw BibTeX entry from clipboard
   [dim]Both methods reject duplicate cite keys.[/dim]
 
+[bold]── Delete entry ──────────────────────[/bold]
+  [bold]Del / ⌫[/bold]   Delete the selected entry (confirmation required)
+
 [bold]── Entry state ───────────────────────[/bold]
   [bold]r[/bold]         Cycle read state
   [bold]p[/bold]         Cycle priority
