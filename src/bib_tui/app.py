@@ -40,22 +40,25 @@ class BibTuiApp(App):
     CSS_PATH = "bib_tui.tcss"
 
     BINDINGS = [
+        # Core
         Binding("q", "quit", "Quit"),
         Binding("w", "save", "Write"),
+        Binding("s", "focus_search", "Search"),
         Binding("e", "edit_entry", "Edit"),
         Binding("d", "doi_import", "From DOI"),
-        Binding("space", "open_pdf", "Open PDF"),
         Binding("k", "edit_keywords", "Keywords"),
+        Binding("v", "toggle_view", "Raw/Fmt"),
+        # Entry state
         Binding("r", "cycle_read_state", "Read state"),
         Binding("p", "cycle_priority", "Priority"),
-        Binding("f,/", "focus_search", "Search"),
+        Binding("space", "open_pdf", "Open PDF"),
+        # Rating
+        Binding("0", "set_rating('0')", "Clear ★"),
         Binding("1", "set_rating('1')", "★"),
         Binding("2", "set_rating('2')", "★★"),
         Binding("3", "set_rating('3')", "★★★"),
         Binding("4", "set_rating('4')", "★★★★"),
         Binding("5", "set_rating('5')", "★★★★★"),
-        Binding("0", "set_rating('0')", "Clear ★"),
-        Binding("v", "toggle_view", "Raw/Fmt"),
         Binding("escape", "clear_search", "Clear search", show=False),
     ]
 
@@ -267,24 +270,32 @@ class BibTuiApp(App):
         if entry is None:
             self.notify("No entry selected.", severity="warning")
             return
-        self.push_screen(KeywordsModal(entry, self._all_keywords()), self._on_keywords_done)
+        all_kws, kw_counts = self._all_keywords()
+        self.push_screen(KeywordsModal(entry, all_kws, kw_counts), self._on_keywords_done)
 
-    def _all_keywords(self) -> list[str]:
+    def _all_keywords(self) -> tuple[list[str], dict[str, int]]:
         """All unique keywords across the bib file, sorted by frequency descending."""
         from collections import Counter
         counter: Counter[str] = Counter()
         for e in self._entries:
             for kw in e.keywords_list:
                 counter[kw] += 1
-        return [kw for kw, _ in counter.most_common()]
+        return [kw for kw, _ in counter.most_common()], dict(counter)
 
-    def _on_keywords_done(self, result: str | None) -> None:
+    def _on_keywords_done(self, result: tuple[str, set[str]] | None) -> None:
         if result is None:
             return
+        keywords_str, delete_everywhere = result
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        entry.keywords = result
+        entry.keywords = keywords_str
+        if delete_everywhere:
+            for e in self._entries:
+                if e is not entry:
+                    kept = [k for k in e.keywords_list if k not in delete_everywhere]
+                    e.keywords = ", ".join(kept)
         self._dirty = True
+        self.query_one(EntryList).refresh_entries(self._entries)
         self.query_one(EntryDetail).show_entry(entry)
         self.notify("Keywords updated. Press [w] to write.", timeout=3)

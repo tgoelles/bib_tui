@@ -204,7 +204,7 @@ class EditModal(ModalScreen[BibEntry | None]):
         self._save()
 
 
-class KeywordsModal(ModalScreen["str | None"]):
+class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
     """Keyword picker: select from all bib-wide keywords, add new ones."""
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
@@ -227,19 +227,30 @@ class KeywordsModal(ModalScreen["str | None"]):
         height: 1fr;
         border: solid $panel;
     }
+    KeywordsModal #kw-hints {
+        height: auto;
+        margin-top: 1;
+        color: $text-muted;
+    }
     """
 
-    def __init__(self, entry: BibEntry, all_keywords: list[str], **kwargs):
+    def __init__(self, entry: BibEntry, all_keywords: list[str], keyword_counts: dict[str, int], **kwargs):
         super().__init__(**kwargs)
         self._all_keywords = list(all_keywords)
         self._selected: set[str] = set(entry.keywords_list)
         self._shown: list[str] = []
+        self._keyword_counts = keyword_counts
+        self._delete_everywhere: set[str] = set()
 
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label("[bold]Edit Keywords[/bold]", classes="modal-title")
             yield Input(placeholder="Filter or type new keyword + Enter to add…", id="kw-filter")
             yield SelectionList(id="kw-list")
+            yield Static(
+                "[dim]Esc close · Enter add new  |  ↓/↑ navigate · Space toggle · d delete everywhere[/dim]",
+                id="kw-hints",
+            )
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
@@ -257,6 +268,33 @@ class KeywordsModal(ModalScreen["str | None"]):
         elif self.focused is sl and event.key == "up" and sl.highlighted == 0:
             kw_filter.focus()
             event.stop()
+        elif self.focused is sl and event.key == "d":
+            self._delete_highlighted()
+            event.stop()
+
+    def _delete_highlighted(self) -> None:
+        sl = self.query_one(SelectionList)
+        highlighted = sl.highlighted
+        if highlighted is None or highlighted >= len(self._shown):
+            return
+        kw = self._shown[highlighted]
+        count = self._keyword_counts.get(kw, 0)
+        noun = "entry" if count == 1 else "entries"
+        msg = f"Remove '[bold]{kw}[/bold]' from all {count} {noun}?"
+        self.app.push_screen(
+            ConfirmModal(msg),
+            lambda confirmed: self._on_delete_confirmed(confirmed, kw),
+        )
+
+    def _on_delete_confirmed(self, confirmed: bool, kw: str) -> None:
+        if not confirmed:
+            return
+        self._delete_everywhere.add(kw)
+        self._selected.discard(kw)
+        if kw in self._all_keywords:
+            self._all_keywords.remove(kw)
+        filter_val = self.query_one("#kw-filter", Input).value
+        self._rebuild_list(filter_val)
 
     def _sync_from_list(self) -> None:
         """Pull current checkbox state into self._selected."""
@@ -307,7 +345,7 @@ class KeywordsModal(ModalScreen["str | None"]):
         self._sync_from_list()
         # Preserve original order from all_keywords, then any extras
         ordered = [kw for kw in self._all_keywords if kw in self._selected]
-        self.dismiss(", ".join(ordered))
+        self.dismiss((", ".join(ordered), self._delete_everywhere))
 
     def action_cancel(self) -> None:
         self.dismiss(None)

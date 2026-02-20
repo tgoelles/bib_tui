@@ -56,7 +56,7 @@ class EntryList(Widget):
         return "■" if os.path.exists(path) else "□"
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="Search (title, author, tags)...", id="search-input")
+        yield Input(placeholder="Search (title, author, keywords)...", id="search-input")
         yield DataTable(id="entry-table", cursor_type="row")
 
     def on_mount(self) -> None:
