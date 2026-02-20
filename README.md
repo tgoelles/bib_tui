@@ -7,11 +7,13 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 <!-- screenshots -->
-| Dark theme | Light theme |
-|---|---|
+
+| Dark theme                      | Light theme                       |
+| ------------------------------- | --------------------------------- |
 | ![dark](docs/screenshot-dark.svg) | ![light](docs/screenshot-light.svg) |
 
 <!-- recording -->
+
 <!-- ![demo](docs/demo.gif) -->
 
 ---
@@ -25,14 +27,14 @@ account.
 
 ## Why bibtui?
 
-| | bibtui | JabRef | Zotero |
-|---|---|---|---|
-| Runs in the terminal | ✅ | ❌ | ❌ |
-| No database / sync daemon | ✅ | ❌ | ❌ |
-| Git-friendly plain `.bib` | ✅ | ⚠️ | ❌ |
-| Works over SSH | ✅ | ❌ | ❌ |
-| Full theme support | ✅ | partial | ❌ |
-| Pure Python, installs in seconds | ✅ | ❌ | ❌ |
+|                                  | bibtui | JabRef  | Zotero |
+| -------------------------------- | ------ | ------- | ------ |
+| Runs in the terminal             | ✅     | ❌      | ❌     |
+| No database / sync daemon        | ✅     | ❌      | ❌     |
+| Git-friendly plain `.bib`      | ✅     | ⚠️    | ❌     |
+| Works over SSH                   | ✅     | ❌      | ❌     |
+| Full theme support               | ✅     | partial | ❌     |
+| Pure Python, installs in seconds | ✅     | ❌      | ❌     |
 
 ---
 
@@ -87,33 +89,7 @@ defaults for your PDF directory, Downloads folder, and Unpaywall email
 
 ---
 
-## Keyboard shortcuts
-
-| Key | Action |
-|-----|--------|
-| `s` | Search |
-| `e` | Edit entry (form or raw BibTeX) |
-| `v` | Toggle raw / formatted view |
-| `d` | Import entry by DOI |
-| `Ctrl+V` | Paste raw BibTeX from clipboard |
-| `f` | Fetch PDF (arXiv → Unpaywall → URL) |
-| `a` | Add an existing PDF from Downloads |
-| `Space` | Open PDF |
-| `b` | Open URL in browser |
-| `r` | Cycle read state |
-| `p` | Cycle priority |
-| `1`–`5` | Set star rating |
-| `k` | Edit keywords |
-| `Del` / `⌫` | Delete entry (with confirmation) |
-| `w` | Save file |
-| `Ctrl+C` | Copy cite key |
-| `Ctrl+P` | Settings |
-| `?` | Help |
-| `q` | Quit |
-
-Press `?` inside the app for the full reference including search syntax.
-
----
+-
 
 ## PDF workflow
 
@@ -162,5 +138,3 @@ uv run textual run --dev src/bibtui/main.py -- tests/bib_examples/MyCollection.b
 ## License
 
 MIT © Thomas Gölles
-
-

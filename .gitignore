@@ -11,4 +11,5 @@ wheels/
 
 .coverage
 *.bib.bak
-Pictures/.comments/*
+
+docs/pictures/.comments/*
