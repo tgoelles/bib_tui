@@ -519,13 +519,6 @@ class HelpModal(ModalScreen[None]):
     HelpModal #help-about { margin-bottom: 1; color: $text-muted; }
     """
 
-    _ABOUT = (
-        "[bold]bibtui[/bold] v0.1.0  —  BibTeX TUI\n"
-        "[dim]Author:[/dim] Thomas Gölles\n"
-        "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui\n"
-        "[dim]Built with Claude Sonnet (Anthropic)[/dim]"
-    )
-
     def _make_about(self) -> str:
         try:
             from bibtui import __version__
@@ -536,6 +529,7 @@ class HelpModal(ModalScreen[None]):
         return (
             f"[bold]bibtui[/bold] v{version}  —  BibTeX TUI\n"
             "[dim]Author:[/dim] Thomas Gölles\n"
+            "[dim]Web:[/dim] https://thomasgoelles.com\n"
             "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui\n"
             "[dim]Built with Claude Sonnet (Anthropic)[/dim]"
         )
