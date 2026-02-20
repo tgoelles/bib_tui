@@ -49,7 +49,7 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
         col = c["required"] if is_required else c["optional"]
         marker = f"[{c['required']}]✓[/] " if is_required else "  "
         if value:
-            return f"{marker}[{col}]{label:<12}[/] [{c['foreground']}]{value}[/]"
+            return f"{marker}[{col}]{label:<12}[/] {value}"
         else:
             return f"{marker}[dim]{label:<12}[/dim] [dim](empty)[/dim]"
 
@@ -71,7 +71,7 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
         lines.append("[dim]── Other fields ──[/dim]")
         for k, v in entry.raw_fields.items():
             if v:
-                lines.append(f"  [dim]{k:<12}[/dim] [{c['foreground']}]{v[:80]}[/]")
+                lines.append(f"  [dim]{k:<12}[/dim] {v[:80]}")
 
     # Abstract
     if entry.abstract:
@@ -123,6 +123,7 @@ class EntryDetail(Widget):
     }
     #detail-content {
         height: auto;
+        color: $text;
     }
     #detail-raw {
         display: none;
@@ -135,6 +136,13 @@ class EntryDetail(Widget):
         self._entry: BibEntry | None = None
         self._raw_mode: bool = False
         self._pdf_base_dir: str = ""
+
+    def on_mount(self) -> None:
+        self.app.theme_changed_signal.subscribe(self, self._on_theme_changed)
+
+    def _on_theme_changed(self, _theme) -> None:
+        if self._entry is not None:
+            self._refresh_content()
 
     def set_pdf_base_dir(self, base_dir: str) -> None:
         self._pdf_base_dir = base_dir
@@ -168,17 +176,21 @@ class EntryDetail(Widget):
         return "■" if os.path.exists(path) else "□"
 
     def _theme_colors(self) -> dict[str, str]:
-        """Return Rich color strings derived from the current Textual theme."""
+        """Return Rich color strings derived from the current Textual theme.
+
+        Only used for semantic highlights (title, key, field labels, tags).
+        Plain body text uses CSS ``color: $text`` on the Static widget so that
+        it automatically follows the theme without any Python involvement.
+        """
         tv = self.app.theme_variables
         return {
-            "title":      tv.get("text-primary",  "cyan"),
-            "key":        tv.get("text-accent",   "yellow"),
-            "required":   tv.get("text-success",  "green"),
-            "optional":   tv.get("text-accent",   "blue"),
-            "warning":    tv.get("text-warning",  "yellow"),
-            "foreground": tv.get("foreground",    "default"),
-            "tag_fg":     "white",
-            "tag_bg":     tv.get("primary",       "dark_green"),
+            "title":    tv.get("text-primary", "cyan"),
+            "key":      tv.get("text-accent",  "yellow"),
+            "required": tv.get("text-success", "green"),
+            "optional": tv.get("text-accent",  "blue"),
+            "warning":  tv.get("text-warning", "yellow"),
+            "tag_fg":   "white",
+            "tag_bg":   tv.get("primary",      "dark_green"),
         }
 
     def _refresh_content(self) -> None:
