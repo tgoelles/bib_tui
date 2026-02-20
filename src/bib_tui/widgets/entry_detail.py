@@ -1,11 +1,14 @@
 from __future__ import annotations
+
 import os
+
+from rich.syntax import Syntax
 from textual.app import ComposeResult
+from textual.containers import Horizontal
 from textual.widget import Widget
 from textual.widgets import Label, Static, TextArea
-from textual.containers import Horizontal
-from rich.syntax import Syntax
-from bib_tui.bib.models import BibEntry, ENTRY_TYPES
+
+from bib_tui.bib.models import ENTRY_TYPES, BibEntry
 from bib_tui.bib.parser import entry_to_bibtex_str
 from bib_tui.utils.config import parse_jabref_path
 
@@ -24,14 +27,15 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
     lines.append("")
 
     # Entry type badge
-    lines.append(f"[dim]@{entry.entry_type}[/dim]  [dim]key:[/dim] [{c['key']}]{entry.key}[/]")
+    lines.append(
+        f"[dim]@{entry.entry_type}[/dim]  [dim]key:[/dim] [{c['key']}]{entry.key}[/]"
+    )
     lines.append("")
 
     # Keywords as badges
     if entry.keywords_list:
         kw_str = " ".join(
-            f"[{c['tag_fg']} on {c['tag_bg']}] {k} [/]"
-            for k in entry.keywords_list
+            f"[{c['tag_fg']} on {c['tag_bg']}] {k} [/]" for k in entry.keywords_list
         )
         lines.append(f"[bold]Keywords:[/bold]  {kw_str}")
     else:
@@ -188,13 +192,13 @@ class EntryDetail(Widget):
         """
         tv = self.app.theme_variables
         return {
-            "title":    tv.get("text-primary", "cyan"),
-            "key":      tv.get("text-accent",  "yellow"),
+            "title": tv.get("text-primary", "cyan"),
+            "key": tv.get("text-accent", "yellow"),
             "required": tv.get("text-success", "green"),
-            "optional": tv.get("text-accent",  "blue"),
-            "warning":  tv.get("text-warning", "yellow"),
-            "tag_fg":   "white",
-            "tag_bg":   tv.get("primary",      "dark_green"),
+            "optional": tv.get("text-accent", "blue"),
+            "warning": tv.get("text-warning", "yellow"),
+            "tag_fg": "white",
+            "tag_bg": tv.get("primary", "dark_green"),
         }
 
     def _refresh_content(self) -> None:
@@ -223,7 +227,9 @@ class EntryDetail(Widget):
         read_label.update(f"[bold]Read:[/bold] {e.read_state_icon} {state_label}")
 
         if e.priority:
-            priority_label.update(f"[bold]Priority:[/bold] {e.priority_icon} {e.priority_label}")
+            priority_label.update(
+                f"[bold]Priority:[/bold] {e.priority_icon} {e.priority_label}"
+            )
         else:
             priority_label.update("[dim]Priority: —[/dim]")
 

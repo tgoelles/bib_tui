@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import bibtexparser
 from bibtexparser import model as bpmodel
-from .models import BibEntry, READ_STATES
+
+from .models import READ_STATES, BibEntry
 
 
 def _field_str(entry: bpmodel.Entry, key: str) -> str:
@@ -20,7 +22,21 @@ def _field_str(entry: bpmodel.Entry, key: str) -> str:
 
 
 def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
-    known = {"title", "author", "year", "journal", "doi", "url", "abstract", "keywords", "comment", "ranking", "readstatus", "priority", "file"}
+    known = {
+        "title",
+        "author",
+        "year",
+        "journal",
+        "doi",
+        "url",
+        "abstract",
+        "keywords",
+        "comment",
+        "ranking",
+        "readstatus",
+        "priority",
+        "file",
+    }
     raw = {}
     for k, f in entry.fields_dict.items():
         if k not in known:
@@ -29,13 +45,19 @@ def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
 
     ranking_str = _field_str(entry, "ranking")  # JabRef format: rank1..rank5
     try:
-        rating = max(0, min(5, int(ranking_str.removeprefix("rank")))) if ranking_str else 0
+        rating = (
+            max(0, min(5, int(ranking_str.removeprefix("rank")))) if ranking_str else 0
+        )
     except ValueError:
         rating = 0
 
     priority_str = _field_str(entry, "priority")  # JabRef format: prio1..prio3
     try:
-        priority = max(0, min(3, int(priority_str.removeprefix("prio")))) if priority_str else 0
+        priority = (
+            max(0, min(3, int(priority_str.removeprefix("prio"))))
+            if priority_str
+            else 0
+        )
     except ValueError:
         priority = 0
 

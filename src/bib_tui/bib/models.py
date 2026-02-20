@@ -1,6 +1,6 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
 
+from dataclasses import dataclass, field
 
 READ_STATES: list[str] = ["", "to-read", "skimmed", "read"]
 
@@ -20,19 +20,55 @@ PRIORITY_LABELS: dict[int, str] = {0: "unset", 1: "high", 2: "medium", 3: "low"}
 ENTRY_TYPES: dict[str, dict[str, list[str]]] = {
     "article": {
         "required": ["author", "title", "journal", "year"],
-        "optional": ["volume", "number", "pages", "month", "doi", "abstract", "keywords"],
+        "optional": [
+            "volume",
+            "number",
+            "pages",
+            "month",
+            "doi",
+            "abstract",
+            "keywords",
+        ],
     },
     "book": {
         "required": ["author", "title", "publisher", "year"],
-        "optional": ["editor", "volume", "series", "address", "edition", "month", "doi"],
+        "optional": [
+            "editor",
+            "volume",
+            "series",
+            "address",
+            "edition",
+            "month",
+            "doi",
+        ],
     },
     "inproceedings": {
         "required": ["author", "title", "booktitle", "year"],
-        "optional": ["editor", "volume", "series", "pages", "address", "month", "organization", "publisher", "doi"],
+        "optional": [
+            "editor",
+            "volume",
+            "series",
+            "pages",
+            "address",
+            "month",
+            "organization",
+            "publisher",
+            "doi",
+        ],
     },
     "incollection": {
         "required": ["author", "title", "booktitle", "publisher", "year"],
-        "optional": ["editor", "volume", "series", "chapter", "pages", "address", "edition", "month", "doi"],
+        "optional": [
+            "editor",
+            "volume",
+            "series",
+            "chapter",
+            "pages",
+            "address",
+            "edition",
+            "month",
+            "doi",
+        ],
     },
     "phdthesis": {
         "required": ["author", "title", "school", "year"],
@@ -68,7 +104,7 @@ class BibEntry:
     comment: str = ""
     rating: int = 0
     read_state: str = ""  # one of READ_STATES
-    priority: int = 0     # 0=unset, 1=high, 2=medium, 3=low (JabRef prio1/prio2/prio3)
+    priority: int = 0  # 0=unset, 1=high, 2=medium, 3=low (JabRef prio1/prio2/prio3)
     file: str = ""
     raw_fields: dict[str, str] = field(default_factory=dict)
 
@@ -99,7 +135,9 @@ class BibEntry:
         return READ_STATE_ICONS.get(self.read_state, " ")
 
     def cycle_read_state(self) -> None:
-        idx = READ_STATES.index(self.read_state) if self.read_state in READ_STATES else 0
+        idx = (
+            READ_STATES.index(self.read_state) if self.read_state in READ_STATES else 0
+        )
         self.read_state = READ_STATES[(idx + 1) % len(READ_STATES)]
 
     @property

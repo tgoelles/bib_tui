@@ -152,26 +152,34 @@ class EntryList(Widget):
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
-        col_state    = table.add_column("◉",       width=1)
-        col_priority = table.add_column("!",       width=1)
-        col_file     = table.add_column("◫",       width=1)
-        col_url      = table.add_column("◍",       width=1)
-        col_type     = table.add_column("Type",    width=7)
-        col_year     = table.add_column("Year",    width=4)
-        col_author   = table.add_column("Author",  width=13)
-        col_journal  = table.add_column("Journal", width=17)
-        col_title    = table.add_column("Title",   width=self._title_width)
-        col_rating   = table.add_column("★",       width=5)
+        col_state = table.add_column("◉", width=1)
+        col_priority = table.add_column("!", width=1)
+        col_file = table.add_column("◫", width=1)
+        col_url = table.add_column("◍", width=1)
+        col_type = table.add_column("Type", width=7)
+        col_year = table.add_column("Year", width=4)
+        col_author = table.add_column("Author", width=13)
+        col_journal = table.add_column("Journal", width=17)
+        col_title = table.add_column("Title", width=self._title_width)
+        col_rating = table.add_column("★", width=5)
         self._col_keys = (
-            col_state, col_priority, col_file, col_url, col_type, col_year,
-            col_author, col_journal, col_title, col_rating,
+            col_state,
+            col_priority,
+            col_file,
+            col_url,
+            col_type,
+            col_year,
+            col_author,
+            col_journal,
+            col_title,
+            col_rating,
         )
-        self._col_state    = col_state
+        self._col_state = col_state
         self._col_priority = col_priority
-        self._col_file     = col_file
-        self._col_url      = col_url
-        self._col_title    = col_title
-        self._col_rating   = col_rating
+        self._col_file = col_file
+        self._col_url = col_url
+        self._col_title = col_title
+        self._col_rating = col_rating
         self._populate_table(self._all_entries)
 
     def on_resize(self, event) -> None:
@@ -349,9 +357,7 @@ class EntryList(Widget):
         table.update_cell(
             entry.key, self._col_file, self._file_icon(entry), update_width=False
         )
-        table.update_cell(
-            entry.key, self._col_url, entry.url_icon, update_width=False
-        )
+        table.update_cell(entry.key, self._col_url, entry.url_icon, update_width=False)
         table.update_cell(
             entry.key, self._col_rating, entry.rating_stars, update_width=False
         )
