@@ -1,11 +1,19 @@
 from __future__ import annotations
 
-from textual import events, on
+from textual import events, on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, SelectionList, Static, TextArea
+from textual.widgets import (
+    Button,
+    Input,
+    Label,
+    LoadingIndicator,
+    SelectionList,
+    Static,
+    TextArea,
+)
 from textual.widgets._selection_list import Selection
 
 from bib_tui.bib.models import BibEntry
@@ -407,6 +415,15 @@ class SettingsModal(ModalScreen["Config | None"]):
             yield Static(
                 "[dim]Filenames in the file field are resolved relative to this path.[/dim]"
             )
+            yield Label("Unpaywall email")
+            yield Input(
+                value=self._config.unpaywall_email,
+                placeholder="me@example.com",
+                id="unpaywall-email",
+            )
+            yield Static(
+                "[dim]Used for open-access PDF lookup via Unpaywall (free service).[/dim]"
+            )
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
@@ -414,17 +431,21 @@ class SettingsModal(ModalScreen["Config | None"]):
     def on_mount(self) -> None:
         self.call_after_refresh(self.query_one("#pdf-base-dir", Input).focus)
 
+    def _collect(self) -> None:
+        self._config.pdf_base_dir = self.query_one("#pdf-base-dir", Input).value.strip()
+        self._config.unpaywall_email = self.query_one(
+            "#unpaywall-email", Input
+        ).value.strip()
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
             self.dismiss(None)
         elif event.button.id == "btn-save":
-            self._config.pdf_base_dir = self.query_one(
-                "#pdf-base-dir", Input
-            ).value.strip()
+            self._collect()
             self.dismiss(self._config)
 
     def on_input_submitted(self, _: Input.Submitted) -> None:
-        self._config.pdf_base_dir = self.query_one("#pdf-base-dir", Input).value.strip()
+        self._collect()
         self.dismiss(self._config)
 
     def action_cancel(self) -> None:
@@ -474,6 +495,7 @@ class HelpModal(ModalScreen[None]):
   [bold]p[/bold]         Cycle priority
   [bold]␣[/bold]         Show PDF
   [bold]b[/bold]         Open URL in browser (validates http/https)
+  [bold]f[/bold]         Fetch PDF (arXiv → Unpaywall → direct URL)
 
 [bold]── Rating ────────────────────────────[/bold]
   [bold]1 – 5[/bold]     Set star rating
@@ -649,6 +671,93 @@ class PasteModal(ModalScreen["BibEntry | None"]):
             self.dismiss(entry)
         except Exception as e:
             error.update(f"Parse error: {e}")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class FetchPDFModal(ModalScreen["str | None"]):
+    """Fetch a PDF for an entry in a background thread and show progress."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    DEFAULT_CSS = """
+    FetchPDFModal {
+        align: center middle;
+    }
+    FetchPDFModal > Vertical {
+        width: 70;
+        height: auto;
+        border: double $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    FetchPDFModal LoadingIndicator {
+        height: 3;
+    }
+    FetchPDFModal #fetch-status {
+        margin-top: 1;
+        margin-bottom: 1;
+    }
+    """
+
+    def __init__(
+        self,
+        entry: BibEntry,
+        dest_dir: str,
+        unpaywall_email: str = "",
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self._entry = entry
+        self._dest_dir = dest_dir
+        self._email = unpaywall_email
+        self._saved_path: str | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label(
+                f"[bold]Fetch PDF[/bold]  [dim]{self._entry.key}[/dim]",
+                classes="modal-title",
+            )
+            yield LoadingIndicator(id="fetch-loading")
+            yield Static("", id="fetch-status")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Close", variant="primary", id="btn-close", disabled=True)
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self._do_fetch()
+
+    @work(thread=True)
+    def _do_fetch(self) -> None:
+        from bib_tui.bib.pdf_fetcher import FetchError, fetch_pdf
+
+        try:
+            path = fetch_pdf(self._entry, self._dest_dir, self._email)
+            self.app.call_from_thread(self._on_success, path)
+        except FetchError as exc:
+            self.app.call_from_thread(self._on_error, str(exc))
+        except Exception as exc:  # noqa: BLE001
+            self.app.call_from_thread(self._on_error, f"Unexpected error: {exc}")
+
+    def _on_success(self, path: str) -> None:
+        self.query_one("#fetch-loading", LoadingIndicator).display = False
+        self.query_one("#fetch-status", Static).update(f"[green]Saved:[/green] {path}")
+        self.query_one("#btn-close", Button).disabled = False
+        self.query_one("#btn-cancel", Button).disabled = True
+        self._saved_path = path
+
+    def _on_error(self, message: str) -> None:
+        self.query_one("#fetch-loading", LoadingIndicator).display = False
+        self.query_one("#fetch-status", Static).update(f"[red]{message}[/red]")
+        self.query_one("#btn-close", Button).disabled = False
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-close":
+            self.dismiss(self._saved_path)
 
     def action_cancel(self) -> None:
         self.dismiss(None)

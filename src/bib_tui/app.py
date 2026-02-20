@@ -23,6 +23,7 @@ from bib_tui.widgets.modals import (
     ConfirmModal,
     DOIModal,
     EditModal,
+    FetchPDFModal,
     HelpModal,
     KeywordsModal,
     PasteModal,
@@ -72,6 +73,7 @@ class BibTuiApp(App):
         Binding("p", "cycle_priority", "Prio"),
         Binding("space", "open_pdf", "␣ Show PDF"),
         Binding("b", "open_url", "Browser"),
+        Binding("f", "fetch_pdf", "Fetch PDF"),
         # Rating (hidden from footer)
         Binding("0", "set_rating('0')", "Unrated", show=False),
         Binding("1", "set_rating('1')", "★", show=False),
@@ -271,6 +273,61 @@ class BibTuiApp(App):
             return
         webbrowser.open(url)
         self.notify(f"Opening: {url[:60]}", timeout=3)
+
+    def action_fetch_pdf(self) -> None:
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            self.notify("No entry selected.", severity="warning")
+            return
+        if not entry.doi and not entry.url:
+            self.notify(
+                "Entry has no DOI or URL — cannot fetch PDF.",
+                severity="warning",
+            )
+            return
+        dest_dir = self._config.pdf_base_dir
+        if not dest_dir:
+            self.notify(
+                "PDF base directory not set. Open Settings (Ctrl+P → Settings).",
+                severity="warning",
+            )
+            return
+        import os
+
+        dest_path = os.path.join(dest_dir, f"{entry.key}.pdf")
+        if os.path.exists(dest_path):
+            self.push_screen(
+                ConfirmModal(f"PDF already exists:\n{dest_path}\n\nOverwrite?"),
+                lambda confirmed: self._do_fetch_pdf(entry, confirmed),
+            )
+        else:
+            self._do_fetch_pdf(entry, True)
+
+    def _do_fetch_pdf(self, entry: BibEntry, confirmed: bool) -> None:
+        if not confirmed:
+            return
+        self.push_screen(
+            FetchPDFModal(
+                entry,
+                self._config.pdf_base_dir,
+                self._config.unpaywall_email,
+            ),
+            self._on_fetch_pdf_done,
+        )
+
+    def _on_fetch_pdf_done(self, result: str | None) -> None:
+        if result is None:
+            return
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            return
+        from bib_tui.utils.config import format_jabref_path
+
+        entry.file = format_jabref_path(result, self._config.pdf_base_dir)
+        self._dirty = True
+        self.query_one(EntryList).refresh_row(entry)
+        self.query_one(EntryDetail).show_entry(entry)
+        self.notify(f"PDF saved and linked: {entry.key}", timeout=4)
 
     def action_open_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import os
 import tomllib
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ CONFIG_PATH = Path.home() / ".config" / "bib_tui" / "config.toml"
 @dataclass
 class Config:
     pdf_base_dir: str = ""
+    unpaywall_email: str = ""
 
 
 def load_config() -> Config:
@@ -17,15 +19,17 @@ def load_config() -> Config:
         return Config()
     with open(CONFIG_PATH, "rb") as f:
         data = tomllib.load(f)
+    pdf = data.get("pdf", {})
     return Config(
-        pdf_base_dir=data.get("pdf", {}).get("base_dir", ""),
+        pdf_base_dir=pdf.get("base_dir", ""),
+        unpaywall_email=pdf.get("unpaywall_email", ""),
     )
 
 
 def save_config(config: Config) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(
-        f'[pdf]\nbase_dir = "{config.pdf_base_dir}"\n',
+        f'[pdf]\nbase_dir = "{config.pdf_base_dir}"\nunpaywall_email = "{config.unpaywall_email}"\n',
         encoding="utf-8",
     )
 

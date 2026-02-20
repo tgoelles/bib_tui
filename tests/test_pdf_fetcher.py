@@ -1,0 +1,135 @@
+"""Tests for bib_tui.bib.pdf_fetcher.
+
+Unit tests run without network access.
+Integration tests (marked `network`) make real HTTP calls and require a
+valid Unpaywall email in ~/.config/bib_tui/config.toml.
+
+Run only unit tests:
+    uv run pytest tests/test_pdf_fetcher.py -m "not network"
+
+Run all including network tests:
+    uv run pytest tests/test_pdf_fetcher.py
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from bib_tui.bib.models import BibEntry
+from bib_tui.bib.pdf_fetcher import FetchError, _arxiv_id, _try_unpaywall, fetch_pdf
+from bib_tui.utils.config import load_config
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def unpaywall_email() -> str:
+    """Load the Unpaywall email from the real config file."""
+    email = load_config().unpaywall_email
+    if not email:
+        pytest.skip("No unpaywall_email set in ~/.config/bib_tui/config.toml")
+    return email
+
+
+@pytest.fixture()
+def tc_entry() -> BibEntry:
+    """A real open-access paper from The Cryosphere (Copernicus)."""
+    return BibEntry(
+        key="tc-18-3807-2024",
+        entry_type="article",
+        title="Test paper from The Cryosphere",
+        doi="10.5194/tc-18-3807-2024",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Unit tests — no network
+# ---------------------------------------------------------------------------
+
+
+def test_arxiv_id_from_doi_new_format():
+    e = BibEntry(key="x", entry_type="article", doi="10.48550/arXiv.2301.12345")
+    assert _arxiv_id(e) == "2301.12345"
+
+
+def test_arxiv_id_from_doi_legacy_format():
+    e = BibEntry(key="x", entry_type="article", doi="10.48550/arXiv.hep-th/9711200")
+    assert _arxiv_id(e) == "hep-th/9711200"
+
+
+def test_arxiv_id_from_url_abs():
+    e = BibEntry(key="x", entry_type="article", url="https://arxiv.org/abs/2301.12345")
+    assert _arxiv_id(e) == "2301.12345"
+
+
+def test_arxiv_id_from_url_pdf():
+    e = BibEntry(
+        key="x", entry_type="article", url="https://arxiv.org/pdf/2301.12345v2"
+    )
+    assert _arxiv_id(e) == "2301.12345"
+
+
+def test_arxiv_id_none_for_regular_doi():
+    e = BibEntry(key="x", entry_type="article", doi="10.1007/s10584-020-02936-7")
+    assert _arxiv_id(e) is None
+
+
+def test_arxiv_id_none_when_no_doi_or_url():
+    e = BibEntry(key="x", entry_type="article")
+    assert _arxiv_id(e) is None
+
+
+def test_fetch_pdf_raises_when_no_dest_dir():
+    e = BibEntry(key="x", entry_type="article", doi="10.5194/tc-18-3807-2024")
+    with pytest.raises(FetchError, match="PDF base directory is not set"):
+        fetch_pdf(e, dest_dir="")
+
+
+def test_fetch_pdf_raises_when_file_exists(tmp_path):
+    dest = tmp_path / "x.pdf"
+    dest.write_bytes(b"%PDF-1.4 fake")
+    e = BibEntry(key="x", entry_type="article", doi="10.5194/tc-18-3807-2024")
+    with pytest.raises(FetchError, match="already exists"):
+        fetch_pdf(e, dest_dir=str(tmp_path), overwrite=False)
+
+
+def test_fetch_pdf_no_doi_or_url_all_strategies_fail(tmp_path):
+    e = BibEntry(key="nodoi", entry_type="article")
+    with pytest.raises(FetchError) as exc_info:
+        fetch_pdf(e, dest_dir=str(tmp_path), unpaywall_email="x@y.com")
+    msg = str(exc_info.value)
+    assert "arXiv" in msg
+    assert "Unpaywall" in msg
+    assert "Direct URL" in msg
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — require network + valid email
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.network
+def test_try_unpaywall_downloads_pdf(tc_entry, unpaywall_email, tmp_path):
+    dest = str(tmp_path / f"{tc_entry.key}.pdf")
+    reason = _try_unpaywall(tc_entry, dest, unpaywall_email)
+    assert reason is None, f"Expected success but got: {reason}"
+    import os
+
+    assert os.path.exists(dest)
+    assert os.path.getsize(dest) > 10_000  # real PDF should be > 10 KB
+    with open(dest, "rb") as f:
+        assert f.read(4) == b"%PDF", "Downloaded file is not a valid PDF"
+
+
+@pytest.mark.network
+def test_fetch_pdf_full_pipeline(tc_entry, unpaywall_email, tmp_path):
+    saved = fetch_pdf(tc_entry, str(tmp_path), unpaywall_email=unpaywall_email)
+    import os
+
+    assert os.path.exists(saved)
+    assert saved.endswith(f"{tc_entry.key}.pdf")
+    assert os.path.getsize(saved) > 10_000
+    with open(saved, "rb") as f:
+        assert f.read(4) == b"%PDF"
