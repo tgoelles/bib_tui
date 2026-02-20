@@ -1,21 +1,24 @@
-import os
-import sys
+import click
+
+from bib_tui import __version__
 
 
-def main() -> None:
-    if len(sys.argv) < 2:
-        print("Usage: bib-tui <file.bib>")
-        sys.exit(1)
+@click.command()
+@click.version_option(__version__, prog_name="bib-tui")
+@click.argument("bib_file", type=click.Path(exists=True, readable=True, dir_okay=False))
+def main(bib_file: str) -> None:
+    """Browse and manage BibTeX bibliography files.
 
-    bib_path = sys.argv[1]
+    BIB_FILE is the path to the .bib file to open.
 
-    if not os.path.exists(bib_path):
-        print(f"Error: file not found: {bib_path}")
-        sys.exit(1)
-
+    \b
+    Examples:
+      bib-tui references.bib
+      bib-tui ~/papers/MyCollection.bib
+    """
     from bib_tui.app import BibTuiApp
 
-    BibTuiApp(bib_path).run()
+    BibTuiApp(bib_file).run()
 
 
 if __name__ == "__main__":

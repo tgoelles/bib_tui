@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "bibtexparser>=2.0.0b9",
+    "click>=8.3.1",
     "habanero>=2.3.0",
     "textual>=8.0.0",
 ]

@@ -114,6 +114,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "bibtexparser" },
+    { name = "click" },
     { name = "habanero" },
     { name = "textual" },
 ]
@@ -129,6 +130,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bibtexparser", specifier = ">=2.0.0b9" },
+    { name = "click", specifier = ">=8.3.1" },
     { name = "habanero", specifier = ">=2.3.0" },
     { name = "textual", specifier = ">=8.0.0" },
 ]
