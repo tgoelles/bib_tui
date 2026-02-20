@@ -441,7 +441,7 @@ class HelpModal(ModalScreen[None]):
     DEFAULT_CSS = """
     HelpModal { align: center middle; }
     HelpModal > Vertical {
-        width: 62; height: 80%;
+        width: 74; height: 80%;
         border: double $accent; background: $surface; padding: 1 2;
     }
     HelpModal VerticalScroll { height: 1fr; }
@@ -461,9 +461,13 @@ class HelpModal(ModalScreen[None]):
   [bold]w[/bold]         Write
   [bold]s[/bold]         Search
   [bold]e[/bold]         Edit entry (field form or raw BibTeX)
-  [bold]d[/bold]         Add entry by DOI
   [bold]k[/bold]         Edit keywords
   [bold]v[/bold]         Toggle raw / formatted view
+
+[bold]── Add new entry ─────────────────────[/bold]
+  [bold]d[/bold]         Import entry by DOI (fetches metadata online)
+  [bold]ctrl+v[/bold]    Paste a raw BibTeX entry from clipboard
+  [dim]Both methods reject duplicate cite keys.[/dim]
 
 [bold]── Entry state ───────────────────────[/bold]
   [bold]r[/bold]         Cycle read state
@@ -476,12 +480,16 @@ class HelpModal(ModalScreen[None]):
 
 [bold]── Other ─────────────────────────────[/bold]
   [bold]ctrl+c[/bold]    Copy cite key to clipboard
-  [bold]ctrl+v[/bold]    Paste BibTeX from clipboard
   [bold]?[/bold]         Show this help
   [bold]ctrl+p[/bold]    Command palette (Settings…)
   [bold]Esc[/bold]       Clear search / close modal
-[dim]  Clipboard uses OSC 52 — requires a modern terminal[/dim]"""
+[dim]  Clipboard uses OSC 52 — requires a modern terminal[/dim]
 
+[bold]── Sorting ───────────────────────────[/bold]
+  Click any column header to sort by that column.
+  Click the same header again to reverse the order.
+  Active sort column is marked with [bold]▲[/bold] (asc) or [bold]▼[/bold] (desc).
+"""
     _SEARCH = """\
 [bold]── Plain text ────────────────────────[/bold]
   Searches title, author, keywords, and key.
