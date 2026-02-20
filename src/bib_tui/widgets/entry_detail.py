@@ -42,16 +42,11 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
     lines.append("")
 
     # Key fields
-    entry_spec = ENTRY_TYPES.get(entry.entry_type, {"required": [], "optional": []})
-    required = set(entry_spec["required"])
-
-    def field_line(label: str, value: str, is_required: bool = False) -> str:
-        col = c["required"] if is_required else c["optional"]
-        marker = f"[{c['required']}]✓[/] " if is_required else "  "
+    def field_line(label: str, value: str) -> str:
         if value:
-            return f"{marker}[{col}]{label:<12}[/] {value}"
+            return f"[{c['required']}]{label:<12}[/] {value}"
         else:
-            return f"{marker}[dim]{label:<12}[/dim] [dim](empty)[/dim]"
+            return f"[dim]{label:<12}[/dim] [dim](empty)[/dim]"
 
     standard_fields = [
         ("Author", "author"),
@@ -62,8 +57,7 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
     ]
 
     for label, key in standard_fields:
-        val = entry.get_field(key)
-        lines.append(field_line(label, val, key in required))
+        lines.append(field_line(label, entry.get_field(key)))
 
     # Raw extra fields
     if entry.raw_fields:
