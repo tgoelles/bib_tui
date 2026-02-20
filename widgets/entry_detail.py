@@ -10,21 +10,29 @@ from bib.parser import entry_to_bibtex_str
 from utils.config import parse_jabref_path
 
 
-def _render_entry(entry: BibEntry) -> str:
-    """Build a Rich-formatted string for the main body of the detail pane."""
+def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
+    """Build a Rich-formatted string for the main body of the detail pane.
+
+    *colors* is a dict with keys: title, key, required, optional, tag_fg,
+    tag_bg, warning.  Values are Rich-compatible color strings (hex or names).
+    """
+    c = colors
     lines: list[str] = []
 
     # Title
-    lines.append(f"[bold cyan]{entry.title or '(no title)'}[/bold cyan]")
+    lines.append(f"[bold {c['title']}]{entry.title or '(no title)'}[/]")
     lines.append("")
 
     # Entry type badge
-    lines.append(f"[dim]@{entry.entry_type}[/dim]  [dim]key:[/dim] [yellow]{entry.key}[/yellow]")
+    lines.append(f"[dim]@{entry.entry_type}[/dim]  [dim]key:[/dim] [{c['key']}]{entry.key}[/]")
     lines.append("")
 
     # Tags
     if entry.tags:
-        tag_str = " ".join(f"[white on dark_green] {t} [/white on dark_green]" for t in entry.tags)
+        tag_str = " ".join(
+            f"[{c['tag_fg']} on {c['tag_bg']}] {t} [/]"
+            for t in entry.tags
+        )
         lines.append(f"[bold]Tags:[/bold]  {tag_str}")
     else:
         lines.append("[bold]Tags:[/bold]  [dim](none)[/dim]")
@@ -38,12 +46,12 @@ def _render_entry(entry: BibEntry) -> str:
     required = set(entry_spec["required"])
 
     def field_line(label: str, value: str, is_required: bool = False) -> str:
-        color = "green" if is_required else "blue"
-        req_marker = "[green]✓[/green] " if is_required else "  "
+        col = c["required"] if is_required else c["optional"]
+        marker = f"[{c['required']}]✓[/] " if is_required else "  "
         if value:
-            return f"{req_marker}[{color}]{label:<12}[/{color}] {value}"
+            return f"{marker}[{col}]{label:<12}[/] {value}"
         else:
-            return f"{req_marker}[dim]{label:<12}[/dim] [dim](empty)[/dim]"
+            return f"{marker}[dim]{label:<12}[/dim] [dim](empty)[/dim]"
 
     standard_fields = [
         ("Author", "author"),
@@ -79,7 +87,6 @@ def _render_entry(entry: BibEntry) -> str:
                 current = f"{current} {word}".strip()
         if current:
             lines.append(f"  {current}")
-
 
     return "\n".join(lines)
 
@@ -160,6 +167,19 @@ class EntryDetail(Widget):
         path = parse_jabref_path(entry.file, self._pdf_base_dir)
         return "■" if os.path.exists(path) else "□"
 
+    def _theme_colors(self) -> dict[str, str]:
+        """Return Rich color strings derived from the current Textual theme."""
+        tv = self.app.theme_variables
+        return {
+            "title":    tv.get("text-primary",  "cyan"),
+            "key":      tv.get("text-accent",    "yellow"),
+            "required": tv.get("text-success",   "green"),
+            "optional": tv.get("text-secondary", "blue"),
+            "warning":  tv.get("text-warning",   "yellow"),
+            "tag_fg":   "white",
+            "tag_bg":   tv.get("success",        "dark_green"),
+        }
+
     def _refresh_content(self) -> None:
         read_label = self.query_one("#detail-read-state", Label)
         rating_label = self.query_one("#detail-rating", Label)
@@ -176,11 +196,13 @@ class EntryDetail(Widget):
             return
 
         e = self._entry
+        colors = self._theme_colors()
+
         state_label = e.read_state if e.read_state else "unset"
         read_label.update(f"[bold]Read:[/bold] {e.read_state_icon} {state_label}")
 
         stars = e.rating_stars or "[dim]unrated[/dim]"
-        rating_label.update(f"[bold]Rating:[/bold] [yellow]{stars}[/yellow]")
+        rating_label.update(f"[bold]Rating:[/bold] [{colors['warning']}]{stars}[/]")
 
         icon = self._file_icon(e)
         if not e.file:
@@ -198,4 +220,4 @@ class EntryDetail(Widget):
         else:
             raw.display = False
             content.display = True
-            content.update(_render_entry(e))
+            content.update(_render_entry(e, colors))

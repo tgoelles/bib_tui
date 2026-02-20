@@ -12,6 +12,7 @@ from bib.models import BibEntry
 from bib import parser
 from utils.git import commit
 from utils.config import Config, load_config, save_config, parse_jabref_path
+from utils.theme import detect_theme
 from widgets.entry_list import EntryList
 from widgets.entry_detail import EntryDetail
 from widgets.modals import ConfirmModal, DOIModal, EditModal, RawEditModal, SettingsModal, TagsModal
@@ -57,6 +58,7 @@ class BibTuiApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        self.theme = detect_theme()
         self.title = f"bib-tui — {os.path.basename(self._bib_path)}"
         self._load_entries()
 
