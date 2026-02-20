@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from bib_tui.utils.config import (
+from bibtui.utils.config import (
     Config,
     format_jabref_path,
     load_config,
@@ -73,7 +73,7 @@ def test_format_jabref_no_base() -> None:
 
 def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
     config_file = tmp_path / "config.toml"
-    monkeypatch.setattr("bib_tui.utils.config.CONFIG_PATH", config_file)
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
     cfg = Config(
         pdf_base_dir="/papers",
         unpaywall_email="user@example.com",
@@ -90,7 +90,7 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
 
 def test_load_config_returns_defaults_when_missing(tmp_path: Path, monkeypatch) -> None:
     config_file = tmp_path / "nonexistent.toml"
-    monkeypatch.setattr("bib_tui.utils.config.CONFIG_PATH", config_file)
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
     cfg = load_config()
     assert cfg.pdf_base_dir == ""
     assert cfg.unpaywall_email == ""
@@ -99,6 +99,6 @@ def test_load_config_returns_defaults_when_missing(tmp_path: Path, monkeypatch) 
 
 def test_save_config_creates_parent_dirs(tmp_path: Path, monkeypatch) -> None:
     config_file = tmp_path / "a" / "b" / "c" / "config.toml"
-    monkeypatch.setattr("bib_tui.utils.config.CONFIG_PATH", config_file)
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
     save_config(Config())
     assert config_file.exists()

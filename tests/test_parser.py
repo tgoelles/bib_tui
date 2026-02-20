@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from bib_tui.bib.models import BibEntry
-from bib_tui.bib.parser import (
+from bibtui.bib.models import BibEntry
+from bibtui.bib.parser import (
     bibtex_str_to_entry,
     entry_to_bibtex_str,
     load,

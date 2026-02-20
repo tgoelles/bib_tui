@@ -3,7 +3,7 @@ requires = ["uv_build>=0.10,<0.11"]
 build-backend = "uv_build"
 
 [project]
-name = "bib-tui"
+name = "bibtui"
 version = "0.1.0"
 description = "Terminal UI for managing BibTeX bibliography files"
 readme = "README.md"
@@ -21,7 +21,7 @@ Repository = "https://github.com/tgoelles/bib_tui"
 "Bug Tracker" = "https://github.com/tgoelles/bib_tui/issues"
 
 [project.scripts]
-bib-tui = "bib_tui.main:main"
+bibtui = "bibtui.main:main"
 
 [dependency-groups]
 dev = [
@@ -33,14 +33,14 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=src/bib_tui --cov-report=term-missing"
+addopts = "--cov=src/bibtui --cov-report=term-missing"
 markers = [
     "network: tests that make real HTTP requests (deselect with -m 'not network')",
 ]
 
 [tool.coverage.run]
-source = ["src/bib_tui"]
-omit = ["src/bib_tui/main.py"]
+source = ["src/bibtui"]
+omit = ["src/bibtui/main.py"]
 
 [tool.coverage.report]
 show_missing = true

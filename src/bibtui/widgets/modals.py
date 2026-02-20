@@ -16,9 +16,9 @@ from textual.widgets import (
 )
 from textual.widgets._selection_list import Selection
 
-from bib_tui.bib.models import BibEntry
-from bib_tui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
-from bib_tui.utils.config import Config
+from bibtui.bib.models import BibEntry
+from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
+from bibtui.utils.config import Config
 
 
 def _format_age(mtime: float) -> str:
@@ -124,7 +124,7 @@ class DOIModal(ModalScreen[BibEntry | None]):
         status.set_classes("fetching")
         status.update("Fetching…")
         try:
-            from bib_tui.bib.doi import fetch_by_doi
+            from bibtui.bib.doi import fetch_by_doi
 
             entry = fetch_by_doi(doi)
             status.set_classes("success")
@@ -496,23 +496,23 @@ class HelpModal(ModalScreen[None]):
     """
 
     _ABOUT = (
-        "[bold]bib-tui[/bold] v0.1.0  —  BibTeX TUI\n"
+        "[bold]bibtui[/bold] v0.1.0  —  BibTeX TUI\n"
         "[dim]Author:[/dim] Thomas Gölles\n"
-        "[dim]Repo:[/dim]   [link=https://github.com/tgoelles/bib_tui]github.com/tgoelles/bib_tui[/link]\n"
+        "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui\n"
         "[dim]Built with Claude Sonnet (Anthropic)[/dim]"
     )
 
     def _make_about(self) -> str:
         try:
-            from bib_tui import __version__
+            from bibtui import __version__
 
             version = __version__
         except Exception:
             version = "0.1.0"
         return (
-            f"[bold]bib-tui[/bold] v{version}  —  BibTeX TUI\n"
+            f"[bold]bibtui[/bold] v{version}  —  BibTeX TUI\n"
             "[dim]Author:[/dim] Thomas Gölles\n"
-            "[dim]Repo:[/dim]   [link=https://github.com/tgoelles/bib_tui]github.com/tgoelles/bib_tui[/link]\n"
+            "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui\n"
             "[dim]Built with Claude Sonnet (Anthropic)[/dim]"
         )
 
@@ -890,7 +890,7 @@ class AddPDFModal(ModalScreen["str | None"]):
     def _add_path(self, src) -> None:
         from pathlib import Path
 
-        from bib_tui.bib.pdf_fetcher import FetchError, add_pdf
+        from bibtui.bib.pdf_fetcher import FetchError, add_pdf
 
         error = self.query_one("#add-error", Static)
         error.update("")
@@ -959,7 +959,7 @@ class FetchPDFModal(ModalScreen["str | None"]):
 
     @work(thread=True)
     def _do_fetch(self) -> None:
-        from bib_tui.bib.pdf_fetcher import FetchError, fetch_pdf
+        from bibtui.bib.pdf_fetcher import FetchError, fetch_pdf
 
         try:
             path = fetch_pdf(self._entry, self._dest_dir, self._email)

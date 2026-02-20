@@ -1,10 +1,10 @@
 import click
 
-from bib_tui import __version__
+from bibtui import __version__
 
 
 @click.command()
-@click.version_option(__version__, prog_name="bib-tui")
+@click.version_option(__version__, prog_name="bibtui")
 @click.argument("bib_file", type=click.Path(exists=True, readable=True, dir_okay=False))
 def main(bib_file: str) -> None:
     """Browse and manage BibTeX bibliography files.
@@ -13,13 +13,13 @@ def main(bib_file: str) -> None:
 
     \b
     Examples:
-      bib-tui references.bib
-      bib-tui ~/papers/MyCollection.bib
+      bibtui references.bib
+      bibtui ~/papers/MyCollection.bib
 
     \b
     Docs & source: https://github.com/tgoelles/bib_tui
     """
-    from bib_tui.app import BibTuiApp
+    from bibtui.app import BibTuiApp
 
     BibTuiApp(bib_file).run()
 

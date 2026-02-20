@@ -2,7 +2,7 @@
 
 import pytest
 
-from bib_tui.bib.models import (
+from bibtui.bib.models import (
     PRIORITIES,
     PRIORITY_ICONS,
     PRIORITY_LABELS,

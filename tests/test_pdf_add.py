@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from bib_tui.bib.models import BibEntry
-from bib_tui.bib.pdf_fetcher import FetchError, add_pdf, pdf_filename
+from bibtui.bib.models import BibEntry
+from bibtui.bib.pdf_fetcher import FetchError, add_pdf, pdf_filename
 
 
 # ---------------------------------------------------------------------------

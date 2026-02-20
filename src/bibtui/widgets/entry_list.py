@@ -8,8 +8,8 @@ from textual.widget import Widget
 from textual.widgets import DataTable, Input
 from textual.widgets._data_table import ColumnKey
 
-from bib_tui.bib.models import PRIORITIES, READ_STATES, BibEntry
-from bib_tui.utils.config import parse_jabref_path
+from bibtui.bib.models import PRIORITIES, READ_STATES, BibEntry
+from bibtui.utils.config import parse_jabref_path
 
 # Original header labels in column order
 _COL_LABELS = ("◉", "!", "◫", "🔗", "Type", "Year", "Author", "Journal", "Title", "★")

@@ -13,15 +13,15 @@ Run all including network tests:
 
 import pytest
 
-from bib_tui.bib.models import BibEntry
-from bib_tui.bib.pdf_fetcher import (
+from bibtui.bib.models import BibEntry
+from bibtui.bib.pdf_fetcher import (
     FetchError,
     _arxiv_id,
     _try_unpaywall,
     fetch_pdf,
     pdf_filename,
 )
-from bib_tui.utils.config import load_config
+from bibtui.utils.config import load_config
 
 # ---------------------------------------------------------------------------
 # Fixtures

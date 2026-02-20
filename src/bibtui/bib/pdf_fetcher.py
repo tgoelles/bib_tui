@@ -16,7 +16,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
-from bib_tui.bib.models import BibEntry
+from bibtui.bib.models import BibEntry
 
 
 class FetchError(Exception):

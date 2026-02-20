@@ -11,13 +11,13 @@ from textual.command import DiscoveryHit, Hit, Hits, Provider
 from textual.containers import Horizontal, Vertical
 from textual.widgets import DataTable, Footer, Header, Input, Label, Static, TextArea
 
-from bib_tui.bib import parser
-from bib_tui.bib.models import BibEntry
-from bib_tui.utils.config import Config, load_config, parse_jabref_path, save_config
-from bib_tui.utils.theme import detect_theme
-from bib_tui.widgets.entry_detail import EntryDetail
-from bib_tui.widgets.entry_list import EntryList
-from bib_tui.widgets.modals import (
+from bibtui.bib import parser
+from bibtui.bib.models import BibEntry
+from bibtui.utils.config import Config, load_config, parse_jabref_path, save_config
+from bibtui.utils.theme import detect_theme
+from bibtui.widgets.entry_detail import EntryDetail
+from bibtui.widgets.entry_list import EntryList
+from bibtui.widgets.modals import (
     AddPDFModal,
     ConfirmModal,
     DOIModal,
@@ -56,7 +56,7 @@ class BibTuiApp(App):
 
     COMMANDS = App.COMMANDS | {SettingsProvider}
 
-    CSS_PATH = "bib_tui.tcss"
+    CSS_PATH = "bibtui.tcss"
 
     BINDINGS = [
         # Core
@@ -107,7 +107,7 @@ class BibTuiApp(App):
 
     def on_mount(self) -> None:
         self.theme = detect_theme()
-        self.title = f"bib-tui — {os.path.basename(self._bib_path)}"
+        self.title = f"bibtui — {os.path.basename(self._bib_path)}"
         self._load_entries()
 
     def on_resize(self, event) -> None:
@@ -324,7 +324,7 @@ class BibTuiApp(App):
             return
         import os
 
-        from bib_tui.bib.pdf_fetcher import pdf_filename
+        from bibtui.bib.pdf_fetcher import pdf_filename
 
         dest_path = os.path.join(dest_dir, pdf_filename(entry))
         if os.path.exists(dest_path):
@@ -353,7 +353,7 @@ class BibTuiApp(App):
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        from bib_tui.utils.config import format_jabref_path
+        from bibtui.utils.config import format_jabref_path
 
         entry.file = format_jabref_path(result, self._config.pdf_base_dir)
         self._dirty = True
@@ -384,7 +384,7 @@ class BibTuiApp(App):
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        from bib_tui.utils.config import format_jabref_path
+        from bibtui.utils.config import format_jabref_path
 
         entry.file = format_jabref_path(result, self._config.pdf_base_dir)
         self._dirty = True

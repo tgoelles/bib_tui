@@ -3,7 +3,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-CONFIG_PATH = Path.home() / ".config" / "bib_tui" / "config.toml"
+CONFIG_PATH = Path.home() / ".config" / "bibtui" / "config.toml"
 
 
 @dataclass
