@@ -291,6 +291,7 @@ class BibTuiApp(App):
             )
             return
         import os
+
         from bib_tui.bib.pdf_fetcher import pdf_filename
 
         dest_path = os.path.join(dest_dir, pdf_filename(entry))
