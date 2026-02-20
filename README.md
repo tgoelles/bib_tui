@@ -46,6 +46,9 @@ in the terminal. Browse and edit your `.bib` file, fetch open-access PDFs with a
 single keystroke, track what you've read, and never leave the command line —
 no database, no sync daemon, no account required.
 
+> **Mouse users welcome.** bibtui works fully with the mouse — click, scroll, select.
+> You just need to launch it from a terminal: `uvx --prerelease=allow bibtui myrefs.bib`
+
 ---
 
 ## Why bibtui?
