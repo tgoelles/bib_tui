@@ -20,16 +20,16 @@ def _field_str(entry: bpmodel.Entry, key: str) -> str:
 
 
 def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
-    known = {"title", "author", "year", "journal", "doi", "abstract", "keywords", "rating", "readstate", "tags", "file"}
+    known = {"title", "author", "year", "journal", "doi", "abstract", "keywords", "ranking", "readstate", "tags", "file"}
     raw = {}
     for k, f in entry.fields_dict.items():
         if k not in known:
             val = f.value
             raw[k] = val if isinstance(val, str) else str(val)
 
-    rating_str = _field_str(entry, "rating")
+    ranking_str = _field_str(entry, "ranking")  # JabRef format: rank1..rank5
     try:
-        rating = max(0, min(5, int(rating_str)))
+        rating = max(0, min(5, int(ranking_str.removeprefix("rank")))) if ranking_str else 0
     except ValueError:
         rating = 0
 
@@ -74,7 +74,7 @@ def _to_bp_entry(entry: BibEntry) -> bpmodel.Entry:
     add("keywords", entry.keywords)
 
     if entry.rating:
-        add("rating", str(entry.rating))
+        add("ranking", f"rank{entry.rating}")
     if entry.read_state:
         add("readstate", entry.read_state)
     if entry.tags:
