@@ -33,9 +33,9 @@ class ConfirmModal(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label("[bold]Confirm[/bold]", id="modal-title")
+            yield Label("[bold]Confirm[/bold]", classes="modal-title")
             yield Static(self._message)
-            with Horizontal(id="modal-buttons"):
+            with Horizontal(classes="modal-buttons"):
                 yield Button("Yes", variant="error", id="btn-yes")
                 yield Button("No", variant="primary", id="btn-no")
 
@@ -62,14 +62,17 @@ class DOIModal(ModalScreen[BibEntry | None]):
         background: $surface;
         padding: 1 2;
     }
+    #doi-status.fetching { color: $warning; }
+    #doi-status.success  { color: $success; }
+    #doi-status.error    { color: $error; }
     """
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label("[bold cyan]Entry from DOI[/bold cyan]")
+            yield Label("[bold]Entry from DOI[/bold]", classes="modal-title")
             yield Input(placeholder="Enter DOI (e.g. 10.1038/nature12345)", id="doi-input")
             yield Static("", id="doi-status")
-            with Horizontal(id="modal-buttons"):
+            with Horizontal(classes="modal-buttons"):
                 yield Button("Fetch", variant="primary", id="btn-fetch")
                 yield Button("Cancel", id="btn-cancel")
 
@@ -90,15 +93,17 @@ class DOIModal(ModalScreen[BibEntry | None]):
         if not doi:
             return
         status = self.query_one("#doi-status", Static)
-        status.update("[yellow]Fetching...[/yellow]")
+        status.set_classes("fetching")
+        status.update("Fetching…")
         try:
             from bib.doi import fetch_by_doi
             entry = fetch_by_doi(doi)
-            status.update(f"[green]Found:[/green] {entry.title[:60]}")
-            # Auto-dismiss with the result after a short display
+            status.set_classes("success")
+            status.update(f"Found: {entry.title[:60]}")
             self.app.call_later(self._confirm, entry)
         except Exception as e:
-            status.update(f"[red]Error:[/red] {e}")
+            status.set_classes("error")
+            status.update(f"Error: {e}")
 
     def _confirm(self, entry: BibEntry) -> None:
         self.dismiss(entry)
@@ -146,7 +151,7 @@ class EditModal(ModalScreen[BibEntry | None]):
     def compose(self) -> ComposeResult:
         e = self._entry
         with Vertical():
-            yield Label(f"[bold cyan]Edit Entry[/bold cyan]  [dim]{e.key}[/dim]")
+            yield Label(f"[bold]Edit Entry[/bold]  [dim]{e.key}[/dim]", classes="modal-title")
             with VerticalScroll(id="edit-fields"):
                 yield Label("Title")
                 yield Input(value=e.title, id="edit-title")
@@ -166,7 +171,7 @@ class EditModal(ModalScreen[BibEntry | None]):
                 yield Input(value=e.file, id="edit-file")
                 yield Label("Abstract")
                 yield TextArea(e.abstract, id="edit-abstract")
-            with Horizontal(id="modal-buttons"):
+            with Horizontal(classes="modal-buttons"):
                 yield Button("Save", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
 
@@ -222,13 +227,13 @@ class TagsModal(ModalScreen[list[str] | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label(f"[bold cyan]Edit Tags[/bold cyan]  [dim]{self._entry.key}[/dim]")
+            yield Label(f"[bold]Edit Tags[/bold]  [dim]{self._entry.key}[/dim]", classes="modal-title")
             yield Input(
                 value=", ".join(self._entry.tags),
                 placeholder="tag1, tag2, tag3",
                 id="tags-input",
             )
-            with Horizontal(id="modal-buttons"):
+            with Horizontal(classes="modal-buttons"):
                 yield Button("Save", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
 
@@ -276,7 +281,7 @@ class SettingsModal(ModalScreen["Config | None"]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label("[bold cyan]Settings[/bold cyan]")
+            yield Label("[bold]Settings[/bold]", classes="modal-title")
             yield Label("PDF base directory")
             yield Input(
                 value=self._config.pdf_base_dir,
@@ -284,7 +289,7 @@ class SettingsModal(ModalScreen["Config | None"]):
                 id="pdf-base-dir",
             )
             yield Static("[dim]Filenames in the file field are resolved relative to this path.[/dim]")
-            with Horizontal(id="modal-buttons"):
+            with Horizontal(classes="modal-buttons"):
                 yield Button("Save", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
 
@@ -325,6 +330,9 @@ class RawEditModal(ModalScreen[BibEntry | None]):
     RawEditModal TextArea {
         height: 1fr;
     }
+    #raw-edit-error {
+        color: $error;
+    }
     """
 
     def __init__(self, entry: BibEntry, **kwargs):
@@ -333,13 +341,13 @@ class RawEditModal(ModalScreen[BibEntry | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label(f"[bold cyan]Edit Raw BibTeX[/bold cyan]  [dim]{self._entry.key}[/dim]")
+            yield Label(f"[bold]Edit Raw BibTeX[/bold]  [dim]{self._entry.key}[/dim]", classes="modal-title")
             yield TextArea(
                 entry_to_bibtex_str(self._entry),
                 id="raw-edit-area",
             )
             yield Static("", id="raw-edit-error")
-            with Horizontal(id="modal-buttons"):
+            with Horizontal(classes="modal-buttons"):
                 yield Button("Save", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
 
@@ -356,7 +364,7 @@ class RawEditModal(ModalScreen[BibEntry | None]):
             entry = bibtex_str_to_entry(text)
             self.dismiss(entry)
         except Exception as e:
-            error.update(f"[red]Parse error:[/red] {e}")
+            error.update(f"Parse error: {e}")
 
     def action_cancel(self) -> None:
         self.dismiss(None)

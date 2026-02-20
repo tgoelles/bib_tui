@@ -49,7 +49,7 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
         col = c["required"] if is_required else c["optional"]
         marker = f"[{c['required']}]✓[/] " if is_required else "  "
         if value:
-            return f"{marker}[{col}]{label:<12}[/] {value}"
+            return f"{marker}[{col}]{label:<12}[/] [{c['foreground']}]{value}[/]"
         else:
             return f"{marker}[dim]{label:<12}[/dim] [dim](empty)[/dim]"
 
@@ -71,7 +71,7 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
         lines.append("[dim]── Other fields ──[/dim]")
         for k, v in entry.raw_fields.items():
             if v:
-                lines.append(f"  [dim]{k:<12}[/dim] {v[:80]}")
+                lines.append(f"  [dim]{k:<12}[/dim] [{c['foreground']}]{v[:80]}[/]")
 
     # Abstract
     if entry.abstract:
@@ -171,13 +171,14 @@ class EntryDetail(Widget):
         """Return Rich color strings derived from the current Textual theme."""
         tv = self.app.theme_variables
         return {
-            "title":    tv.get("text-primary",  "cyan"),
-            "key":      tv.get("text-accent",    "yellow"),
-            "required": tv.get("text-success",   "green"),
-            "optional": tv.get("text-secondary", "blue"),
-            "warning":  tv.get("text-warning",   "yellow"),
-            "tag_fg":   "white",
-            "tag_bg":   tv.get("success",        "dark_green"),
+            "title":      tv.get("text-primary",  "cyan"),
+            "key":        tv.get("text-accent",   "yellow"),
+            "required":   tv.get("text-success",  "green"),
+            "optional":   tv.get("text-accent",   "blue"),
+            "warning":    tv.get("text-warning",  "yellow"),
+            "foreground": tv.get("foreground",    "default"),
+            "tag_fg":     "white",
+            "tag_bg":     tv.get("primary",       "dark_green"),
         }
 
     def _refresh_content(self) -> None:
