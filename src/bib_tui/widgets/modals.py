@@ -5,7 +5,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static, TextArea, SelectionList
 from textual.widgets._selection_list import Selection
 from textual.containers import Vertical, VerticalScroll, Horizontal
-from textual import on
+from textual import events, on
 from bib_tui.bib.models import BibEntry
 from bib_tui.bib.parser import entry_to_bibtex_str, bibtex_str_to_entry
 from bib_tui.utils.config import Config
@@ -215,7 +215,7 @@ class KeywordsModal(ModalScreen["str | None"]):
     }
     KeywordsModal > Vertical {
         width: 70;
-        height: 36;
+        height: 80%;
         border: double $accent;
         background: $surface;
         padding: 1 2;
@@ -247,6 +247,16 @@ class KeywordsModal(ModalScreen["str | None"]):
     def on_mount(self) -> None:
         self._rebuild_list("")
         self.call_after_refresh(self.query_one("#kw-filter", Input).focus)
+
+    def on_key(self, event: events.Key) -> None:
+        sl = self.query_one(SelectionList)
+        kw_filter = self.query_one("#kw-filter", Input)
+        if self.focused is kw_filter and event.key == "down":
+            sl.focus()
+            event.stop()
+        elif self.focused is sl and event.key == "up" and sl.highlighted == 0:
+            kw_filter.focus()
+            event.stop()
 
     def _sync_from_list(self) -> None:
         """Pull current checkbox state into self._selected."""
