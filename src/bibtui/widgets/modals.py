@@ -75,7 +75,9 @@ class ConfirmModal(ModalScreen[bool]):
 class DOIModal(ModalScreen[BibEntry | None]):
     """Modal to fetch an entry by DOI."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
 
     DEFAULT_CSS = """
     DOIModal {
@@ -144,7 +146,10 @@ class DOIModal(ModalScreen[BibEntry | None]):
 class EditModal(ModalScreen[BibEntry | None]):
     """Modal to edit key fields of an entry."""
 
-    BINDINGS = [Binding("escape", "save_and_close", "Write", show=False)]
+    BINDINGS = [
+        Binding("ctrl+s", "save_and_close", "Write", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
 
     DEFAULT_CSS = """
     EditModal {
@@ -212,6 +217,9 @@ class EditModal(ModalScreen[BibEntry | None]):
         elif event.button.id == "btn-save":
             self._save()
 
+    def on_input_submitted(self, _: Input.Submitted) -> None:
+        self._save()
+
     def _save(self) -> None:
         e = self._entry
 
@@ -232,11 +240,17 @@ class EditModal(ModalScreen[BibEntry | None]):
     def action_save_and_close(self) -> None:
         self._save()
 
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
 
 class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
     """Keyword picker: select from all bib-wide keywords, add new ones."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+    BINDINGS = [
+        Binding("ctrl+s", "save", "Write", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
 
     DEFAULT_CSS = """
     KeywordsModal {
@@ -388,6 +402,9 @@ class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
         ordered = [kw for kw in self._all_keywords if kw in self._selected]
         self.dismiss((", ".join(ordered), self._delete_everywhere))
 
+    def action_save(self) -> None:
+        self._save()
+
     def action_cancel(self) -> None:
         self.dismiss(None)
 
@@ -395,7 +412,10 @@ class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
 class SettingsModal(ModalScreen["Config | None"]):
     """Settings dialog — currently just the PDF base directory."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+    BINDINGS = [
+        Binding("ctrl+s", "save", "Write", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
 
     DEFAULT_CSS = """
     SettingsModal {
@@ -471,6 +491,10 @@ class SettingsModal(ModalScreen["Config | None"]):
             self.dismiss(self._config)
 
     def on_input_submitted(self, _: Input.Submitted) -> None:
+        self._collect()
+        self.dismiss(self._config)
+
+    def action_save(self) -> None:
         self._collect()
         self.dismiss(self._config)
 
@@ -558,7 +582,8 @@ class HelpModal(ModalScreen[None]):
   [bold]?[/bold]         Show this help
   [bold]ctrl+p[/bold]    Command palette (Settings…)
   [bold]Esc[/bold]       Clear search / close modal
-[dim]  Clipboard uses OSC 52 — requires a modern terminal[/dim]
+  [dim]  Clipboard uses OSC 52 — requires a modern terminal[/dim]
+  [dim]  In all modals: Ctrl+S = Write/Save, Esc = Cancel[/dim]
 
 [bold]── Sorting ───────────────────────────[/bold]
   Click any column header to sort by that column.
@@ -606,7 +631,10 @@ class HelpModal(ModalScreen[None]):
 class RawEditModal(ModalScreen[BibEntry | None]):
     """Edit a BibTeX entry as raw text."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+    BINDINGS = [
+        Binding("ctrl+s", "save", "Write", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
 
     DEFAULT_CSS = """
     RawEditModal {
@@ -661,6 +689,9 @@ class RawEditModal(ModalScreen[BibEntry | None]):
         except Exception as e:
             error.update(f"Parse error: {e}")
 
+    def action_save(self) -> None:
+        self._save()
+
     def action_cancel(self) -> None:
         self.dismiss(None)
 
@@ -668,7 +699,10 @@ class RawEditModal(ModalScreen[BibEntry | None]):
 class PasteModal(ModalScreen["BibEntry | None"]):
     """Modal to import a BibTeX entry from pasted clipboard text."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+    BINDINGS = [
+        Binding("ctrl+s", "do_import", "Import", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
 
     DEFAULT_CSS = """
     PasteModal {
@@ -724,6 +758,9 @@ class PasteModal(ModalScreen["BibEntry | None"]):
         except Exception as e:
             error.update(f"Parse error: {e}")
 
+    def action_do_import(self) -> None:
+        self._do_import()
+
     def action_cancel(self) -> None:
         self.dismiss(None)
 
@@ -731,7 +768,10 @@ class PasteModal(ModalScreen["BibEntry | None"]):
 class AddPDFModal(ModalScreen["str | None"]):
     """Pick an existing PDF from the download directory, filter by name, and link it."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+    BINDINGS = [
+        Binding("ctrl+s", "add", "Add", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
 
     DEFAULT_CSS = """
     AddPDFModal {
@@ -896,6 +936,9 @@ class AddPDFModal(ModalScreen["str | None"]):
             self.dismiss(str(dest))
         except FetchError as exc:
             error.update(f"[red]{exc}[/red]")
+
+    def action_add(self) -> None:
+        self._confirm()
 
     def action_cancel(self) -> None:
         self.dismiss(None)
