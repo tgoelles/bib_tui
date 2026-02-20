@@ -291,8 +291,9 @@ class BibTuiApp(App):
             )
             return
         import os
+        from bib_tui.bib.pdf_fetcher import pdf_filename
 
-        dest_path = os.path.join(dest_dir, f"{entry.key}.pdf")
+        dest_path = os.path.join(dest_dir, pdf_filename(entry))
         if os.path.exists(dest_path):
             self.push_screen(
                 ConfirmModal(f"PDF already exists:\n{dest_path}\n\nOverwrite?"),

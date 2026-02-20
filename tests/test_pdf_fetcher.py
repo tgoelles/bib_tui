@@ -14,7 +14,7 @@ Run all including network tests:
 import pytest
 
 from bib_tui.bib.models import BibEntry
-from bib_tui.bib.pdf_fetcher import FetchError, _arxiv_id, _try_unpaywall, fetch_pdf
+from bib_tui.bib.pdf_fetcher import FetchError, _arxiv_id, _try_unpaywall, fetch_pdf, pdf_filename
 from bib_tui.utils.config import load_config
 
 # ---------------------------------------------------------------------------
@@ -104,6 +104,38 @@ def test_fetch_pdf_no_doi_or_url_all_strategies_fail(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# pdf_filename unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_pdf_filename_key_and_title():
+    e = BibEntry(key="Smith2020", entry_type="article", title="Ice Sheet Dynamics")
+    assert pdf_filename(e) == "Smith2020 - Ice Sheet Dynamics.pdf"
+
+
+def test_pdf_filename_no_title_falls_back_to_key():
+    e = BibEntry(key="Jones2021", entry_type="article")
+    assert pdf_filename(e) == "Jones2021.pdf"
+
+
+def test_pdf_filename_strips_unsafe_chars():
+    e = BibEntry(key="A", entry_type="article", title='Carbon: A {Study} of "Heat"?')
+    name = pdf_filename(e)
+    for ch in r'\/:*?"<>|{}':
+        assert ch not in name
+
+
+def test_pdf_filename_truncates_long_title():
+    e = BibEntry(key="K", entry_type="article", title="W" * 200)
+    assert len(pdf_filename(e)) <= len("K - ") + 80 + len(".pdf")
+
+
+def test_pdf_filename_normalises_whitespace():
+    e = BibEntry(key="X", entry_type="article", title="  Lots   of   Spaces  ")
+    assert pdf_filename(e) == "X - Lots of Spaces.pdf"
+
+
+# ---------------------------------------------------------------------------
 # Integration tests — require network + valid email
 # ---------------------------------------------------------------------------
 
@@ -127,7 +159,8 @@ def test_fetch_pdf_full_pipeline(tc_entry, unpaywall_email, tmp_path):
     import os
 
     assert os.path.exists(saved)
-    assert saved.endswith(f"{tc_entry.key}.pdf")
+    expected_name = pdf_filename(tc_entry)
+    assert os.path.basename(saved) == expected_name
     assert os.path.getsize(saved) > 10_000
     with open(saved, "rb") as f:
         assert f.read(4) == b"%PDF"

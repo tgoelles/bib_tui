@@ -22,6 +22,34 @@ class FetchError(Exception):
 
 
 # ---------------------------------------------------------------------------
+# Filename helpers
+# ---------------------------------------------------------------------------
+
+_UNSAFE_RE = re.compile(r'[\\/:*?"<>|{}]')
+_WHITESPACE_RE = re.compile(r"\s+")
+_MAX_TITLE_LEN = 80
+
+
+def pdf_filename(entry: BibEntry) -> str:
+    """Return a sanitized filename: ``{key} - {title}.pdf``.
+
+    Characters that are unsafe in filenames are stripped.  The title portion
+    is truncated to keep paths reasonable.  Falls back to ``{key}.pdf`` when
+    the entry has no title.
+    """
+    key = entry.key or "unknown"
+    title = entry.title.strip() if entry.title else ""
+    # Remove LaTeX commands and unsafe chars, then normalise whitespace
+    title = _UNSAFE_RE.sub("", title)
+    title = _WHITESPACE_RE.sub(" ", title).strip()
+    if title:
+        if len(title) > _MAX_TITLE_LEN:
+            title = title[:_MAX_TITLE_LEN].rstrip()
+        return f"{key} - {title}.pdf"
+    return f"{key}.pdf"
+
+
+# ---------------------------------------------------------------------------
 # arXiv helpers
 # ---------------------------------------------------------------------------
 
@@ -221,7 +249,7 @@ def fetch_pdf(
             "Open Settings (Ctrl+P → Settings) and set a base directory first."
         )
 
-    dest_path = os.path.join(dest_dir, f"{entry.key}.pdf")
+    dest_path = os.path.join(dest_dir, pdf_filename(entry))
 
     if os.path.exists(dest_path) and not overwrite:
         raise FetchError(f"File already exists: {dest_path}")
