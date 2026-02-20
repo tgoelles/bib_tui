@@ -7,11 +7,11 @@ from textual.widgets import DataTable, Input
 from textual.widgets._data_table import ColumnKey
 from textual.reactive import reactive
 from textual import on, events
-from bib_tui.bib.models import BibEntry, READ_STATES
+from bib_tui.bib.models import BibEntry, READ_STATES, PRIORITIES
 from bib_tui.utils.config import parse_jabref_path
 
 # Original header labels in column order
-_COL_LABELS = ("◉", "◫", "Type", "Year", "Author", "Journal", "Title", "★")
+_COL_LABELS = ("◉", "!", "◫", "Type", "Year", "Author", "Journal", "Title", "★")
 
 
 class EntryList(Widget):
@@ -40,6 +40,7 @@ class EntryList(Widget):
         self._filtered: list[BibEntry] = list(entries)
         self._col_keys: tuple[ColumnKey, ...] = ()
         self._col_state: ColumnKey | None = None
+        self._col_priority: ColumnKey | None = None
         self._col_rating: ColumnKey | None = None
         self._sort_key: ColumnKey | None = None
         self._sort_reverse: bool = False
@@ -64,8 +65,9 @@ class EntryList(Widget):
         rating_key = table.add_column("★", width=5)
         self._col_keys = tuple(non_rating_keys) + (rating_key,)
         self._col_state = self._col_keys[0]
-        self._col_file = self._col_keys[1]
-        self._col_rating = self._col_keys[7]
+        self._col_priority = self._col_keys[1]
+        self._col_file = self._col_keys[2]
+        self._col_rating = self._col_keys[8]
         self._populate_table(self._all_entries)
 
     def _populate_table(self, entries: list[BibEntry]) -> None:
@@ -76,6 +78,7 @@ class EntryList(Widget):
             journal = e.journal or e.raw_fields.get("booktitle", "")
             table.add_row(
                 e.read_state_icon,
+                e.priority_icon,
                 self._file_icon(e),
                 e.entry_type[:8],
                 e.year[:4] if e.year else "",
@@ -104,19 +107,21 @@ class EntryList(Widget):
         idx = list(self._col_keys).index(col_key)
         if idx == 0:   # ◉ read state
             return lambda e: READ_STATES.index(e.read_state) if e.read_state in READ_STATES else 0
-        if idx == 1:   # ▪ file
+        if idx == 1:   # ! priority
+            return lambda e: e.priority if e.priority > 0 else 99
+        if idx == 2:   # ◫ file
             return lambda e: (0 if e.file else 1)
-        if idx == 2:   # Type
+        if idx == 3:   # Type
             return lambda e: e.entry_type
-        if idx == 3:   # Year
+        if idx == 4:   # Year
             return lambda e: int(e.year) if e.year.isdigit() else 0
-        if idx == 4:   # Author
+        if idx == 5:   # Author
             return lambda e: e.authors_short.lower()
-        if idx == 5:   # Journal
+        if idx == 6:   # Journal
             return lambda e: (e.journal or e.raw_fields.get("booktitle", "")).lower()
-        if idx == 6:   # Title
+        if idx == 7:   # Title
             return lambda e: e.title.lower()
-        if idx == 7:   # ★ rating
+        if idx == 8:   # ★ rating
             return lambda e: e.rating
         return lambda e: ""
 
@@ -135,6 +140,7 @@ class EntryList(Widget):
             journal = e.journal or e.raw_fields.get("booktitle", "")
             table.add_row(
                 e.read_state_icon,
+                e.priority_icon,
                 self._file_icon(e),
                 e.entry_type[:8],
                 e.year[:4] if e.year else "",
@@ -215,9 +221,10 @@ class EntryList(Widget):
                 self._apply_sort()
 
     def refresh_row(self, entry: BibEntry) -> None:
-        """Update the read-state, file, and rating cells for a single row."""
+        """Update the read-state, priority, file, and rating cells for a single row."""
         table = self.query_one(DataTable)
         table.update_cell(entry.key, self._col_state, entry.read_state_icon, update_width=False)
+        table.update_cell(entry.key, self._col_priority, entry.priority_icon, update_width=False)
         table.update_cell(entry.key, self._col_file, self._file_icon(entry), update_width=False)
         table.update_cell(entry.key, self._col_rating, entry.rating_stars, update_width=False)
 

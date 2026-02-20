@@ -118,6 +118,10 @@ class EntryDetail(Widget):
         width: auto;
         margin-right: 3;
     }
+    #detail-priority {
+        width: auto;
+        margin-right: 3;
+    }
     #detail-file {
         width: auto;
     }
@@ -150,6 +154,7 @@ class EntryDetail(Widget):
     def compose(self) -> ComposeResult:
         with Horizontal(id="detail-meta"):
             yield Label("", id="detail-read-state")
+            yield Label("", id="detail-priority")
             yield Label("", id="detail-rating")
             yield Label("", id="detail-file")
         yield Static("Select an entry to view details.", id="detail-content")
@@ -195,12 +200,14 @@ class EntryDetail(Widget):
 
     def _refresh_content(self) -> None:
         read_label = self.query_one("#detail-read-state", Label)
+        priority_label = self.query_one("#detail-priority", Label)
         rating_label = self.query_one("#detail-rating", Label)
         file_label = self.query_one("#detail-file", Label)
         content = self.query_one("#detail-content", Static)
 
         if self._entry is None:
             read_label.update("")
+            priority_label.update("")
             rating_label.update("")
             file_label.update("")
             content.update("Select an entry to view details.")
@@ -213,6 +220,11 @@ class EntryDetail(Widget):
 
         state_label = e.read_state if e.read_state else "unset"
         read_label.update(f"[bold]Read:[/bold] {e.read_state_icon} {state_label}")
+
+        if e.priority:
+            priority_label.update(f"[bold]Priority:[/bold] {e.priority_icon} {e.priority_label}")
+        else:
+            priority_label.update("[dim]Priority: —[/dim]")
 
         stars = e.rating_stars or "[dim]unrated[/dim]"
         rating_label.update(f"[bold]Rating:[/bold] [{colors['warning']}]{stars}[/]")

@@ -12,6 +12,11 @@ READ_STATE_ICONS: dict[str, str] = {
     "read": "●",
 }
 
+# JabRef priority: prio1=high, prio2=medium, prio3=low
+PRIORITIES: list[int] = [0, 1, 2, 3]
+PRIORITY_ICONS: dict[int, str] = {0: " ", 1: "↑", 2: "→", 3: "↓"}
+PRIORITY_LABELS: dict[int, str] = {0: "unset", 1: "high", 2: "medium", 3: "low"}
+
 ENTRY_TYPES: dict[str, dict[str, list[str]]] = {
     "article": {
         "required": ["author", "title", "journal", "year"],
@@ -61,6 +66,7 @@ class BibEntry:
     keywords: str = ""
     rating: int = 0
     read_state: str = ""  # one of READ_STATES
+    priority: int = 0     # 0=unset, 1=high, 2=medium, 3=low (JabRef prio1/prio2/prio3)
     tags: list[str] = field(default_factory=list)
     file: str = ""
     raw_fields: dict[str, str] = field(default_factory=dict)
@@ -90,6 +96,17 @@ class BibEntry:
     def cycle_read_state(self) -> None:
         idx = READ_STATES.index(self.read_state) if self.read_state in READ_STATES else 0
         self.read_state = READ_STATES[(idx + 1) % len(READ_STATES)]
+
+    @property
+    def priority_icon(self) -> str:
+        return PRIORITY_ICONS.get(self.priority, " ")
+
+    @property
+    def priority_label(self) -> str:
+        return PRIORITY_LABELS.get(self.priority, "unset")
+
+    def cycle_priority(self) -> None:
+        self.priority = (self.priority + 1) % 4
 
     @property
     def rating_stars(self) -> str:

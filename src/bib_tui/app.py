@@ -31,6 +31,7 @@ class BibTuiApp(App):
         Binding("space", "open_pdf", "Open PDF"),
         Binding("t", "edit_tags", "Tags"),
         Binding("r", "cycle_read_state", "Read state"),
+        Binding("P", "cycle_priority", "Priority"),
         Binding("f,/", "focus_search", "Search"),
         Binding("1", "set_rating('1')", "★"),
         Binding("2", "set_rating('2')", "★★"),
@@ -217,6 +218,15 @@ class BibTuiApp(App):
         if entry is None:
             return
         entry.cycle_read_state()
+        self._dirty = True
+        self.query_one(EntryList).refresh_row(entry)
+        self.query_one(EntryDetail).show_entry(entry)
+
+    def action_cycle_priority(self) -> None:
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            return
+        entry.cycle_priority()
         self._dirty = True
         self.query_one(EntryList).refresh_row(entry)
         self.query_one(EntryDetail).show_entry(entry)
