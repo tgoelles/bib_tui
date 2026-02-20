@@ -7,7 +7,7 @@ name = "bibtui"
 version = "0.1.0"
 description = "Terminal UI for managing BibTeX bibliography files"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "bibtexparser>=2.0.0b9",
     "click>=8.3.1",
