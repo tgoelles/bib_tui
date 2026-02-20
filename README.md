@@ -54,8 +54,8 @@ no database, no sync daemon, no account required.
 - **Star ratings** — rate entries 1–5
 - **Keywords editor** — manage tags inline
 - **JabRef-compatible** — file links use JabRef conventions; open the same `.bib` in both tools
-- **Git-friendly** — it's a plain text file; commit, diff, and collaborate normally
-- **Full Textual theme support** — including automatic detection of the [omarchy](https://omarchy.dev) themes
+- **Git-friendly** — it's a plain text file (.bib); commit, diff, and collaborate normally
+- **Full Textual theme support** — including automatic detection of the [omarchy](https://omarchy.org) themes
 - **Works anywhere `uv` does** — SSH, HPC clusters, a colleague's laptop
 
 ---
