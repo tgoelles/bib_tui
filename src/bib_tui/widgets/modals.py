@@ -418,15 +418,25 @@ class HelpModal(ModalScreen[None]):
     DEFAULT_CSS = """
     HelpModal { align: center middle; }
     HelpModal > Vertical {
-        width: 62; height: auto;
+        width: 62; height: 80%;
         border: double $accent; background: $surface; padding: 1 2;
     }
+    HelpModal VerticalScroll { height: 1fr; }
+    HelpModal #help-about { margin-bottom: 1; color: $text-muted; }
     """
-    _HELP = """\
+
+    _ABOUT = (
+        "[bold]bib-tui[/bold] v0.1.0  —  BibTeX TUI\n"
+        "[dim]Author:[/dim] Thomas Gölles\n"
+        "[dim]Repo:[/dim]   github.com/tgoelles/bib_tui\n"
+        "[dim]Built with Claude Code (Anthropic)[/dim]"
+    )
+
+    _KEYS = """\
 [bold]── Core ──────────────────────────────[/bold]
   [bold]q[/bold]         Quit
   [bold]w[/bold]         Write
-  [bold]s[/bold]         Search  [dim](a: t: k: y: or plain text)[/dim]
+  [bold]s[/bold]         Search
   [bold]e[/bold]         Edit entry (field form or raw BibTeX)
   [bold]d[/bold]         Add entry by DOI
   [bold]k[/bold]         Edit keywords
@@ -446,10 +456,32 @@ class HelpModal(ModalScreen[None]):
   [bold]ctrl+p[/bold]    Command palette (Settings…)
   [bold]Esc[/bold]       Clear search / close modal"""
 
+    _SEARCH = """\
+[bold]── Plain text ────────────────────────[/bold]
+  Searches title, author, keywords, and key.
+  Multiple words are ANDed together.
+
+[bold]── Field prefixes ────────────────────[/bold]
+  [bold]a:[/bold] / [bold]author:[/bold]    filter by author
+  [bold]t:[/bold] / [bold]title:[/bold]     filter by title
+  [bold]k:[/bold] / [bold]kw:[/bold]        filter by keyword
+  [bold]y:[/bold] / [bold]year:[/bold]      filter by year or range
+
+[bold]── Examples ──────────────────────────[/bold]
+  [dim]glacier[/dim]              all fields
+  [dim]a:smith t:glacier[/dim]    combined
+  [dim]y:2015-2023[/dim]          year range
+  [dim]k:ice a:jones[/dim]        keyword + author"""
+
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label("[bold]Keybindings[/bold]", classes="modal-title")
-            yield Static(self._HELP)
+            yield Label("[bold]Help[/bold]", classes="modal-title")
+            with VerticalScroll():
+                yield Static(self._ABOUT, id="help-about")
+                yield Label("[bold]Keybindings[/bold]", classes="modal-title")
+                yield Static(self._KEYS)
+                yield Label("[bold]Search syntax[/bold]", classes="modal-title")
+                yield Static(self._SEARCH)
             with Horizontal(classes="modal-buttons"):
                 yield Button("Close", variant="primary", id="btn-close")
 
