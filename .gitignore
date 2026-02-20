@@ -13,3 +13,4 @@ wheels/
 *.bib.bak
 
 docs/pictures/.comments/*
+.vscode/
