@@ -132,6 +132,13 @@ class BibTuiApp(App):
     def _load_entries(self) -> None:
         self.notify("Loading bibliography...", timeout=2)
         try:
+            bak = self._bib_path + ".bak"
+            import shutil as _shutil
+
+            _shutil.copy2(self._bib_path, bak)
+        except Exception:
+            pass  # Missing file or permission error — silently skip backup
+        try:
             self._entries = parser.load(self._bib_path)
             entry_list = self.query_one(EntryList)
             entry_list.set_pdf_base_dir(self._config.pdf_base_dir)
