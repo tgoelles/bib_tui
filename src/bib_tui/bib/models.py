@@ -64,6 +64,7 @@ class BibEntry:
     doi: str = ""
     abstract: str = ""
     keywords: str = ""
+    comment: str = ""
     rating: int = 0
     read_state: str = ""  # one of READ_STATES
     priority: int = 0     # 0=unset, 1=high, 2=medium, 3=low (JabRef prio1/prio2/prio3)

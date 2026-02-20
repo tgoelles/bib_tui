@@ -171,6 +171,8 @@ class EditModal(ModalScreen[BibEntry | None]):
                 yield Input(value=e.file, id="edit-file")
                 yield Label("Abstract")
                 yield TextArea(e.abstract, id="edit-abstract")
+                yield Label("Comment")
+                yield TextArea(e.comment, id="edit-comment")
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
@@ -197,6 +199,7 @@ class EditModal(ModalScreen[BibEntry | None]):
         e.tags = [t.strip() for t in tags_str.split(",") if t.strip()]
         e.file = v("#edit-file")
         e.abstract = self.query_one("#edit-abstract", TextArea).text
+        e.comment = self.query_one("#edit-comment", TextArea).text
         self.dismiss(e)
 
     def action_save_and_close(self) -> None:
