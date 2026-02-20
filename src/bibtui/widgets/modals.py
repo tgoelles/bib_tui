@@ -436,7 +436,7 @@ class SettingsModal(ModalScreen["Config | None"]):
                 id="unpaywall-email",
             )
             yield Static(
-                "[dim]Used for open-access PDF lookup via Unpaywall (free service).[/dim]"
+                "[dim]Used for open-access PDF lookup via Unpaywall — no registration needed.[/dim]"
             )
             yield Label("PDF download directory")
             yield Input(
@@ -986,3 +986,63 @@ class FetchPDFModal(ModalScreen["str | None"]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class FirstRunModal(ModalScreen[bool]):
+    """Welcome screen shown on first launch — guides the user to Settings."""
+
+    BINDINGS = [Binding("escape", "skip", "Skip", show=False)]
+
+    DEFAULT_CSS = """
+    FirstRunModal { align: center middle; }
+    FirstRunModal > Vertical {
+        width: 70; height: auto;
+        border: double $accent; background: $surface; padding: 2 3;
+    }
+    FirstRunModal #welcome-title { text-align: center; margin-bottom: 1; }
+    FirstRunModal #welcome-body  { margin-bottom: 1; }
+    FirstRunModal #welcome-paths { margin-bottom: 1; color: $text-muted; }
+    FirstRunModal .modal-buttons { height: 3; align: right middle; }
+    """
+
+    def __init__(self, pdf_base_dir: str, pdf_download_dir: str, **kwargs):
+        super().__init__(**kwargs)
+        self._pdf_base_dir = pdf_base_dir
+        self._pdf_download_dir = pdf_download_dir
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Static(
+                "[bold]Welcome to bibtui![/bold]",
+                id="welcome-title",
+            )
+            yield Static(
+                "A terminal UI for browsing and managing BibTeX libraries.\n\n"
+                "Three settings are needed before you can fetch or attach PDFs:\n"
+                "  [bold]PDF base dir[/bold]     — where your PDFs are stored\n"
+                "  [bold]Download dir[/bold]     — where your browser saves files\n"
+                "  [bold]Unpaywall email[/bold]  — for open-access PDF lookup\n"
+                "                     (no registration, just rate-limiting)",
+                id="welcome-body",
+            )
+            yield Static(
+                f"Suggested defaults:\n"
+                f"  [dim]{self._pdf_base_dir}[/dim]\n"
+                f"  [dim]{self._pdf_download_dir}[/dim]",
+                id="welcome-paths",
+            )
+            yield Static(
+                "[dim]You can change these at any time via Ctrl+P → Settings.[/dim]",
+            )
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Skip", variant="default", id="btn-skip")
+                yield Button("Configure Settings", variant="primary", id="btn-configure")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-configure":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
+
+    def action_skip(self) -> None:
+        self.dismiss(False)

@@ -13,6 +13,21 @@ class Config:
     pdf_download_dir: str = ""
 
 
+def is_first_run() -> bool:
+    """Return True if no config file exists yet (new installation)."""
+    return not CONFIG_PATH.exists()
+
+
+def default_config() -> Config:
+    """Return a Config pre-filled with sensible platform defaults."""
+    home = Path.home()
+    return Config(
+        pdf_base_dir=str(home / "Documents" / "papers"),
+        unpaywall_email="",
+        pdf_download_dir=str(home / "Downloads"),
+    )
+
+
 def load_config() -> Config:
     if not CONFIG_PATH.exists():
         return Config()

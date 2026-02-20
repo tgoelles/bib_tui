@@ -13,7 +13,7 @@ from textual.widgets import DataTable, Footer, Header, Input, Label, Static, Tex
 
 from bibtui.bib import parser
 from bibtui.bib.models import BibEntry
-from bibtui.utils.config import Config, load_config, parse_jabref_path, save_config
+from bibtui.utils.config import Config, default_config, is_first_run, load_config, parse_jabref_path, save_config
 from bibtui.utils.theme import detect_theme
 from bibtui.widgets.entry_detail import EntryDetail
 from bibtui.widgets.entry_list import EntryList
@@ -23,6 +23,7 @@ from bibtui.widgets.modals import (
     DOIModal,
     EditModal,
     FetchPDFModal,
+    FirstRunModal,
     HelpModal,
     KeywordsModal,
     PasteModal,
@@ -96,7 +97,8 @@ class BibTuiApp(App):
         self._bib_path = bib_path
         self._entries: list[BibEntry] = []
         self._dirty = False
-        self._config: Config = load_config()
+        self._first_run = is_first_run()
+        self._config: Config = default_config() if self._first_run else load_config()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -109,6 +111,8 @@ class BibTuiApp(App):
         self.theme = detect_theme()
         self.title = f"bibtui — {os.path.basename(self._bib_path)}"
         self._load_entries()
+        if self._first_run:
+            self.call_after_refresh(self._show_first_run)
 
     def on_resize(self, event) -> None:
         self.query_one("#main-content").set_class(
@@ -445,6 +449,16 @@ class BibTuiApp(App):
 
     def action_settings(self) -> None:
         self.push_screen(SettingsModal(self._config), self._on_settings_done)
+
+    def _show_first_run(self) -> None:
+        def _after_welcome(open_settings: bool) -> None:
+            if open_settings:
+                self.push_screen(SettingsModal(self._config), self._on_settings_done)
+
+        self.push_screen(
+            FirstRunModal(self._config.pdf_base_dir, self._config.pdf_download_dir),
+            _after_welcome,
+        )
 
     def _on_settings_done(self, result: Config | None) -> None:
         if result is None:
