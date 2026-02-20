@@ -187,20 +187,15 @@ class EntryList(Widget):
         self.query_one(DataTable).focus()
 
     def on_key(self, event: events.Key) -> None:
+        """Allow arrow keys to move the table cursor while search is focused."""
         table = self.query_one(DataTable)
         search = self.query_one(Input)
-        focused = self.app.focused
-
-        if focused is search:
+        if self.app.focused is search:
             if event.key == "down":
                 table.action_cursor_down()
                 event.stop()
             elif event.key == "up":
                 table.action_cursor_up()
-                event.stop()
-        elif focused is table:
-            if event.key == "j":
-                table.action_cursor_down()
                 event.stop()
 
     # ── Public helpers ────────────────────────────────────────────────────
