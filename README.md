@@ -172,8 +172,8 @@ uv run textual run --dev src/bibtui/main.py -- tests/bib_examples/MyCollection.b
 **Does this modify my `.bib` formatting?**
 Yes. but we also write a backup file
 
-**Can I use it alongside JabRef?**
-Yes. File links follow JabRef conventions.
+**Can I use it alongside JabRef or XYZ tool for .bib?**
+Yes. they both just read bib files and bibtui follows JabRef conventions.
 
 
 ## License
