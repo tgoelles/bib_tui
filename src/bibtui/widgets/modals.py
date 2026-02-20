@@ -525,7 +525,7 @@ class HelpModal(ModalScreen[None]):
 
             version = __version__
         except Exception:
-            version = "0.1.0"
+            version = "unknown"
         return (
             f"[bold]bibtui[/bold] v{version}  —  BibTeX TUI\n"
             "[dim]Author:[/dim] Thomas Gölles\n"

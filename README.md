@@ -1,11 +1,19 @@
 # bibtui
 
-> A beautiful terminal UI for researchers — manage your BibTeX library,
-> fetch open-access PDFs automatically, and stay focused on reading papers.
+> A quiet, powerful home for your references.
 
 [![PyPI](https://img.shields.io/pypi/v/bibtui)](https://pypi.org/project/bibtui/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+## Quick start
+
+```bash
+uvx bibtui myrefs.bib
+```
+
+-----
+## Screenshots
 
 <!-- screenshots -->
 
@@ -36,9 +44,9 @@ no database, no sync daemon, no account required.
 | -------------------------------- | ------ | ------- | ------ |
 | Runs in the terminal             | ✅     | ❌      | ❌     |
 | No database / sync daemon        | ✅     | ✅      | ❌     |
-| Git-friendly plain `.bib`      | ✅     | ✅      | ❌     |
+| Git-friendly plain `.bib`        | ✅     | ✅      | ❌     |
 | Works over SSH                   | ✅     | ❌      | ❌     |
-| Full theme support               | ✅     | partial | ❌     |
+| Full Textual theming             | ✅     | ❌      | ❌     |
 | Pure Python, installs in seconds | ✅     | ❌      | ❌     |
 
 ---
@@ -107,6 +115,16 @@ updated automatically in JabRef format.
 
 ---
 
+## Philosophy
+
+- Your `.bib` file is the source of truth
+- No hidden database
+- No lock-in
+- No accounts
+- keyboard and mouse support
+- nice looking
+- focused featurset. For cleanup use [bibtex-tidy](https://github.com/FlamingTempura/bibtex-tidy) or work directly on the bib file
+
 ## Development
 
 ```bash
@@ -137,6 +155,15 @@ uv run textual run --dev src/bibtui/main.py -- tests/bib_examples/MyCollection.b
 - [bibman](https://codeberg.org/KMIJPH/bibman) — minimal TUI reference manager
 
 ---
+
+## FAQ
+
+**Does this modify my `.bib` formatting?**
+Yes. but we also write a backup file
+
+**Can I use it alongside JabRef?**
+Yes. File links follow JabRef conventions.
+
 
 ## License
 
