@@ -53,9 +53,6 @@ def pdf_filename(entry: BibEntry) -> str:
 # arXiv helpers
 # ---------------------------------------------------------------------------
 
-_ARXIV_NEW_RE = re.compile(r"\d{4}\.\d{4,5}(v\d+)?$")
-_ARXIV_OLD_RE = re.compile(r"[a-zA-Z.-]+/\d{7}(v\d+)?$")
-
 
 def _arxiv_id(entry: BibEntry) -> str | None:
     """Extract an arXiv ID from the entry's DOI or URL, or None."""
@@ -140,8 +137,11 @@ def _try_arxiv(entry: BibEntry, dest_path: str) -> str | None:
 
 
 def _try_unpaywall(entry: BibEntry, dest_path: str, email: str) -> str | None:
-    """Try Unpaywall open-access lookup.
+    """Try Unpaywall open-access lookup using only direct ``url_for_pdf`` links.
+
     Returns None on success, or an error reason string on failure.
+    If Unpaywall only knows a landing page (url_for_pdf=None), the paper is
+    reported as not fetchable via this strategy.
     """
     if not entry.doi:
         return "entry has no DOI"
@@ -162,27 +162,29 @@ def _try_unpaywall(entry: BibEntry, dest_path: str, email: str) -> str | None:
     except Exception as exc:
         return f"Unpaywall API error: {exc}"
 
-    # Walk Unpaywall response for the best PDF URL
-    pdf_url: str | None = None
+    # Collect all direct PDF URLs Unpaywall knows about
+    pdf_candidates: list[str] = []
     best = data.get("best_oa_location") or {}
-    pdf_url = best.get("url_for_pdf") or best.get("url")
+    if best.get("url_for_pdf"):
+        pdf_candidates.append(best["url_for_pdf"])
+    for loc in data.get("oa_locations", []):
+        u = loc.get("url_for_pdf")
+        if u and u not in pdf_candidates:
+            pdf_candidates.append(u)
 
-    if not pdf_url:
-        # Fall back to scanning oa_locations list
-        for loc in data.get("oa_locations", []):
-            candidate = loc.get("url_for_pdf") or loc.get("url")
-            if candidate:
-                pdf_url = candidate
-                break
+    if not pdf_candidates:
+        return (
+            "Unpaywall found no direct PDF URL (publisher only provides a landing page)"
+        )
 
-    if not pdf_url:
-        return "no open-access PDF URL found in Unpaywall response"
-
-    try:
-        _download(pdf_url, dest_path)
-        return None
-    except FetchError as exc:
-        return str(exc)
+    last_error = ""
+    for url in pdf_candidates:
+        try:
+            _download(url, dest_path)
+            return None
+        except FetchError as exc:
+            last_error = str(exc)
+    return last_error
 
 
 # ---------------------------------------------------------------------------

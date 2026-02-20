@@ -48,6 +48,20 @@ def tc_entry() -> BibEntry:
     )
 
 
+@pytest.fixture()
+def zeitz2021_entry() -> BibEntry:
+    """Zeitz2021 — Copernicus paper where Unpaywall has no url_for_pdf,
+    only a landing page URL.  PDF must be derived from the landing page.
+    """
+    return BibEntry(
+        key="Zeitz2021",
+        entry_type="article",
+        title="Impact of the melt-albedo feedback on the future evolution of the Greenland Ice Sheet with PISM-dEBM-simple",
+        doi="10.5194/tc-15-5739-2021",
+        url="https://tc.copernicus.org/articles/15/5739/2021/",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Unit tests — no network
 # ---------------------------------------------------------------------------
@@ -148,6 +162,7 @@ def test_pdf_filename_normalises_whitespace():
 
 @pytest.mark.network
 def test_try_unpaywall_downloads_pdf(tc_entry, unpaywall_email, tmp_path):
+    """tc-18-3807-2024 has url_for_pdf directly from Unpaywall."""
     dest = str(tmp_path / f"{tc_entry.key}.pdf")
     reason = _try_unpaywall(tc_entry, dest, unpaywall_email)
     assert reason is None, f"Expected success but got: {reason}"
@@ -157,6 +172,19 @@ def test_try_unpaywall_downloads_pdf(tc_entry, unpaywall_email, tmp_path):
     assert os.path.getsize(dest) > 10_000  # real PDF should be > 10 KB
     with open(dest, "rb") as f:
         assert f.read(4) == b"%PDF", "Downloaded file is not a valid PDF"
+
+
+@pytest.mark.network
+def test_try_unpaywall_reports_landing_page_only(
+    zeitz2021_entry, unpaywall_email, tmp_path
+):
+    """Zeitz2021: Unpaywall has url_for_pdf=None — only a landing page.
+    The strategy should report this clearly rather than trying to download HTML.
+    """
+    dest = str(tmp_path / f"{zeitz2021_entry.key}.pdf")
+    reason = _try_unpaywall(zeitz2021_entry, dest, unpaywall_email)
+    assert reason is not None, "Expected failure but got success"
+    assert "landing page" in reason
 
 
 @pytest.mark.network
