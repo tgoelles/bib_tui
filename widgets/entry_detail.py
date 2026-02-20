@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 from textual.app import ComposeResult
 from textual.widget import Widget
-from textual.widgets import Label, Static
+from textual.widgets import Label, Static, TextArea
 from textual.containers import Horizontal
 from rich.syntax import Syntax
 from bib.models import BibEntry, ENTRY_TYPES
@@ -117,6 +117,10 @@ class EntryDetail(Widget):
     #detail-content {
         height: auto;
     }
+    #detail-raw {
+        display: none;
+        height: 1fr;
+    }
     """
 
     def __init__(self, **kwargs):
@@ -134,6 +138,7 @@ class EntryDetail(Widget):
             yield Label("", id="detail-rating")
             yield Label("", id="detail-file")
         yield Static("Select an entry to view details.", id="detail-content")
+        yield TextArea("", id="detail-raw", read_only=True)
 
     def show_entry(self, entry: BibEntry | None) -> None:
         self._entry = entry
@@ -166,6 +171,8 @@ class EntryDetail(Widget):
             rating_label.update("")
             file_label.update("")
             content.update("Select an entry to view details.")
+            self.query_one("#detail-raw", TextArea).display = False
+            content.display = True
             return
 
         e = self._entry
@@ -183,7 +190,12 @@ class EntryDetail(Widget):
         else:
             file_label.update(f"[bold]PDF:[/bold] [dim]□ not found[/dim]")
 
+        raw = self.query_one("#detail-raw", TextArea)
         if self._raw_mode:
-            content.update(_render_raw(e))
+            content.display = False
+            raw.display = True
+            raw.load_text(entry_to_bibtex_str(e))
         else:
+            raw.display = False
+            content.display = True
             content.update(_render_entry(e))
