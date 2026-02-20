@@ -1038,9 +1038,9 @@ class FetchPDFModal(ModalScreen["str | None"]):
 
 
 class FirstRunModal(ModalScreen[bool]):
-    """Welcome screen shown on first launch — guides the user to Settings."""
+    """One-time welcome notice — shown only on the very first launch."""
 
-    BINDINGS = [Binding("escape", "skip", "Skip", show=False)]
+    BINDINGS = [Binding("escape", "got_it", "Got it", show=False)]
 
     DEFAULT_CSS = """
     FirstRunModal { align: center middle; }
@@ -1050,14 +1050,8 @@ class FirstRunModal(ModalScreen[bool]):
     }
     FirstRunModal #welcome-title { text-align: center; margin-bottom: 1; }
     FirstRunModal #welcome-body  { margin-bottom: 1; }
-    FirstRunModal #welcome-paths { margin-bottom: 1; color: $text-muted; }
     FirstRunModal .modal-buttons { height: 3; align: right middle; }
     """
-
-    def __init__(self, pdf_base_dir: str, pdf_download_dir: str, **kwargs):
-        super().__init__(**kwargs)
-        self._pdf_base_dir = pdf_base_dir
-        self._pdf_download_dir = pdf_download_dir
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -1066,34 +1060,23 @@ class FirstRunModal(ModalScreen[bool]):
                 id="welcome-title",
             )
             yield Static(
-                "A terminal UI for browsing and managing BibTeX libraries.\n\n"
-                "Three settings are needed before you can fetch or attach PDFs:\n"
-                "  [bold]PDF base dir[/bold]     — where your PDFs are stored\n"
-                "  [bold]Download dir[/bold]     — where your browser saves files\n"
-                "  [bold]Unpaywall email[/bold]  — for open-access PDF lookup\n"
-                "                     (no registration, just rate-limiting)",
+                "A keyboard-driven terminal UI for your BibTeX libraries.\n\n"
+                "[bold green]You're ready to go[/bold green] — no setup required.\n"
+                "Just run  [bold]bibtui yourfile.bib[/bold]  and start browsing.\n\n"
+                "[dim]Optional:[/dim] PDF fetching and attaching require a few"
+                " extra settings\n"
+                "(PDF dir, download dir, Unpaywall email).  Open them any time\n"
+                "via [bold]Ctrl+P → Settings[/bold] or press [bold]Configure PDF features[/bold] below.",
                 id="welcome-body",
             )
-            yield Static(
-                f"Suggested defaults:\n"
-                f"  [dim]{self._pdf_base_dir}[/dim]\n"
-                f"  [dim]{self._pdf_download_dir}[/dim]",
-                id="welcome-paths",
-            )
-            yield Static(
-                "[dim]You can change these at any time via Ctrl+P → Settings.[/dim]",
-            )
             with Horizontal(classes="modal-buttons"):
-                yield Button("Skip", variant="default", id="btn-skip")
+                yield Button("Got it", variant="primary", id="btn-got-it")
                 yield Button(
-                    "Configure Settings", variant="primary", id="btn-configure"
+                    "Configure PDF features", variant="default", id="btn-configure"
                 )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-configure":
-            self.dismiss(True)
-        else:
-            self.dismiss(False)
+        self.dismiss(event.button.id == "btn-configure")
 
-    def action_skip(self) -> None:
+    def action_got_it(self) -> None:
         self.dismiss(False)

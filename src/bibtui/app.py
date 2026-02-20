@@ -14,8 +14,8 @@ from textual.widgets import DataTable, Footer, Header, Input, TextArea
 from bibtui.bib import parser
 from bibtui.bib.models import BibEntry
 from bibtui.utils.config import (
+    CONFIG_PATH,
     Config,
-    default_config,
     is_first_run,
     load_config,
     parse_jabref_path,
@@ -105,7 +105,7 @@ class BibTuiApp(App):
         self._entries: list[BibEntry] = []
         self._dirty = False
         self._first_run = is_first_run()
-        self._config: Config = default_config() if self._first_run else load_config()
+        self._config: Config = load_config()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -458,13 +458,13 @@ class BibTuiApp(App):
 
     def _show_first_run(self) -> None:
         def _after_welcome(open_settings: bool) -> None:
+            # Always persist an empty config so this modal never appears again.
+            if not CONFIG_PATH.exists():
+                save_config(self._config)
             if open_settings:
                 self.push_screen(SettingsModal(self._config), self._on_settings_done)
 
-        self.push_screen(
-            FirstRunModal(self._config.pdf_base_dir, self._config.pdf_download_dir),
-            _after_welcome,
-        )
+        self.push_screen(FirstRunModal(), _after_welcome)
 
     def _on_settings_done(self, result: Config | None) -> None:
         if result is None:
