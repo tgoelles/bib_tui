@@ -425,7 +425,7 @@ class HelpModal(ModalScreen[None]):
     _HELP = """\
 [bold]── Core ──────────────────────────────[/bold]
   [bold]q[/bold]         Quit
-  [bold]w[/bold]         Write + git commit
+  [bold]w[/bold]         Write
   [bold]s[/bold]         Search
   [bold]e[/bold]         Edit entry (field form or raw BibTeX)
   [bold]d[/bold]         Add entry by DOI

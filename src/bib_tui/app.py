@@ -11,7 +11,6 @@ from textual.command import DiscoveryHit, Hit, Hits, Provider
 
 from bib_tui.bib.models import BibEntry
 from bib_tui.bib import parser
-from bib_tui.utils.git import commit
 from bib_tui.utils.config import Config, load_config, save_config, parse_jabref_path
 from bib_tui.utils.theme import detect_theme
 from bib_tui.widgets.entry_list import EntryList
@@ -146,10 +145,8 @@ class BibTuiApp(App):
     def action_save(self) -> None:
         try:
             parser.save(self._entries, self._bib_path)
-            committed = commit(self._bib_path, "bib-tui: write bibliography")
             self._dirty = False
-            msg = "Written" + (" and committed to git." if committed else ".")
-            self.notify(msg, timeout=3)
+            self.notify("Written.", timeout=3)
         except Exception as e:
             self.notify(f"Write failed: {e}", severity="error")
 
