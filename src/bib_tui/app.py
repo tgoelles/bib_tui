@@ -1,34 +1,52 @@
 from __future__ import annotations
+
 import os
 import platform
 import subprocess
-from textual.app import App, ComposeResult
-from textual.widgets import DataTable, Footer, Header, Input, Label, Static, TextArea
-from textual.containers import Horizontal, Vertical
+
 from textual import events, on, work
+from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.command import DiscoveryHit, Hit, Hits, Provider
+from textual.containers import Horizontal, Vertical
+from textual.widgets import DataTable, Footer, Header, Input, Label, Static, TextArea
 
-from bib_tui.bib.models import BibEntry
 from bib_tui.bib import parser
-from bib_tui.utils.config import Config, load_config, save_config, parse_jabref_path
+from bib_tui.bib.models import BibEntry
+from bib_tui.utils.config import Config, load_config, parse_jabref_path, save_config
 from bib_tui.utils.theme import detect_theme
-from bib_tui.widgets.entry_list import EntryList
 from bib_tui.widgets.entry_detail import EntryDetail
-from bib_tui.widgets.modals import ConfirmModal, DOIModal, EditModal, HelpModal, KeywordsModal, PasteModal, RawEditModal, SettingsModal
+from bib_tui.widgets.entry_list import EntryList
+from bib_tui.widgets.modals import (
+    ConfirmModal,
+    DOIModal,
+    EditModal,
+    HelpModal,
+    KeywordsModal,
+    PasteModal,
+    RawEditModal,
+    SettingsModal,
+)
 
 
 class SettingsProvider(Provider):
     """Exposes the Settings dialog through the command palette."""
 
     async def discover(self) -> Hits:
-        yield DiscoveryHit("Settings", self.app.action_settings, help="Open the settings dialog")
+        yield DiscoveryHit(
+            "Settings", self.app.action_settings, help="Open the settings dialog"
+        )
 
     async def search(self, query: str) -> Hits:
         matcher = self.matcher(query)
         score = matcher.match("Settings")
         if score > 0:
-            yield Hit(score, matcher.highlight("Settings"), self.app.action_settings, help="Open the settings dialog")
+            yield Hit(
+                score,
+                matcher.highlight("Settings"),
+                self.app.action_settings,
+                help="Open the settings dialog",
+            )
 
 
 class BibTuiApp(App):
@@ -190,7 +208,12 @@ class BibTuiApp(App):
             return
         existing_keys = {e.key for e in self._entries}
         if result.key in existing_keys:
-            result.key = result.key + "a"
+            self.notify(
+                f"BibTeX key '{result.key}' already exists, cannot proceed.",
+                severity="error",
+                timeout=5,
+            )
+            return
         self._entries.append(result)
         self._dirty = True
         el = self.query_one(EntryList)
@@ -209,10 +232,14 @@ class BibTuiApp(App):
     def _on_doi_done(self, result: BibEntry | None) -> None:
         if result is None:
             return
-        # Check for duplicate key
         existing_keys = {e.key for e in self._entries}
         if result.key in existing_keys:
-            result.key = result.key + "a"
+            self.notify(
+                f"BibTeX key '{result.key}' already exists, cannot proceed.",
+                severity="error",
+                timeout=5,
+            )
+            return
         self._entries.append(result)
         self._dirty = True
         el = self.query_one(EntryList)
@@ -309,11 +336,14 @@ class BibTuiApp(App):
             self.notify("No entry selected.", severity="warning")
             return
         all_kws, kw_counts = self._all_keywords()
-        self.push_screen(KeywordsModal(entry, all_kws, kw_counts), self._on_keywords_done)
+        self.push_screen(
+            KeywordsModal(entry, all_kws, kw_counts), self._on_keywords_done
+        )
 
     def _all_keywords(self) -> tuple[list[str], dict[str, int]]:
         """All unique keywords across the bib file, sorted by frequency descending."""
         from collections import Counter
+
         counter: Counter[str] = Counter()
         for e in self._entries:
             for kw in e.keywords_list:

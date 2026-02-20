@@ -1,13 +1,15 @@
 from __future__ import annotations
+
+from textual import events, on
 from textual.app import ComposeResult
 from textual.binding import Binding
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, Static, TextArea, SelectionList
+from textual.widgets import Button, Input, Label, SelectionList, Static, TextArea
 from textual.widgets._selection_list import Selection
-from textual.containers import Vertical, VerticalScroll, Horizontal
-from textual import events, on
+
 from bib_tui.bib.models import BibEntry
-from bib_tui.bib.parser import entry_to_bibtex_str, bibtex_str_to_entry
+from bib_tui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bib_tui.utils.config import Config
 
 
@@ -72,7 +74,9 @@ class DOIModal(ModalScreen[BibEntry | None]):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label("[bold]Entry from DOI[/bold]", classes="modal-title")
-            yield Input(placeholder="Enter DOI (e.g. 10.1038/nature12345)", id="doi-input")
+            yield Input(
+                placeholder="Enter DOI (e.g. 10.1038/nature12345)", id="doi-input"
+            )
             yield Static("", id="doi-status")
             with Horizontal(classes="modal-buttons"):
                 yield Button("Fetch", variant="primary", id="btn-fetch")
@@ -99,6 +103,7 @@ class DOIModal(ModalScreen[BibEntry | None]):
         status.update("Fetching…")
         try:
             from bib_tui.bib.doi import fetch_by_doi
+
             entry = fetch_by_doi(doi)
             status.set_classes("success")
             status.update(f"Found: {entry.title[:60]}")
@@ -153,7 +158,9 @@ class EditModal(ModalScreen[BibEntry | None]):
     def compose(self) -> ComposeResult:
         e = self._entry
         with Vertical():
-            yield Label(f"[bold]Edit Entry[/bold]  [dim]{e.key}[/dim]", classes="modal-title")
+            yield Label(
+                f"[bold]Edit Entry[/bold]  [dim]{e.key}[/dim]", classes="modal-title"
+            )
             with VerticalScroll(id="edit-fields"):
                 yield Label("Title")
                 yield Input(value=e.title, id="edit-title")
@@ -234,7 +241,13 @@ class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
     }
     """
 
-    def __init__(self, entry: BibEntry, all_keywords: list[str], keyword_counts: dict[str, int], **kwargs):
+    def __init__(
+        self,
+        entry: BibEntry,
+        all_keywords: list[str],
+        keyword_counts: dict[str, int],
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self._all_keywords = list(all_keywords)
         self._selected: set[str] = set(entry.keywords_list)
@@ -245,7 +258,9 @@ class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label("[bold]Edit Keywords[/bold]", classes="modal-title")
-            yield Input(placeholder="Filter or type new keyword + Enter to add…", id="kw-filter")
+            yield Input(
+                placeholder="Filter or type new keyword + Enter to add…", id="kw-filter"
+            )
             yield SelectionList(id="kw-list")
             yield Static(
                 "[dim]Esc close · Enter add new  |  ↓/↑ navigate · Space toggle · d delete everywhere[/dim]",
@@ -310,7 +325,11 @@ class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
         f = filter_text.lower()
         # Always show selected keywords first, then filtered rest
         selected_shown = sorted(kw for kw in self._selected if not f or f in kw.lower())
-        rest = [kw for kw in self._all_keywords if kw not in self._selected and (not f or f in kw.lower())]
+        rest = [
+            kw
+            for kw in self._all_keywords
+            if kw not in self._selected and (not f or f in kw.lower())
+        ]
         self._shown = selected_shown + rest
         sl = self.query_one(SelectionList)
         sl.clear_options()
@@ -385,7 +404,9 @@ class SettingsModal(ModalScreen["Config | None"]):
                 placeholder="/home/user/Papers",
                 id="pdf-base-dir",
             )
-            yield Static("[dim]Filenames in the file field are resolved relative to this path.[/dim]")
+            yield Static(
+                "[dim]Filenames in the file field are resolved relative to this path.[/dim]"
+            )
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
@@ -397,7 +418,9 @@ class SettingsModal(ModalScreen["Config | None"]):
         if event.button.id == "btn-cancel":
             self.dismiss(None)
         elif event.button.id == "btn-save":
-            self._config.pdf_base_dir = self.query_one("#pdf-base-dir", Input).value.strip()
+            self._config.pdf_base_dir = self.query_one(
+                "#pdf-base-dir", Input
+            ).value.strip()
             self.dismiss(self._config)
 
     def on_input_submitted(self, _: Input.Submitted) -> None:
@@ -525,7 +548,10 @@ class RawEditModal(ModalScreen[BibEntry | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label(f"[bold]Edit Raw BibTeX[/bold]  [dim]{self._entry.key}[/dim]", classes="modal-title")
+            yield Label(
+                f"[bold]Edit Raw BibTeX[/bold]  [dim]{self._entry.key}[/dim]",
+                classes="modal-title",
+            )
             yield TextArea(
                 entry_to_bibtex_str(self._entry),
                 id="raw-edit-area",
