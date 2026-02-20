@@ -5,6 +5,8 @@
 [![PyPI](https://img.shields.io/pypi/v/bibtui)](https://pypi.org/project/bibtui/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Publish](https://github.com/tgoelles/bib_tui/actions/workflows/publish.yml/badge.svg)](https://github.com/tgoelles/bib_tui/actions/workflows/publish.yml)
+[![CI](https://github.com/tgoelles/bib_tui/actions/workflows/ci.yml/badge.svg)](https://github.com/tgoelles/bib_tui/actions/workflows/ci.yml)
 
 ## Quick start
 
