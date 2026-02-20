@@ -58,6 +58,8 @@ class BibTuiApp(App):
         Binding("3", "set_rating('3')", "★★★", show=False),
         Binding("4", "set_rating('4')", "★★★★", show=False),
         Binding("5", "set_rating('5')", "★★★★★", show=False),
+        # Copy
+        Binding("ctrl+c", "copy_key", "Copy key", show=False, priority=True),
         # Help
         Binding("?", "show_help", "Help"),
         Binding("escape", "clear_search", "Clear search", show=False),
@@ -266,6 +268,13 @@ class BibTuiApp(App):
 
     def action_show_help(self) -> None:
         self.push_screen(HelpModal())
+
+    def action_copy_key(self) -> None:
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            return
+        self.copy_to_clipboard(entry.key)
+        self.notify(f"Copied: {entry.key}", timeout=2)
 
     def action_edit_keywords(self) -> None:
         entry = self.query_one(EntryList).selected_entry

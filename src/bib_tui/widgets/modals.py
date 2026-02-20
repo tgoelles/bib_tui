@@ -452,9 +452,11 @@ class HelpModal(ModalScreen[None]):
   [bold]0[/bold]         Mark unrated
 
 [bold]── Other ─────────────────────────────[/bold]
+  [bold]ctrl+c[/bold]    Copy cite key to clipboard
   [bold]?[/bold]         Show this help
   [bold]ctrl+p[/bold]    Command palette (Settings…)
-  [bold]Esc[/bold]       Clear search / close modal"""
+  [bold]Esc[/bold]       Clear search / close modal
+[dim]  Clipboard uses OSC 52 — requires a modern terminal[/dim]"""
 
     _SEARCH = """\
 [bold]── Plain text ────────────────────────[/bold]
