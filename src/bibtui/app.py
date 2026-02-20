@@ -143,10 +143,11 @@ class BibTuiApp(App):
     def _load_entries(self) -> None:
         self.notify("Loading bibliography...", timeout=2)
         try:
-            bak = self._bib_path + ".bak"
             import shutil as _shutil
 
-            _shutil.copy2(self._bib_path, bak)
+            bak = self._bib_path + ".bak"
+            if not os.path.exists(bak):
+                _shutil.copy2(self._bib_path, bak)
         except Exception:
             pass  # Missing file or permission error — silently skip backup
         try:
