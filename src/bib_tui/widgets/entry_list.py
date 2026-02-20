@@ -7,8 +7,8 @@ from textual.widgets import DataTable, Input
 from textual.widgets._data_table import ColumnKey
 from textual.reactive import reactive
 from textual import on, events
-from bib.models import BibEntry, READ_STATES
-from utils.config import parse_jabref_path
+from bib_tui.bib.models import BibEntry, READ_STATES
+from bib_tui.utils.config import parse_jabref_path
 
 # Original header labels in column order
 _COL_LABELS = ("◉", "◫", "Type", "Year", "Author", "Journal", "Title", "★")

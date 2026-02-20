@@ -1,12 +1,23 @@
+[build-system]
+requires = ["uv_build>=0.6,<0.7"]
+build-backend = "uv_build"
+
 [project]
 name = "bib-tui"
 version = "0.1.0"
-description = "Add your description here"
+description = "Terminal UI for managing BibTeX bibliography files"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "bibtexparser>=2.0.0b9",
     "habanero>=2.3.0",
     "textual>=8.0.0",
+]
+
+[project.scripts]
+bib-tui = "bib_tui.main:main"
+
+[dependency-groups]
+dev = [
     "textual-dev>=1.8.0",
 ]

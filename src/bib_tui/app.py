@@ -8,14 +8,14 @@ from textual.containers import Horizontal, Vertical
 from textual import events, on, work
 from textual.binding import Binding
 
-from bib.models import BibEntry
-from bib import parser
-from utils.git import commit
-from utils.config import Config, load_config, save_config, parse_jabref_path
-from utils.theme import detect_theme
-from widgets.entry_list import EntryList
-from widgets.entry_detail import EntryDetail
-from widgets.modals import ConfirmModal, DOIModal, EditModal, RawEditModal, SettingsModal, TagsModal
+from bib_tui.bib.models import BibEntry
+from bib_tui.bib import parser
+from bib_tui.utils.git import commit
+from bib_tui.utils.config import Config, load_config, save_config, parse_jabref_path
+from bib_tui.utils.theme import detect_theme
+from bib_tui.widgets.entry_list import EntryList
+from bib_tui.widgets.entry_detail import EntryDetail
+from bib_tui.widgets.modals import ConfirmModal, DOIModal, EditModal, RawEditModal, SettingsModal, TagsModal
 
 
 class BibTuiApp(App):

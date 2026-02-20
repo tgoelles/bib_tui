@@ -9,5 +9,3 @@ wheels/
 # Virtual environments
 .venv
 
-# ignore bib files
-*.bib

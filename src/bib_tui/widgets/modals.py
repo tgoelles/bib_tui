@@ -4,9 +4,9 @@ from textual.binding import Binding
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static, TextArea
 from textual.containers import Vertical, VerticalScroll, Horizontal
-from bib.models import BibEntry
-from bib.parser import entry_to_bibtex_str, bibtex_str_to_entry
-from utils.config import Config
+from bib_tui.bib.models import BibEntry
+from bib_tui.bib.parser import entry_to_bibtex_str, bibtex_str_to_entry
+from bib_tui.utils.config import Config
 
 
 class ConfirmModal(ModalScreen[bool]):
@@ -96,7 +96,7 @@ class DOIModal(ModalScreen[BibEntry | None]):
         status.set_classes("fetching")
         status.update("Fetching…")
         try:
-            from bib.doi import fetch_by_doi
+            from bib_tui.bib.doi import fetch_by_doi
             entry = fetch_by_doi(doi)
             status.set_classes("success")
             status.update(f"Found: {entry.title[:60]}")

@@ -147,11 +147,15 @@ wheels = [
 [[package]]
 name = "bib-tui"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "bibtexparser" },
     { name = "habanero" },
     { name = "textual" },
+]
+
+[package.dev-dependencies]
+dev = [
     { name = "textual-dev" },
 ]
 
@@ -160,8 +164,10 @@ requires-dist = [
     { name = "bibtexparser", specifier = ">=2.0.0b9" },
     { name = "habanero", specifier = ">=2.3.0" },
     { name = "textual", specifier = ">=8.0.0" },
-    { name = "textual-dev", specifier = ">=1.8.0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "textual-dev", specifier = ">=1.8.0" }]
 
 [[package]]
 name = "bibtexparser"

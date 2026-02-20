@@ -5,9 +5,9 @@ from textual.widget import Widget
 from textual.widgets import Label, Static, TextArea
 from textual.containers import Horizontal
 from rich.syntax import Syntax
-from bib.models import BibEntry, ENTRY_TYPES
-from bib.parser import entry_to_bibtex_str
-from utils.config import parse_jabref_path
+from bib_tui.bib.models import BibEntry, ENTRY_TYPES
+from bib_tui.bib.parser import entry_to_bibtex_str
+from bib_tui.utils.config import parse_jabref_path
 
 
 def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
