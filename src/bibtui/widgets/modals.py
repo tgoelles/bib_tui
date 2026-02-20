@@ -542,15 +542,12 @@ class HelpModal(ModalScreen[None]):
   [bold]a[/bold]         Add an existing PDF to the library and link it
 
 [bold]── Fetch PDF ─────────────────────────[/bold]
-  Tries three sources in order:
-  [bold]1.[/bold] arXiv     — for entries with a 10.48550/arXiv.* DOI or arxiv.org URL
-  [bold]2.[/bold] Unpaywall — open-access lookup by DOI (free, no registration needed)
-             Requires your email address in Settings (Ctrl+P → Settings).
-             Unpaywall uses the email only for rate-limiting; it is never
-             used for marketing or account creation.
-  [bold]3.[/bold] Direct URL — if the entry's URL points directly to a PDF file
-  PDF is saved to the base directory from Settings and linked to the entry.
-  [dim]  Note: some publishers block automated downloads even for OA papers.[/dim]
+  Sources tried in order:
+  [bold]1.[/bold] arXiv      — arXiv DOI or arxiv.org URL
+  [bold]2.[/bold] Unpaywall  — OA by DOI (set email in Ctrl+P)
+  [bold]3.[/bold] Direct URL — entry URL pointing to a PDF
+  PDF saved to base directory from Settings.
+  [dim]Some publishers block automated downloads.[/dim]
 
 [bold]── Rating ────────────────────────────[/bold]
   [bold]1 – 5[/bold]     Set star rating
