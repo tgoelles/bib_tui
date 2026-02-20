@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from textual import events, on, work
 from textual.app import ComposeResult
 from textual.binding import Binding

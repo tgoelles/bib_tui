@@ -1,6 +1,5 @@
-from __future__ import annotations
-import sys
 import os
+import sys
 
 
 def main() -> None:
@@ -15,6 +14,7 @@ def main() -> None:
         sys.exit(1)
 
     from bib_tui.app import BibTuiApp
+
     BibTuiApp(bib_path).run()
 
 

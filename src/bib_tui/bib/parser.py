@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import bibtexparser
 from bibtexparser import model as bpmodel
 

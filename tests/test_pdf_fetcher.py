@@ -11,8 +11,6 @@ Run all including network tests:
     uv run pytest tests/test_pdf_fetcher.py
 """
 
-from __future__ import annotations
-
 import pytest
 
 from bib_tui.bib.models import BibEntry

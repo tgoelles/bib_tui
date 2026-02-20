@@ -1,6 +1,7 @@
-from __future__ import annotations
 from datetime import datetime
+
 from habanero import Crossref
+
 from .models import BibEntry
 
 
@@ -29,7 +30,9 @@ def fetch_by_doi(doi: str) -> BibEntry:
 
     # Year
     year = ""
-    date = msg.get("published-print") or msg.get("published-online") or msg.get("issued")
+    date = (
+        msg.get("published-print") or msg.get("published-online") or msg.get("issued")
+    )
     if date:
         parts = date.get("date-parts", [[]])
         if parts and parts[0]:
@@ -58,7 +61,9 @@ def fetch_by_doi(doi: str) -> BibEntry:
     entry_type = type_map.get(crossref_type, "misc")
 
     # Build citation key: AuthorYEAR
-    key_author = authors[0].get("family", "Unknown").replace(" ", "") if authors else "Unknown"
+    key_author = (
+        authors[0].get("family", "Unknown").replace(" ", "") if authors else "Unknown"
+    )
     key = f"{key_author}{year}"
 
     raw: dict[str, str] = {

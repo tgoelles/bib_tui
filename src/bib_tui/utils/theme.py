@@ -1,5 +1,5 @@
 """Detect the OS / Omarchy theme and map it to a Textual theme name."""
-from __future__ import annotations
+
 import os
 from pathlib import Path
 

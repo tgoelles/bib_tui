@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 READ_STATES: list[str] = ["", "to-read", "skimmed", "read"]

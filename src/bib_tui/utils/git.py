@@ -1,6 +1,5 @@
-from __future__ import annotations
-import subprocess
 import os
+import subprocess
 
 
 def commit(path: str, message: str) -> bool:

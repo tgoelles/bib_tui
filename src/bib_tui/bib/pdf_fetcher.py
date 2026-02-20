@@ -8,8 +8,6 @@ Tries three strategies in order:
 Raises FetchError if none of the strategies succeed.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import re
