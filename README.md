@@ -1,6 +1,7 @@
 # bibtui
 
-> A fast, keyboard-driven terminal UI for managing BibTeX bibliography files.
+> A beautiful terminal UI for researchers — manage your BibTeX library,
+> fetch open-access PDFs automatically, and stay focused on reading papers.
 
 [![PyPI](https://img.shields.io/pypi/v/bibtui)](https://pypi.org/project/bibtui/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
@@ -8,9 +9,13 @@
 
 <!-- screenshots -->
 
-| Dark theme                      | Light theme                       |
-| ------------------------------- | --------------------------------- |
-| ![dark](docs/screenshot-dark.svg) | ![light](docs/screenshot-light.svg) |
+| Light theme                            | Dark — Catppuccin Mocha                    |
+| -------------------------------------- | ------------------------------------------- |
+| ![light theme](docs/pictures/theme1.png) | ![catppuccin mocha](docs/pictures/theme2.png) |
+
+| Nord — keywords modal                              |  |
+| --------------------------------------------------- | - |
+| ![nord with keywords modal](docs/pictures/theme3.png) |  |
 
 <!-- recording -->
 
@@ -18,10 +23,10 @@
 
 ---
 
-Stop switching between a GUI reference manager and your terminal.
-**bibtui** lets you browse, search, edit, and fetch PDFs for your `.bib` file
-without leaving the keyboard — and without a database, a sync daemon, or an
-account.
+**bibtui** is a beautiful, keyboard-driven terminal app for researchers who live
+in the terminal. Browse and edit your `.bib` file, fetch open-access PDFs with a
+single keystroke, track what you've read, and never leave the command line —
+no database, no sync daemon, no account required.
 
 ---
 
@@ -30,8 +35,8 @@ account.
 |                                  | bibtui | JabRef  | Zotero |
 | -------------------------------- | ------ | ------- | ------ |
 | Runs in the terminal             | ✅     | ❌      | ❌     |
-| No database / sync daemon        | ✅     | ❌      | ❌     |
-| Git-friendly plain `.bib`      | ✅     | ⚠️    | ❌     |
+| No database / sync daemon        | ✅     | ✅      | ❌     |
+| Git-friendly plain `.bib`      | ✅     | ✅      | ❌     |
 | Works over SSH                   | ✅     | ❌      | ❌     |
 | Full theme support               | ✅     | partial | ❌     |
 | Pure Python, installs in seconds | ✅     | ❌      | ❌     |
@@ -50,7 +55,7 @@ account.
 - **Keywords editor** — manage tags inline
 - **JabRef-compatible** — file links use JabRef conventions; open the same `.bib` in both tools
 - **Git-friendly** — it's a plain text file; commit, diff, and collaborate normally
-- **Full Textual theme support** — including automatic detection of the [omarchy](https://omarchy.dev) dark/light theme
+- **Full Textual theme support** — including automatic detection of the [omarchy](https://omarchy.dev) themes
 - **Works anywhere `uv` does** — SSH, HPC clusters, a colleague's laptop
 
 ---
@@ -88,8 +93,6 @@ defaults for your PDF directory, Downloads folder, and Unpaywall email
 (no registration required — the email is only used for rate-limiting).
 
 ---
-
--
 
 ## PDF workflow
 
