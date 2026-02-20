@@ -25,7 +25,7 @@ class BibTuiApp(App):
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
-        Binding("s", "save", "Save"),
+        Binding("w", "save", "Write"),
         Binding("e", "edit_entry", "Edit"),
         Binding("d", "doi_import", "From DOI"),
         Binding("space", "open_pdf", "Open PDF"),
@@ -107,7 +107,7 @@ class BibTuiApp(App):
             self.exit()
             return
         self.push_screen(
-            ConfirmModal("You have unsaved changes. Quit without saving?"),
+            ConfirmModal("You have unwritten changes. Quit without writing?"),
             lambda confirmed: self.exit() if confirmed else None,
         )
 
@@ -125,12 +125,12 @@ class BibTuiApp(App):
     def action_save(self) -> None:
         try:
             parser.save(self._entries, self._bib_path)
-            committed = commit(self._bib_path, "bib-tui: save bibliography")
+            committed = commit(self._bib_path, "bib-tui: write bibliography")
             self._dirty = False
-            msg = "Saved" + (" and committed to git." if committed else ".")
+            msg = "Written" + (" and committed to git." if committed else ".")
             self.notify(msg, timeout=3)
         except Exception as e:
-            self.notify(f"Save failed: {e}", severity="error")
+            self.notify(f"Write failed: {e}", severity="error")
 
     def action_edit_entry(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -154,7 +154,7 @@ class BibTuiApp(App):
         entry_list = self.query_one(EntryList)
         entry_list.refresh_entries(self._entries)
         self.query_one(EntryDetail).show_entry(result)
-        self.notify("Entry updated. Press [s] to save.", timeout=3)
+        self.notify("Entry updated. Press [w] to write.", timeout=3)
 
     def action_doi_import(self) -> None:
         self.push_screen(DOIModal(), self._on_doi_done)
@@ -232,7 +232,7 @@ class BibTuiApp(App):
         self.query_one(EntryList).set_pdf_base_dir(result.pdf_base_dir)
         self.query_one(EntryDetail).set_pdf_base_dir(result.pdf_base_dir)
         self.query_one(EntryList).refresh_entries(self._entries)
-        self.notify("Settings saved.", timeout=2)
+        self.notify("Settings written.", timeout=2)
 
     def action_toggle_view(self) -> None:
         self.query_one(EntryDetail).toggle_view()
@@ -253,4 +253,4 @@ class BibTuiApp(App):
         entry.tags = result
         self._dirty = True
         self.query_one(EntryDetail).show_entry(entry)
-        self.notify("Tags updated. Press [s] to save.", timeout=3)
+        self.notify("Tags updated. Press [w] to write.", timeout=3)

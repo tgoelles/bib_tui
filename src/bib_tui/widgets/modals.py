@@ -115,7 +115,7 @@ class DOIModal(ModalScreen[BibEntry | None]):
 class EditModal(ModalScreen[BibEntry | None]):
     """Modal to edit key fields of an entry."""
 
-    BINDINGS = [Binding("escape", "save_and_close", "Save", show=False)]
+    BINDINGS = [Binding("escape", "save_and_close", "Write", show=False)]
 
     DEFAULT_CSS = """
     EditModal {
@@ -172,7 +172,7 @@ class EditModal(ModalScreen[BibEntry | None]):
                 yield Label("Abstract")
                 yield TextArea(e.abstract, id="edit-abstract")
             with Horizontal(classes="modal-buttons"):
-                yield Button("Save", variant="primary", id="btn-save")
+                yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -234,7 +234,7 @@ class TagsModal(ModalScreen[list[str] | None]):
                 id="tags-input",
             )
             with Horizontal(classes="modal-buttons"):
-                yield Button("Save", variant="primary", id="btn-save")
+                yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -290,7 +290,7 @@ class SettingsModal(ModalScreen["Config | None"]):
             )
             yield Static("[dim]Filenames in the file field are resolved relative to this path.[/dim]")
             with Horizontal(classes="modal-buttons"):
-                yield Button("Save", variant="primary", id="btn-save")
+                yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
 
     def on_mount(self) -> None:
@@ -348,7 +348,7 @@ class RawEditModal(ModalScreen[BibEntry | None]):
             )
             yield Static("", id="raw-edit-error")
             with Horizontal(classes="modal-buttons"):
-                yield Button("Save", variant="primary", id="btn-save")
+                yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
