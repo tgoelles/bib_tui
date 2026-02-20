@@ -453,6 +453,7 @@ class HelpModal(ModalScreen[None]):
 
 [bold]── Other ─────────────────────────────[/bold]
   [bold]ctrl+c[/bold]    Copy cite key to clipboard
+  [bold]ctrl+v[/bold]    Paste BibTeX from clipboard
   [bold]?[/bold]         Show this help
   [bold]ctrl+p[/bold]    Command palette (Settings…)
   [bold]Esc[/bold]       Clear search / close modal
@@ -543,6 +544,69 @@ class RawEditModal(ModalScreen[BibEntry | None]):
     def _save(self) -> None:
         text = self.query_one("#raw-edit-area", TextArea).text
         error = self.query_one("#raw-edit-error", Static)
+        try:
+            entry = bibtex_str_to_entry(text)
+            self.dismiss(entry)
+        except Exception as e:
+            error.update(f"Parse error: {e}")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class PasteModal(ModalScreen["BibEntry | None"]):
+    """Modal to import a BibTeX entry from pasted clipboard text."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    DEFAULT_CSS = """
+    PasteModal {
+        align: center middle;
+    }
+    PasteModal > Vertical {
+        width: 90;
+        height: 40;
+        border: double $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    PasteModal TextArea {
+        height: 1fr;
+    }
+    #paste-error {
+        color: $error;
+    }
+    """
+
+    def __init__(self, text: str = "", **kwargs):
+        super().__init__(**kwargs)
+        self._text = text
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Paste BibTeX Entry[/bold]", classes="modal-title")
+            yield TextArea(
+                self._text,
+                id="paste-area",
+            )
+            yield Static("", id="paste-error")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Import", variant="primary", id="btn-save")
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.call_after_refresh(self.query_one("#paste-area", TextArea).focus)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-save":
+            self._do_import()
+
+    def _do_import(self) -> None:
+        text = self.query_one("#paste-area", TextArea).text
+        error = self.query_one("#paste-error", Static)
+        error.update("")
         try:
             entry = bibtex_str_to_entry(text)
             self.dismiss(entry)

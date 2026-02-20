@@ -15,7 +15,7 @@ from bib_tui.utils.config import Config, load_config, save_config, parse_jabref_
 from bib_tui.utils.theme import detect_theme
 from bib_tui.widgets.entry_list import EntryList
 from bib_tui.widgets.entry_detail import EntryDetail
-from bib_tui.widgets.modals import ConfirmModal, DOIModal, EditModal, HelpModal, KeywordsModal, RawEditModal, SettingsModal
+from bib_tui.widgets.modals import ConfirmModal, DOIModal, EditModal, HelpModal, KeywordsModal, PasteModal, RawEditModal, SettingsModal
 
 
 class SettingsProvider(Provider):
@@ -90,12 +90,18 @@ class BibTuiApp(App):
         )
 
     def on_paste(self, event: events.Paste) -> None:
-        """Forward paste to whichever Input or TextArea currently has focus."""
+        """Forward paste to a focused Input/TextArea, or open PasteModal for BibTeX text."""
         focused = self.focused
         if isinstance(focused, Input):
             focused.insert_text_at_cursor(event.text)
-        elif isinstance(focused, TextArea):
+            return
+        if isinstance(focused, TextArea):
             focused.insert(event.text)
+            return
+        # No text widget focused — intercept BibTeX-shaped pastes
+        if event.text.strip().startswith("@"):
+            event.stop()
+            self.push_screen(PasteModal(event.text.strip()), self._on_paste_done)
 
     def _load_entries(self) -> None:
         self.notify("Loading bibliography...", timeout=2)
@@ -175,6 +181,27 @@ class BibTuiApp(App):
         entry_list.refresh_entries(self._entries)
         self.query_one(EntryDetail).show_entry(result)
         self.notify("Entry updated. Press [w] to write.", timeout=3)
+
+    def action_paste_import(self) -> None:
+        self.push_screen(PasteModal(), self._on_paste_done)
+
+    def _on_paste_done(self, result: BibEntry | None) -> None:
+        if result is None:
+            return
+        existing_keys = {e.key for e in self._entries}
+        if result.key in existing_keys:
+            result.key = result.key + "a"
+        self._entries.append(result)
+        self._dirty = True
+        el = self.query_one(EntryList)
+        el.refresh_entries(self._entries)
+        try:
+            idx = next(i for i, e in enumerate(el._filtered) if e.key == result.key)
+            self.query_one(DataTable).move_cursor(row=idx)
+            self.query_one(EntryDetail).show_entry(result)
+        except StopIteration:
+            pass
+        self.notify(f"Added: {result.key}", timeout=3)
 
     def action_doi_import(self) -> None:
         self.push_screen(DOIModal(), self._on_doi_done)
