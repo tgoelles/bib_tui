@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "bibtui"
-version = "0.9.6"
+version = "0.9.7"
 authors = [
   {name = "Thomas Gölles", email = "thomas.goelles@gmail.com"}
 ]
