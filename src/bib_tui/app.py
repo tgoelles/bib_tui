@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import platform
 import subprocess
+import webbrowser
+from urllib.parse import urlparse
 
 from textual import events, on, work
 from textual.app import App, ComposeResult
@@ -69,6 +71,7 @@ class BibTuiApp(App):
         Binding("r", "cycle_read_state", "State"),
         Binding("p", "cycle_priority", "Prio"),
         Binding("space", "open_pdf", "␣ Show PDF"),
+        Binding("b", "open_url", "Browser"),
         # Rating (hidden from footer)
         Binding("0", "set_rating('0')", "Unrated", show=False),
         Binding("1", "set_rating('1')", "★", show=False),
@@ -252,6 +255,22 @@ class BibTuiApp(App):
         except StopIteration:
             pass
         self.notify(f"Added: {result.key}", timeout=3)
+
+    def action_open_url(self) -> None:
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            self.notify("No entry selected.", severity="warning")
+            return
+        url = entry.url
+        if not url:
+            self.notify("No URL for this entry.", severity="warning")
+            return
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            self.notify(f"Invalid URL: {url}", severity="error", timeout=5)
+            return
+        webbrowser.open(url)
+        self.notify(f"Opening: {url[:60]}", timeout=3)
 
     def action_open_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry

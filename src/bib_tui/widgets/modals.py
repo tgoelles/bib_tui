@@ -473,6 +473,7 @@ class HelpModal(ModalScreen[None]):
   [bold]r[/bold]         Cycle read state
   [bold]p[/bold]         Cycle priority
   [bold]␣[/bold]         Show PDF
+  [bold]b[/bold]         Open URL in browser (validates http/https)
 
 [bold]── Rating ────────────────────────────[/bold]
   [bold]1 – 5[/bold]     Set star rating
@@ -489,6 +490,7 @@ class HelpModal(ModalScreen[None]):
   Click any column header to sort by that column.
   Click the same header again to reverse the order.
   Active sort column is marked with [bold]▲[/bold] (asc) or [bold]▼[/bold] (desc).
+  Cols: [bold]◉[/bold] state  [bold]![/bold] prio  [bold]◫[/bold] PDF  [bold]◍[/bold] URL  Type  Year  Author  Journal  Title  [bold]★[/bold]
 """
     _SEARCH = """\
 [bold]── Plain text ────────────────────────[/bold]
@@ -500,6 +502,7 @@ class HelpModal(ModalScreen[None]):
   [bold]t:[/bold] / [bold]title:[/bold]     filter by title
   [bold]k:[/bold] / [bold]kw:[/bold]        filter by keyword
   [bold]y:[/bold] / [bold]year:[/bold]      filter by year or range
+  [bold]u:[/bold] / [bold]url:[/bold]       filter by URL
 
 [bold]── Examples ──────────────────────────[/bold]
   [dim]glacier[/dim]              all fields

@@ -62,6 +62,7 @@ class BibEntry:
     year: str = ""
     journal: str = ""
     doi: str = ""
+    url: str = ""
     abstract: str = ""
     keywords: str = ""
     comment: str = ""
@@ -70,6 +71,10 @@ class BibEntry:
     priority: int = 0     # 0=unset, 1=high, 2=medium, 3=low (JabRef prio1/prio2/prio3)
     file: str = ""
     raw_fields: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def url_icon(self) -> str:
+        return "◍" if self.url else " "
 
     @property
     def authors_short(self) -> str:
@@ -129,6 +134,8 @@ class BibEntry:
             return self.journal
         if name == "doi":
             return self.doi
+        if name == "url":
+            return self.url
         if name == "abstract":
             return self.abstract
         if name == "keywords":
@@ -150,6 +157,8 @@ class BibEntry:
             self.journal = value
         elif name == "doi":
             self.doi = value
+        elif name == "url":
+            self.url = value
         elif name == "abstract":
             self.abstract = value
         elif name == "keywords":

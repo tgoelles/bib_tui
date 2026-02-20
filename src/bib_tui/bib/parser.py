@@ -20,7 +20,7 @@ def _field_str(entry: bpmodel.Entry, key: str) -> str:
 
 
 def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
-    known = {"title", "author", "year", "journal", "doi", "abstract", "keywords", "comment", "ranking", "readstatus", "priority", "file"}
+    known = {"title", "author", "year", "journal", "doi", "url", "abstract", "keywords", "comment", "ranking", "readstatus", "priority", "file"}
     raw = {}
     for k, f in entry.fields_dict.items():
         if k not in known:
@@ -51,6 +51,7 @@ def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
         year=_field_str(entry, "year"),
         journal=_field_str(entry, "journal"),
         doi=_field_str(entry, "doi"),
+        url=_field_str(entry, "url"),
         abstract=_field_str(entry, "abstract"),
         keywords=_field_str(entry, "keywords"),
         comment=_field_str(entry, "comment"),
@@ -74,6 +75,7 @@ def _to_bp_entry(entry: BibEntry) -> bpmodel.Entry:
     add("year", entry.year)
     add("journal", entry.journal)
     add("doi", entry.doi)
+    add("url", entry.url)
     add("abstract", entry.abstract)
     add("keywords", entry.keywords)
     add("comment", entry.comment)

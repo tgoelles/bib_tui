@@ -53,6 +53,7 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
         ("Year", "year"),
         ("Journal", "journal"),
         ("DOI", "doi"),
+        ("URL", "url"),
     ]
 
     for label, key in standard_fields:
@@ -118,6 +119,10 @@ class EntryDetail(Widget):
     #detail-file {
         width: auto;
     }
+    #detail-url {
+        width: auto;
+        margin-left: 3;
+    }
     #detail-content {
         height: auto;
         color: $text;
@@ -150,6 +155,7 @@ class EntryDetail(Widget):
             yield Label("", id="detail-priority")
             yield Label("", id="detail-rating")
             yield Label("", id="detail-file")
+            yield Label("", id="detail-url")
         yield Static("Select an entry to view details.", id="detail-content")
         yield TextArea("", id="detail-raw", read_only=True)
 
@@ -196,6 +202,7 @@ class EntryDetail(Widget):
         priority_label = self.query_one("#detail-priority", Label)
         rating_label = self.query_one("#detail-rating", Label)
         file_label = self.query_one("#detail-file", Label)
+        url_label = self.query_one("#detail-url", Label)
         content = self.query_one("#detail-content", Static)
 
         if self._entry is None:
@@ -203,6 +210,7 @@ class EntryDetail(Widget):
             priority_label.update("")
             rating_label.update("")
             file_label.update("")
+            url_label.update("")
             content.update("Select an entry to view details.")
             self.query_one("#detail-raw", TextArea).display = False
             content.display = True
@@ -229,6 +237,12 @@ class EntryDetail(Widget):
             file_label.update(f"[bold]PDF:[/bold] ■")
         else:
             file_label.update(f"[bold]PDF:[/bold] [dim]□ not found[/dim]")
+
+        if e.url:
+            short = e.url if len(e.url) <= 40 else e.url[:37] + "…"
+            url_label.update(f"[bold]◍ URL:[/bold] {short}")
+        else:
+            url_label.update("[dim]◍ URL: —[/dim]")
 
         raw = self.query_one("#detail-raw", TextArea)
         if self._raw_mode:

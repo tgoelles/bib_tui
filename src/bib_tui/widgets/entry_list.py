@@ -14,12 +14,12 @@ from bib_tui.bib.models import PRIORITIES, READ_STATES, BibEntry
 from bib_tui.utils.config import parse_jabref_path
 
 # Original header labels in column order
-_COL_LABELS = ("◉", "!", "◫", "Type", "Year", "Author", "Journal", "Title", "★")
+_COL_LABELS = ("◉", "!", "◫", "◍", "Type", "Year", "Author", "Journal", "Title", "★")
 
 # Sum of all fixed column widths + per-column padding (2 each) + EntryList border (2) + scrollbar (1).
-# Fixed widths: ◉(1)+!(1)+◫(1)+Type(7)+Year(4)+Author(13)+Journal(17)+★(5) = 49
-# Padding: 9 cols × 2 = 18  |  border+scrollbar = 3
-_COL_OVERHEAD = 70
+# Fixed widths: ◉(1)+!(1)+◫(1)+⊕(1)+Type(7)+Year(4)+Author(13)+Journal(17)+★(5) = 50
+# Padding: 10 cols × 2 = 20  |  border+scrollbar = 3
+_COL_OVERHEAD = 73
 
 _FIELD_PREFIXES: dict[str, str] = {
     "t": "title",
@@ -32,6 +32,8 @@ _FIELD_PREFIXES: dict[str, str] = {
     "keywords": "keywords",
     "y": "year",
     "year": "year",
+    "u": "url",
+    "url": "url",
 }
 
 
@@ -82,6 +84,9 @@ def _entry_matches(
             else:
                 if value not in entry.year:
                     return False
+        elif field == "url":
+            if value not in entry.url.lower():
+                return False
     for term in free_terms:
         if not (
             term in entry.title.lower()
@@ -121,6 +126,7 @@ class EntryList(Widget):
         self._col_state: ColumnKey | None = None
         self._col_priority: ColumnKey | None = None
         self._col_file: ColumnKey | None = None
+        self._col_url: ColumnKey | None = None
         self._col_title: ColumnKey | None = None
         self._col_rating: ColumnKey | None = None
         self._title_width: int = 30
@@ -146,31 +152,26 @@ class EntryList(Widget):
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
-        col_state = table.add_column("◉", width=1)
-        col_priority = table.add_column("!", width=1)
-        col_file = table.add_column("◫", width=1)
-        col_type = table.add_column("Type", width=7)
-        col_year = table.add_column("Year", width=4)
-        col_author = table.add_column("Author", width=13)
-        col_journal = table.add_column("Journal", width=17)
-        col_title = table.add_column("Title", width=self._title_width)
-        col_rating = table.add_column("★", width=5)
+        col_state    = table.add_column("◉",       width=1)
+        col_priority = table.add_column("!",       width=1)
+        col_file     = table.add_column("◫",       width=1)
+        col_url      = table.add_column("◍",       width=1)
+        col_type     = table.add_column("Type",    width=7)
+        col_year     = table.add_column("Year",    width=4)
+        col_author   = table.add_column("Author",  width=13)
+        col_journal  = table.add_column("Journal", width=17)
+        col_title    = table.add_column("Title",   width=self._title_width)
+        col_rating   = table.add_column("★",       width=5)
         self._col_keys = (
-            col_state,
-            col_priority,
-            col_file,
-            col_type,
-            col_year,
-            col_author,
-            col_journal,
-            col_title,
-            col_rating,
+            col_state, col_priority, col_file, col_url, col_type, col_year,
+            col_author, col_journal, col_title, col_rating,
         )
-        self._col_state = col_state
+        self._col_state    = col_state
         self._col_priority = col_priority
-        self._col_file = col_file
-        self._col_title = col_title
-        self._col_rating = col_rating
+        self._col_file     = col_file
+        self._col_url      = col_url
+        self._col_title    = col_title
+        self._col_rating   = col_rating
         self._populate_table(self._all_entries)
 
     def on_resize(self, event) -> None:
@@ -198,6 +199,7 @@ class EntryList(Widget):
                 e.read_state_icon,
                 e.priority_icon,
                 self._file_icon(e),
+                e.url_icon,
                 e.entry_type[:7],
                 e.year[:4] if e.year else "",
                 e.authors_short[:12] + "…"
@@ -233,17 +235,19 @@ class EntryList(Widget):
             return lambda e: e.priority if e.priority > 0 else 99
         if idx == 2:  # ◫ file
             return lambda e: 0 if e.file else 1
-        if idx == 3:  # Type
+        if idx == 3:  # ⊕ url
+            return lambda e: 0 if e.url else 1
+        if idx == 4:  # Type
             return lambda e: e.entry_type
-        if idx == 4:  # Year
+        if idx == 5:  # Year
             return lambda e: int(e.year) if e.year.isdigit() else 0
-        if idx == 5:  # Author
+        if idx == 6:  # Author
             return lambda e: e.authors_short.lower()
-        if idx == 6:  # Journal
+        if idx == 7:  # Journal
             return lambda e: (e.journal or e.raw_fields.get("booktitle", "")).lower()
-        if idx == 7:  # Title
+        if idx == 8:  # Title
             return lambda e: e.title.lower()
-        if idx == 8:  # ★ rating
+        if idx == 9:  # ★ rating
             return lambda e: e.rating
         return lambda e: ""
 
@@ -264,6 +268,7 @@ class EntryList(Widget):
                 e.read_state_icon,
                 e.priority_icon,
                 self._file_icon(e),
+                e.url_icon,
                 e.entry_type[:7],
                 e.year[:4] if e.year else "",
                 e.authors_short[:12] + "…"
@@ -343,6 +348,9 @@ class EntryList(Widget):
         )
         table.update_cell(
             entry.key, self._col_file, self._file_icon(entry), update_width=False
+        )
+        table.update_cell(
+            entry.key, self._col_url, entry.url_icon, update_width=False
         )
         table.update_cell(
             entry.key, self._col_rating, entry.rating_stars, update_width=False
