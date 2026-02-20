@@ -13,7 +13,14 @@ from textual.widgets import DataTable, Footer, Header, Input, Label, Static, Tex
 
 from bibtui.bib import parser
 from bibtui.bib.models import BibEntry
-from bibtui.utils.config import Config, default_config, is_first_run, load_config, parse_jabref_path, save_config
+from bibtui.utils.config import (
+    Config,
+    default_config,
+    is_first_run,
+    load_config,
+    parse_jabref_path,
+    save_config,
+)
 from bibtui.utils.theme import detect_theme
 from bibtui.widgets.entry_detail import EntryDetail
 from bibtui.widgets.entry_list import EntryList

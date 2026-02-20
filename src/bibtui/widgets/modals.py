@@ -1036,7 +1036,9 @@ class FirstRunModal(ModalScreen[bool]):
             )
             with Horizontal(classes="modal-buttons"):
                 yield Button("Skip", variant="default", id="btn-skip")
-                yield Button("Configure Settings", variant="primary", id="btn-configure")
+                yield Button(
+                    "Configure Settings", variant="primary", id="btn-configure"
+                )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-configure":
