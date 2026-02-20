@@ -1,20 +1,166 @@
-# Features and Philosophy
-* work direkt on the bibfile. No databese. therfore you can directly use it in latex or use tools like bibtidy
-* comptatible to jabref
-* automate the boring stuff
-* nice looking
-* pdf reading is important
-* pure pyhton and install or run with uv
+# bibtui
 
-# standout features
-* import from doi
-* git friendly - just check in your bib file to git and colaborate
-* edit raw bibfile or via a form (swithch with "v")
-* full theme support even reacts to omarchy theme switching (after restart)
-* run it where your bibfile is. As long as you have "uv" installed you can work with it.
+> A fast, keyboard-driven terminal UI for managing BibTeX bibliography files.
 
+[![PyPI](https://img.shields.io/pypi/v/bibtui)](https://pypi.org/project/bibtui/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-https://codeberg.org/KMIJPH/bibman
-https://github.com/mrossinek/cobib
+<!-- screenshots -->
+| Dark theme | Light theme |
+|---|---|
+| ![dark](docs/screenshot-dark.svg) | ![light](docs/screenshot-light.svg) |
+
+<!-- recording -->
+<!-- ![demo](docs/demo.gif) -->
+
+---
+
+Stop switching between a GUI reference manager and your terminal.
+**bibtui** lets you browse, search, edit, and fetch PDFs for your `.bib` file
+without leaving the keyboard — and without a database, a sync daemon, or an
+account.
+
+---
+
+## Why bibtui?
+
+| | bibtui | JabRef | Zotero |
+|---|---|---|---|
+| Runs in the terminal | ✅ | ❌ | ❌ |
+| No database / sync daemon | ✅ | ❌ | ❌ |
+| Git-friendly plain `.bib` | ✅ | ⚠️ | ❌ |
+| Works over SSH | ✅ | ❌ | ❌ |
+| Full theme support | ✅ | partial | ❌ |
+| Pure Python, installs in seconds | ✅ | ❌ | ❌ |
+
+---
+
+## Features
+
+- **Browse & search** — instant search across title, author, keywords, and cite key
+- **Import by DOI** — paste a DOI and metadata is fetched automatically
+- **Fetch PDFs automatically** — tries arXiv → Unpaywall (free, open-access) → direct URL
+- **Add existing PDFs** — pick a file from your Downloads folder with a live filter
+- **Edit entries** — field-by-field form *or* raw BibTeX editor (toggle with `v`)
+- **Read states & priorities** — track what you've read and what matters most
+- **Star ratings** — rate entries 1–5
+- **Keywords editor** — manage tags inline
+- **JabRef-compatible** — file links use JabRef conventions; open the same `.bib` in both tools
+- **Git-friendly** — it's a plain text file; commit, diff, and collaborate normally
+- **Full Textual theme support** — including automatic detection of the [omarchy](https://omarchy.dev) dark/light theme
+- **Works anywhere `uv` does** — SSH, HPC clusters, a colleague's laptop
+
+---
+
+## Installation
+
+### Recommended — uv (fastest)
+
+```bash
+uv tool install bibtui
+```
+
+### pip
+
+```bash
+pip install bibtui
+```
+
+### Try without installing
+
+```bash
+uvx bibtui references.bib
+```
+
+---
+
+## Usage
+
+```
+bibtui MyCollection.bib
+```
+
+On first launch bibtui shows a short onboarding wizard that pre-fills sensible
+defaults for your PDF directory, Downloads folder, and Unpaywall email
+(no registration required — the email is only used for rate-limiting).
+
+---
+
+## Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| `s` | Search |
+| `e` | Edit entry (form or raw BibTeX) |
+| `v` | Toggle raw / formatted view |
+| `d` | Import entry by DOI |
+| `Ctrl+V` | Paste raw BibTeX from clipboard |
+| `f` | Fetch PDF (arXiv → Unpaywall → URL) |
+| `a` | Add an existing PDF from Downloads |
+| `Space` | Open PDF |
+| `b` | Open URL in browser |
+| `r` | Cycle read state |
+| `p` | Cycle priority |
+| `1`–`5` | Set star rating |
+| `k` | Edit keywords |
+| `Del` / `⌫` | Delete entry (with confirmation) |
+| `w` | Save file |
+| `Ctrl+C` | Copy cite key |
+| `Ctrl+P` | Settings |
+| `?` | Help |
+| `q` | Quit |
+
+Press `?` inside the app for the full reference including search syntax.
+
+---
+
+## PDF workflow
+
+`f` tries three sources in order:
+
+1. **arXiv** — for entries with a `10.48550/arXiv.*` DOI or an `arxiv.org` URL
+2. **Unpaywall** — free open-access lookup by DOI (set your email in Settings; no account needed)
+3. **Direct URL** — if the entry's `url` field points directly to a PDF
+
+PDFs are saved to your configured base directory and the entry's `file` field is
+updated automatically in JabRef format.
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/tgoelles/bib_tui
+cd bib_tui
+uv sync
+uv run bibtui tests/bib_examples/MyCollection.bib
+```
+
+Run the tests:
+
+```bash
+uv run pytest -m "not network"
+```
+
+Live-reload during development:
+
+```bash
+uv run textual run --dev src/bibtui/main.py -- tests/bib_examples/MyCollection.bib
+```
+
+---
+
+## Related tools
+
+- [JabRef](https://www.jabref.org/) — GUI reference manager, same `.bib` format
+- [cobib](https://github.com/mrossinek/cobib) — another terminal BibTeX manager
+- [bibman](https://codeberg.org/KMIJPH/bibman) — minimal TUI reference manager
+
+---
+
+## License
+
+MIT © Thomas Gölles
 
 
