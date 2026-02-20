@@ -27,15 +27,15 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
     lines.append(f"[dim]@{entry.entry_type}[/dim]  [dim]key:[/dim] [{c['key']}]{entry.key}[/]")
     lines.append("")
 
-    # Tags
-    if entry.tags:
-        tag_str = " ".join(
-            f"[{c['tag_fg']} on {c['tag_bg']}] {t} [/]"
-            for t in entry.tags
+    # Keywords as badges
+    if entry.keywords_list:
+        kw_str = " ".join(
+            f"[{c['tag_fg']} on {c['tag_bg']}] {k} [/]"
+            for k in entry.keywords_list
         )
-        lines.append(f"[bold]Tags:[/bold]  {tag_str}")
+        lines.append(f"[bold]Keywords:[/bold]  {kw_str}")
     else:
-        lines.append("[bold]Tags:[/bold]  [dim](none)[/dim]")
+        lines.append("[bold]Keywords:[/bold]  [dim](none)[/dim]")
 
     lines.append("")
     lines.append("─" * 50)
@@ -53,7 +53,6 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
         ("Year", "year"),
         ("Journal", "journal"),
         ("DOI", "doi"),
-        ("Keywords", "keywords"),
     ]
 
     for label, key in standard_fields:

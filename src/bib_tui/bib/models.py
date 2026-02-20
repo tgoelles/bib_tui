@@ -68,7 +68,6 @@ class BibEntry:
     rating: int = 0
     read_state: str = ""  # one of READ_STATES
     priority: int = 0     # 0=unset, 1=high, 2=medium, 3=low (JabRef prio1/prio2/prio3)
-    tags: list[str] = field(default_factory=list)
     file: str = ""
     raw_fields: dict[str, str] = field(default_factory=dict)
 
@@ -110,6 +109,10 @@ class BibEntry:
         self.priority = (self.priority + 1) % 4
 
     @property
+    def keywords_list(self) -> list[str]:
+        return [k.strip() for k in self.keywords.split(",") if k.strip()]
+
+    @property
     def rating_stars(self) -> str:
         if self.rating == 0:
             return ""
@@ -132,8 +135,6 @@ class BibEntry:
             return self.keywords
         if name == "rating":
             return str(self.rating)
-        if name == "tags":
-            return ", ".join(self.tags)
         if name == "file":
             return self.file
         return self.raw_fields.get(name, "")
@@ -158,8 +159,6 @@ class BibEntry:
                 self.rating = max(0, min(5, int(value)))
             except ValueError:
                 pass
-        elif name == "tags":
-            self.tags = [t.strip() for t in value.split(",") if t.strip()]
         elif name == "file":
             self.file = value
         else:

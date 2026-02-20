@@ -16,7 +16,7 @@ from bib_tui.utils.config import Config, load_config, save_config, parse_jabref_
 from bib_tui.utils.theme import detect_theme
 from bib_tui.widgets.entry_list import EntryList
 from bib_tui.widgets.entry_detail import EntryDetail
-from bib_tui.widgets.modals import ConfirmModal, DOIModal, EditModal, RawEditModal, SettingsModal, TagsModal
+from bib_tui.widgets.modals import ConfirmModal, DOIModal, EditModal, KeywordsModal, RawEditModal, SettingsModal
 
 
 class SettingsProvider(Provider):
@@ -45,7 +45,7 @@ class BibTuiApp(App):
         Binding("e", "edit_entry", "Edit"),
         Binding("d", "doi_import", "From DOI"),
         Binding("space", "open_pdf", "Open PDF"),
-        Binding("t", "edit_tags", "Tags"),
+        Binding("k", "edit_keywords", "Keywords"),
         Binding("r", "cycle_read_state", "Read state"),
         Binding("p", "cycle_priority", "Priority"),
         Binding("f,/", "focus_search", "Search"),
@@ -262,20 +262,29 @@ class BibTuiApp(App):
     def action_toggle_view(self) -> None:
         self.query_one(EntryDetail).toggle_view()
 
-    def action_edit_tags(self) -> None:
+    def action_edit_keywords(self) -> None:
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             self.notify("No entry selected.", severity="warning")
             return
-        self.push_screen(TagsModal(entry), self._on_tags_done)
+        self.push_screen(KeywordsModal(entry, self._all_keywords()), self._on_keywords_done)
 
-    def _on_tags_done(self, result: list[str] | None) -> None:
+    def _all_keywords(self) -> list[str]:
+        """All unique keywords across the bib file, sorted by frequency descending."""
+        from collections import Counter
+        counter: Counter[str] = Counter()
+        for e in self._entries:
+            for kw in e.keywords_list:
+                counter[kw] += 1
+        return [kw for kw, _ in counter.most_common()]
+
+    def _on_keywords_done(self, result: str | None) -> None:
         if result is None:
             return
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        entry.tags = result
+        entry.keywords = result
         self._dirty = True
         self.query_one(EntryDetail).show_entry(entry)
-        self.notify("Tags updated. Press [w] to write.", timeout=3)
+        self.notify("Keywords updated. Press [w] to write.", timeout=3)

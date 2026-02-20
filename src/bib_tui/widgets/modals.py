@@ -2,8 +2,10 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, Static, TextArea
+from textual.widgets import Button, Input, Label, Static, TextArea, SelectionList
+from textual.widgets._selection_list import Selection
 from textual.containers import Vertical, VerticalScroll, Horizontal
+from textual import on
 from bib_tui.bib.models import BibEntry
 from bib_tui.bib.parser import entry_to_bibtex_str, bibtex_str_to_entry
 from bib_tui.utils.config import Config
@@ -206,52 +208,100 @@ class EditModal(ModalScreen[BibEntry | None]):
         self._save()
 
 
-class TagsModal(ModalScreen[list[str] | None]):
-    """Quick modal to edit tags for an entry."""
+class KeywordsModal(ModalScreen["str | None"]):
+    """Keyword picker: select from all bib-wide keywords, add new ones."""
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
 
     DEFAULT_CSS = """
-    TagsModal {
+    KeywordsModal {
         align: center middle;
     }
-    TagsModal > Vertical {
-        width: 60;
-        height: auto;
+    KeywordsModal > Vertical {
+        width: 70;
+        height: 36;
         border: double $accent;
         background: $surface;
         padding: 1 2;
     }
+    KeywordsModal #kw-filter {
+        margin-bottom: 1;
+    }
+    KeywordsModal SelectionList {
+        height: 1fr;
+        border: solid $panel;
+    }
     """
 
-    def __init__(self, entry: BibEntry, **kwargs):
+    def __init__(self, entry: BibEntry, all_keywords: list[str], **kwargs):
         super().__init__(**kwargs)
-        self._entry = entry
+        self._all_keywords = list(all_keywords)
+        self._selected: set[str] = set(entry.keywords_list)
+        self._shown: list[str] = []
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label(f"[bold]Edit Tags[/bold]  [dim]{self._entry.key}[/dim]", classes="modal-title")
-            yield Input(
-                value=", ".join(self._entry.tags),
-                placeholder="tag1, tag2, tag3",
-                id="tags-input",
-            )
+            yield Label("[bold]Edit Keywords[/bold]", classes="modal-title")
+            yield Input(placeholder="Filter or type new keyword + Enter to add…", id="kw-filter")
+            yield SelectionList(id="kw-list")
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self._rebuild_list("")
+        self.call_after_refresh(self.query_one("#kw-filter", Input).focus)
+
+    def _sync_from_list(self) -> None:
+        """Pull current checkbox state into self._selected."""
+        sl = self.query_one(SelectionList)
+        selected_now = set(sl.selected)
+        for kw in self._shown:
+            if kw in selected_now:
+                self._selected.add(kw)
+            else:
+                self._selected.discard(kw)
+
+    def _rebuild_list(self, filter_text: str) -> None:
+        f = filter_text.lower()
+        # Always show selected keywords first, then filtered rest
+        selected_shown = sorted(kw for kw in self._selected if not f or f in kw.lower())
+        rest = [kw for kw in self._all_keywords if kw not in self._selected and (not f or f in kw.lower())]
+        self._shown = selected_shown + rest
+        sl = self.query_one(SelectionList)
+        sl.clear_options()
+        for kw in self._shown:
+            sl.add_option(Selection(kw, kw, kw in self._selected))
+
+    @on(Input.Changed, "#kw-filter")
+    def on_filter_changed(self, event: Input.Changed) -> None:
+        self._sync_from_list()
+        self._rebuild_list(event.value)
+
+    @on(Input.Submitted, "#kw-filter")
+    def on_filter_submitted(self, event: Input.Submitted) -> None:
+        kw = event.value.strip()
+        if not kw:
+            self.query_one(SelectionList).focus()
+            return
+        self._sync_from_list()
+        if kw not in self._all_keywords:
+            self._all_keywords.insert(0, kw)
+        self._selected.add(kw)
+        self.query_one("#kw-filter", Input).clear()
+        self._rebuild_list("")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
             self.dismiss(None)
         elif event.button.id == "btn-save":
-            val = self.query_one("#tags-input", Input).value
-            tags = [t.strip() for t in val.split(",") if t.strip()]
-            self.dismiss(tags)
+            self._save()
 
-    def on_input_submitted(self, _: Input.Submitted) -> None:
-        val = self.query_one("#tags-input", Input).value
-        tags = [t.strip() for t in val.split(",") if t.strip()]
-        self.dismiss(tags)
+    def _save(self) -> None:
+        self._sync_from_list()
+        # Preserve original order from all_keywords, then any extras
+        ordered = [kw for kw in self._all_keywords if kw in self._selected]
+        self.dismiss(", ".join(ordered))
 
     def action_cancel(self) -> None:
         self.dismiss(None)

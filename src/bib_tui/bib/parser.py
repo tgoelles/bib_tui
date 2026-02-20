@@ -20,7 +20,7 @@ def _field_str(entry: bpmodel.Entry, key: str) -> str:
 
 
 def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
-    known = {"title", "author", "year", "journal", "doi", "abstract", "keywords", "comment", "ranking", "readstatus", "priority", "tags", "file"}
+    known = {"title", "author", "year", "journal", "doi", "abstract", "keywords", "comment", "ranking", "readstatus", "priority", "file"}
     raw = {}
     for k, f in entry.fields_dict.items():
         if k not in known:
@@ -38,9 +38,6 @@ def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
         priority = max(0, min(3, int(priority_str.removeprefix("prio")))) if priority_str else 0
     except ValueError:
         priority = 0
-
-    tags_str = _field_str(entry, "tags")
-    tags = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
 
     read_state = _field_str(entry, "readstatus")  # JabRef field name
     if read_state not in READ_STATES:
@@ -60,7 +57,6 @@ def _to_bib_entry(entry: bpmodel.Entry) -> BibEntry:
         rating=rating,
         read_state=read_state,
         priority=priority,
-        tags=tags,
         file=_field_str(entry, "file"),
         raw_fields=raw,
     )
@@ -88,8 +84,6 @@ def _to_bp_entry(entry: BibEntry) -> bpmodel.Entry:
         add("readstatus", entry.read_state)
     if entry.priority:
         add("priority", f"prio{entry.priority}")
-    if entry.tags:
-        add("tags", ", ".join(entry.tags))
     if entry.file:
         add("file", entry.file)
 

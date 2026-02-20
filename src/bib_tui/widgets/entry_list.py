@@ -174,7 +174,6 @@ class EntryList(Widget):
                 e for e in self._all_entries
                 if query in e.title.lower()
                 or query in e.author.lower()
-                or any(query in t.lower() for t in e.tags)
                 or query in e.keywords.lower()
                 or query in e.key.lower()
             ]
