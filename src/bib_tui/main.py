@@ -15,6 +15,9 @@ def main(bib_file: str) -> None:
     Examples:
       bib-tui references.bib
       bib-tui ~/papers/MyCollection.bib
+
+    \b
+    Docs & source: https://github.com/tgoelles/bib_tui
     """
     from bib_tui.app import BibTuiApp
 

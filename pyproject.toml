@@ -15,6 +15,11 @@ dependencies = [
     "textual>=8.0.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/tgoelles/bib_tui"
+Repository = "https://github.com/tgoelles/bib_tui"
+"Bug Tracker" = "https://github.com/tgoelles/bib_tui/issues"
+
 [project.scripts]
 bib-tui = "bib_tui.main:main"
 

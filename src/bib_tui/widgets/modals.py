@@ -498,9 +498,23 @@ class HelpModal(ModalScreen[None]):
     _ABOUT = (
         "[bold]bib-tui[/bold] v0.1.0  —  BibTeX TUI\n"
         "[dim]Author:[/dim] Thomas Gölles\n"
-        "[dim]Repo:[/dim]   github.com/tgoelles/bib_tui\n"
-        "[dim]Built with Claude Code (Anthropic)[/dim]"
+        "[dim]Repo:[/dim]   [link=https://github.com/tgoelles/bib_tui]github.com/tgoelles/bib_tui[/link]\n"
+        "[dim]Built with Claude Sonnet (Anthropic)[/dim]"
     )
+
+    def _make_about(self) -> str:
+        try:
+            from bib_tui import __version__
+
+            version = __version__
+        except Exception:
+            version = "0.1.0"
+        return (
+            f"[bold]bib-tui[/bold] v{version}  —  BibTeX TUI\n"
+            "[dim]Author:[/dim] Thomas Gölles\n"
+            "[dim]Repo:[/dim]   [link=https://github.com/tgoelles/bib_tui]github.com/tgoelles/bib_tui[/link]\n"
+            "[dim]Built with Claude Sonnet (Anthropic)[/dim]"
+        )
 
     _KEYS = """\
 [bold]── Core ──────────────────────────────[/bold]
@@ -577,7 +591,7 @@ class HelpModal(ModalScreen[None]):
         with Vertical():
             yield Label("[bold]Help[/bold]", classes="modal-title")
             with VerticalScroll():
-                yield Static(self._ABOUT, id="help-about")
+                yield Static(self._make_about(), id="help-about")
                 yield Label("[bold]Keybindings[/bold]", classes="modal-title")
                 yield Static(self._KEYS)
                 yield Label("[bold]Search syntax[/bold]", classes="modal-title")
