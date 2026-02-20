@@ -11,8 +11,16 @@
 ## Quick start
 
 ```bash
-uvx bibtui myrefs.bib
+# Run without installing
+uvx --prerelease=allow bibtui myrefs.bib
+
+# Or install permanently
+uv tool install --prerelease=allow bibtui
 ```
+
+> **Why `--prerelease=allow`?** bibtui depends on `bibtexparser` v2, which is
+> still in beta on PyPI. This flag tells uv to use it. Once bibtexparser
+> publishes a stable v2 release this flag will no longer be needed.
 
 -----
 ## Screenshots

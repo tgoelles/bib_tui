@@ -73,4 +73,8 @@ exclude_lines = [
     "raise NotImplementedError",
 ]
 
+[tool.uv]
+# bibtexparser v2 is still in pre-release on PyPI; allow it explicitly.
+prerelease = "allow"
+
 
