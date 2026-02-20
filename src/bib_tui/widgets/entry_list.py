@@ -13,6 +13,69 @@ from bib_tui.utils.config import parse_jabref_path
 # Original header labels in column order
 _COL_LABELS = ("◉", "!", "◫", "Type", "Year", "Author", "Journal", "Title", "★")
 
+_FIELD_PREFIXES: dict[str, str] = {
+    "t": "title", "title": "title",
+    "a": "author", "author": "author",
+    "k": "keywords", "kw": "keywords", "keyword": "keywords", "keywords": "keywords",
+    "y": "year", "year": "year",
+}
+
+
+def _parse_query(query: str) -> tuple[list[tuple[str, str]], list[str]]:
+    """Split a query into field filters and free-text terms.
+
+    Each space-separated token is either ``prefix:value`` (field filter) or a
+    plain word (searched across all fields).  Multiple tokens are ANDed.
+    """
+    filters: list[tuple[str, str]] = []
+    free_terms: list[str] = []
+    for token in query.split():
+        if ":" in token:
+            prefix, _, value = token.partition(":")
+            field = _FIELD_PREFIXES.get(prefix.lower())
+            if field and value:
+                filters.append((field, value.lower()))
+                continue
+        free_terms.append(token.lower())
+    return filters, free_terms
+
+
+def _entry_matches(entry, filters: list[tuple[str, str]], free_terms: list[str]) -> bool:
+    for field, value in filters:
+        if field == "title":
+            if value not in entry.title.lower():
+                return False
+        elif field == "author":
+            if value not in entry.author.lower():
+                return False
+        elif field == "keywords":
+            if value not in entry.keywords.lower():
+                return False
+        elif field == "year":
+            if "-" in value:
+                # Range: y:2010-2020
+                parts = value.split("-", 1)
+                try:
+                    y_min, y_max = int(parts[0]), int(parts[1])
+                    y = int(entry.year) if entry.year.isdigit() else 0
+                    if not (y_min <= y <= y_max):
+                        return False
+                except ValueError:
+                    if value not in entry.year:
+                        return False
+            else:
+                if value not in entry.year:
+                    return False
+    for term in free_terms:
+        if not (
+            term in entry.title.lower()
+            or term in entry.author.lower()
+            or term in entry.keywords.lower()
+            or term in entry.key.lower()
+        ):
+            return False
+    return True
+
 
 class EntryList(Widget):
     """Left pane: searchable DataTable of BibTeX entries."""
@@ -56,7 +119,7 @@ class EntryList(Widget):
         return "■" if os.path.exists(path) else "□"
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="Search (title, author, keywords)...", id="search-input")
+        yield Input(placeholder="Search… (a:smith t:glacier k:ice y:2020-2023)", id="search-input")
         yield DataTable(id="entry-table", cursor_type="row")
 
     def on_mount(self) -> None:
@@ -166,17 +229,12 @@ class EntryList(Widget):
 
     @on(Input.Changed, "#search-input")
     def on_search_changed(self, event: Input.Changed) -> None:
-        query = event.value.lower()
+        query = event.value.strip()
         if not query:
             base = self._all_entries
         else:
-            base = [
-                e for e in self._all_entries
-                if query in e.title.lower()
-                or query in e.author.lower()
-                or query in e.keywords.lower()
-                or query in e.key.lower()
-            ]
+            filters, free_terms = _parse_query(query)
+            base = [e for e in self._all_entries if _entry_matches(e, filters, free_terms)]
         self._populate_table(base)
         if self._sort_key is not None:
             self._apply_sort()

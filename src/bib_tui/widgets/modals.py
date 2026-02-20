@@ -426,7 +426,7 @@ class HelpModal(ModalScreen[None]):
 [bold]── Core ──────────────────────────────[/bold]
   [bold]q[/bold]         Quit
   [bold]w[/bold]         Write
-  [bold]s[/bold]         Search
+  [bold]s[/bold]         Search  [dim](a: t: k: y: or plain text)[/dim]
   [bold]e[/bold]         Edit entry (field form or raw BibTeX)
   [bold]d[/bold]         Add entry by DOI
   [bold]k[/bold]         Edit keywords
