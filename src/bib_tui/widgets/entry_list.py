@@ -202,9 +202,6 @@ class EntryList(Widget):
             if event.key == "j":
                 table.action_cursor_down()
                 event.stop()
-            elif event.key == "k":
-                table.action_cursor_up()
-                event.stop()
 
     # ── Public helpers ────────────────────────────────────────────────────
 

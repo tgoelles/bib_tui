@@ -167,8 +167,6 @@ class EditModal(ModalScreen[BibEntry | None]):
                 yield Input(value=e.doi, id="edit-doi")
                 yield Label("Keywords")
                 yield Input(value=e.keywords, id="edit-keywords")
-                yield Label("Tags (comma-separated)")
-                yield Input(value=", ".join(e.tags), id="edit-tags")
                 yield Label("PDF file path")
                 yield Input(value=e.file, id="edit-file")
                 yield Label("Abstract")
@@ -197,8 +195,6 @@ class EditModal(ModalScreen[BibEntry | None]):
         e.journal = v("#edit-journal")
         e.doi = v("#edit-doi")
         e.keywords = v("#edit-keywords")
-        tags_str = v("#edit-tags")
-        e.tags = [t.strip() for t in tags_str.split(",") if t.strip()]
         e.file = v("#edit-file")
         e.abstract = self.query_one("#edit-abstract", TextArea).text
         e.comment = self.query_one("#edit-comment", TextArea).text
