@@ -243,7 +243,9 @@ class BibTuiApp(App):
             self.notify("No entry selected.", severity="warning")
             return
         self.push_screen(
-            ConfirmModal(f"Delete entry [bold]{entry.key}[/bold]?\nThis cannot be undone."),
+            ConfirmModal(
+                f"Delete entry [bold]{entry.key}[/bold]?\nThis cannot be undone."
+            ),
             lambda confirmed: self._do_delete_entry(entry.key) if confirmed else None,
         )
 
