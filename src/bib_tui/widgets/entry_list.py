@@ -1,23 +1,37 @@
 from __future__ import annotations
+
 import os
+
 from rich.text import Text
+from textual import events, on
 from textual.app import ComposeResult
+from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import DataTable, Input
 from textual.widgets._data_table import ColumnKey
-from textual.reactive import reactive
-from textual import on, events
-from bib_tui.bib.models import BibEntry, READ_STATES, PRIORITIES
+
+from bib_tui.bib.models import PRIORITIES, READ_STATES, BibEntry
 from bib_tui.utils.config import parse_jabref_path
 
 # Original header labels in column order
 _COL_LABELS = ("◉", "!", "◫", "Type", "Year", "Author", "Journal", "Title", "★")
 
+# Sum of all fixed column widths + per-column padding (2 each) + EntryList border (2) + scrollbar (1).
+# Fixed widths: ◉(1)+!(1)+◫(1)+Type(7)+Year(4)+Author(13)+Journal(17)+★(5) = 49
+# Padding: 9 cols × 2 = 18  |  border+scrollbar = 3
+_COL_OVERHEAD = 70
+
 _FIELD_PREFIXES: dict[str, str] = {
-    "t": "title", "title": "title",
-    "a": "author", "author": "author",
-    "k": "keywords", "kw": "keywords", "keyword": "keywords", "keywords": "keywords",
-    "y": "year", "year": "year",
+    "t": "title",
+    "title": "title",
+    "a": "author",
+    "author": "author",
+    "k": "keywords",
+    "kw": "keywords",
+    "keyword": "keywords",
+    "keywords": "keywords",
+    "y": "year",
+    "year": "year",
 }
 
 
@@ -40,7 +54,9 @@ def _parse_query(query: str) -> tuple[list[tuple[str, str]], list[str]]:
     return filters, free_terms
 
 
-def _entry_matches(entry, filters: list[tuple[str, str]], free_terms: list[str]) -> bool:
+def _entry_matches(
+    entry, filters: list[tuple[str, str]], free_terms: list[str]
+) -> bool:
     for field, value in filters:
         if field == "title":
             if value not in entry.title.lower():
@@ -104,7 +120,10 @@ class EntryList(Widget):
         self._col_keys: tuple[ColumnKey, ...] = ()
         self._col_state: ColumnKey | None = None
         self._col_priority: ColumnKey | None = None
+        self._col_file: ColumnKey | None = None
+        self._col_title: ColumnKey | None = None
         self._col_rating: ColumnKey | None = None
+        self._title_width: int = 30
         self._sort_key: ColumnKey | None = None
         self._sort_reverse: bool = False
         self._pdf_base_dir: str = ""
@@ -119,19 +138,55 @@ class EntryList(Widget):
         return "■" if os.path.exists(path) else "□"
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="Search… (a:smith t:glacier k:ice y:2020-2023)", id="search-input")
+        yield Input(
+            placeholder="Search… (a:smith t:glacier k:ice y:2020-2023)",
+            id="search-input",
+        )
         yield DataTable(id="entry-table", cursor_type="row")
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
-        non_rating_keys = list(table.add_columns(*_COL_LABELS[:-1]))
-        rating_key = table.add_column("★", width=5)
-        self._col_keys = tuple(non_rating_keys) + (rating_key,)
-        self._col_state = self._col_keys[0]
-        self._col_priority = self._col_keys[1]
-        self._col_file = self._col_keys[2]
-        self._col_rating = self._col_keys[8]
+        col_state = table.add_column("◉", width=1)
+        col_priority = table.add_column("!", width=1)
+        col_file = table.add_column("◫", width=1)
+        col_type = table.add_column("Type", width=7)
+        col_year = table.add_column("Year", width=4)
+        col_author = table.add_column("Author", width=13)
+        col_journal = table.add_column("Journal", width=17)
+        col_title = table.add_column("Title", width=self._title_width)
+        col_rating = table.add_column("★", width=5)
+        self._col_keys = (
+            col_state,
+            col_priority,
+            col_file,
+            col_type,
+            col_year,
+            col_author,
+            col_journal,
+            col_title,
+            col_rating,
+        )
+        self._col_state = col_state
+        self._col_priority = col_priority
+        self._col_file = col_file
+        self._col_title = col_title
+        self._col_rating = col_rating
         self._populate_table(self._all_entries)
+
+    def on_resize(self, event) -> None:
+        self._update_title_width()
+
+    def _update_title_width(self) -> None:
+        """Recompute title column width to fill available horizontal space."""
+        if self._col_title is None:
+            return
+        width = max(10, self.size.width - _COL_OVERHEAD)
+        if width == self._title_width:
+            return
+        self._title_width = width
+        table = self.query_one(DataTable)
+        table.columns[self._col_title].width = width
+        table.refresh()
 
     def _populate_table(self, entries: list[BibEntry]) -> None:
         table = self.query_one(DataTable)
@@ -143,11 +198,13 @@ class EntryList(Widget):
                 e.read_state_icon,
                 e.priority_icon,
                 self._file_icon(e),
-                e.entry_type[:8],
+                e.entry_type[:7],
                 e.year[:4] if e.year else "",
-                e.authors_short[:15] + "…" if len(e.authors_short) > 15 else e.authors_short,
-                journal[:22] + "…" if len(journal) > 22 else journal,
-                e.title[:35] + "…" if len(e.title) > 35 else e.title,
+                e.authors_short[:12] + "…"
+                if len(e.authors_short) > 12
+                else e.authors_short,
+                journal[:16] + "…" if len(journal) > 16 else journal,
+                e.title,
                 e.rating_stars,
                 key=e.key,
             )
@@ -168,23 +225,25 @@ class EntryList(Widget):
     def _sort_fn(self, col_key: ColumnKey):
         """Return a key function for sorting BibEntry by the given column."""
         idx = list(self._col_keys).index(col_key)
-        if idx == 0:   # ◉ read state
-            return lambda e: READ_STATES.index(e.read_state) if e.read_state in READ_STATES else 0
-        if idx == 1:   # ! priority
+        if idx == 0:  # ◉ read state
+            return lambda e: (
+                READ_STATES.index(e.read_state) if e.read_state in READ_STATES else 0
+            )
+        if idx == 1:  # ! priority
             return lambda e: e.priority if e.priority > 0 else 99
-        if idx == 2:   # ◫ file
-            return lambda e: (0 if e.file else 1)
-        if idx == 3:   # Type
+        if idx == 2:  # ◫ file
+            return lambda e: 0 if e.file else 1
+        if idx == 3:  # Type
             return lambda e: e.entry_type
-        if idx == 4:   # Year
+        if idx == 4:  # Year
             return lambda e: int(e.year) if e.year.isdigit() else 0
-        if idx == 5:   # Author
+        if idx == 5:  # Author
             return lambda e: e.authors_short.lower()
-        if idx == 6:   # Journal
+        if idx == 6:  # Journal
             return lambda e: (e.journal or e.raw_fields.get("booktitle", "")).lower()
-        if idx == 7:   # Title
+        if idx == 7:  # Title
             return lambda e: e.title.lower()
-        if idx == 8:   # ★ rating
+        if idx == 8:  # ★ rating
             return lambda e: e.rating
         return lambda e: ""
 
@@ -205,11 +264,13 @@ class EntryList(Widget):
                 e.read_state_icon,
                 e.priority_icon,
                 self._file_icon(e),
-                e.entry_type[:8],
+                e.entry_type[:7],
                 e.year[:4] if e.year else "",
-                e.authors_short[:15] + "…" if len(e.authors_short) > 15 else e.authors_short,
-                journal[:22] + "…" if len(journal) > 22 else journal,
-                e.title[:35] + "…" if len(e.title) > 35 else e.title,
+                e.authors_short[:12] + "…"
+                if len(e.authors_short) > 12
+                else e.authors_short,
+                journal[:16] + "…" if len(journal) > 16 else journal,
+                e.title,
                 e.rating_stars,
                 key=e.key,
             )
@@ -234,7 +295,9 @@ class EntryList(Widget):
             base = self._all_entries
         else:
             filters, free_terms = _parse_query(query)
-            base = [e for e in self._all_entries if _entry_matches(e, filters, free_terms)]
+            base = [
+                e for e in self._all_entries if _entry_matches(e, filters, free_terms)
+            ]
         self._populate_table(base)
         if self._sort_key is not None:
             self._apply_sort()
@@ -272,10 +335,18 @@ class EntryList(Widget):
     def refresh_row(self, entry: BibEntry) -> None:
         """Update the read-state, priority, file, and rating cells for a single row."""
         table = self.query_one(DataTable)
-        table.update_cell(entry.key, self._col_state, entry.read_state_icon, update_width=False)
-        table.update_cell(entry.key, self._col_priority, entry.priority_icon, update_width=False)
-        table.update_cell(entry.key, self._col_file, self._file_icon(entry), update_width=False)
-        table.update_cell(entry.key, self._col_rating, entry.rating_stars, update_width=False)
+        table.update_cell(
+            entry.key, self._col_state, entry.read_state_icon, update_width=False
+        )
+        table.update_cell(
+            entry.key, self._col_priority, entry.priority_icon, update_width=False
+        )
+        table.update_cell(
+            entry.key, self._col_file, self._file_icon(entry), update_width=False
+        )
+        table.update_cell(
+            entry.key, self._col_rating, entry.rating_stars, update_width=False
+        )
 
     @property
     def selected_entry(self) -> BibEntry | None:
