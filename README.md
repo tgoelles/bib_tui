@@ -83,20 +83,24 @@ no database, no sync daemon, no account required.
 ### Recommended — uv (fastest)
 
 ```bash
-uv tool install bibtui
+uv tool install --prerelease=allow bibtui
 ```
 
 ### pip
 
 ```bash
-pip install bibtui
+pip install --pre bibtui
 ```
 
 ### Try without installing
 
 ```bash
-uvx bibtui references.bib
+uvx --prerelease=allow bibtui references.bib
 ```
+
+> **Note:** The `--prerelease=allow` / `--pre` flag is needed because bibtui depends on
+> `bibtexparser` v2, which is currently in beta on PyPI. Once it releases a stable v2
+> this flag will no longer be required.
 
 ---
 
