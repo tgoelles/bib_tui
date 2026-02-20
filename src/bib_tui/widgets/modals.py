@@ -408,6 +408,58 @@ class SettingsModal(ModalScreen["Config | None"]):
         self.dismiss(None)
 
 
+class HelpModal(ModalScreen[None]):
+    """Keybinding reference overlay."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss_help", "Close", show=False),
+        Binding("?", "dismiss_help", "Close", show=False),
+    ]
+    DEFAULT_CSS = """
+    HelpModal { align: center middle; }
+    HelpModal > Vertical {
+        width: 62; height: auto;
+        border: double $accent; background: $surface; padding: 1 2;
+    }
+    """
+    _HELP = """\
+[bold]── Core ──────────────────────────────[/bold]
+  [bold]q[/bold]         Quit
+  [bold]w[/bold]         Write + git commit
+  [bold]s[/bold]         Search
+  [bold]e[/bold]         Edit entry (field form or raw BibTeX)
+  [bold]d[/bold]         Add entry by DOI
+  [bold]k[/bold]         Edit keywords
+  [bold]v[/bold]         Toggle raw / formatted view
+
+[bold]── Entry state ───────────────────────[/bold]
+  [bold]r[/bold]         Cycle read state
+  [bold]p[/bold]         Cycle priority
+  [bold]␣[/bold]         Show PDF
+
+[bold]── Rating ────────────────────────────[/bold]
+  [bold]1 – 5[/bold]     Set star rating
+  [bold]0[/bold]         Mark unrated
+
+[bold]── Other ─────────────────────────────[/bold]
+  [bold]?[/bold]         Show this help
+  [bold]ctrl+p[/bold]    Command palette (Settings…)
+  [bold]Esc[/bold]       Clear search / close modal"""
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Keybindings[/bold]", classes="modal-title")
+            yield Static(self._HELP)
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Close", variant="primary", id="btn-close")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss()
+
+    def action_dismiss_help(self) -> None:
+        self.dismiss()
+
+
 class RawEditModal(ModalScreen[BibEntry | None]):
     """Edit a BibTeX entry as raw text."""
 

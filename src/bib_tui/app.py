@@ -16,7 +16,7 @@ from bib_tui.utils.config import Config, load_config, save_config, parse_jabref_
 from bib_tui.utils.theme import detect_theme
 from bib_tui.widgets.entry_list import EntryList
 from bib_tui.widgets.entry_detail import EntryDetail
-from bib_tui.widgets.modals import ConfirmModal, DOIModal, EditModal, KeywordsModal, RawEditModal, SettingsModal
+from bib_tui.widgets.modals import ConfirmModal, DOIModal, EditModal, HelpModal, KeywordsModal, RawEditModal, SettingsModal
 
 
 class SettingsProvider(Provider):
@@ -47,18 +47,20 @@ class BibTuiApp(App):
         Binding("e", "edit_entry", "Edit"),
         Binding("d", "doi_import", "From DOI"),
         Binding("k", "edit_keywords", "Keywords"),
-        Binding("v", "toggle_view", "Raw/Fmt"),
+        Binding("v", "toggle_view", "View"),
         # Entry state
-        Binding("r", "cycle_read_state", "Read state"),
-        Binding("p", "cycle_priority", "Priority"),
-        Binding("space", "open_pdf", "Open PDF"),
-        # Rating
-        Binding("0", "set_rating('0')", "Unrated"),
-        Binding("1", "set_rating('1')", "★"),
-        Binding("2", "set_rating('2')", "★★"),
-        Binding("3", "set_rating('3')", "★★★"),
-        Binding("4", "set_rating('4')", "★★★★"),
-        Binding("5", "set_rating('5')", "★★★★★"),
+        Binding("r", "cycle_read_state", "State"),
+        Binding("p", "cycle_priority", "Prio"),
+        Binding("space", "open_pdf", "␣ Show PDF"),
+        # Rating (hidden from footer)
+        Binding("0", "set_rating('0')", "Unrated", show=False),
+        Binding("1", "set_rating('1')", "★", show=False),
+        Binding("2", "set_rating('2')", "★★", show=False),
+        Binding("3", "set_rating('3')", "★★★", show=False),
+        Binding("4", "set_rating('4')", "★★★★", show=False),
+        Binding("5", "set_rating('5')", "★★★★★", show=False),
+        # Help
+        Binding("?", "show_help", "Help"),
         Binding("escape", "clear_search", "Clear search", show=False),
     ]
 
@@ -264,6 +266,9 @@ class BibTuiApp(App):
 
     def action_toggle_view(self) -> None:
         self.query_one(EntryDetail).toggle_view()
+
+    def action_show_help(self) -> None:
+        self.push_screen(HelpModal())
 
     def action_edit_keywords(self) -> None:
         entry = self.query_one(EntryList).selected_entry
