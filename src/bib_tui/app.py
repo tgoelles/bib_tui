@@ -7,6 +7,7 @@ from textual.widgets import DataTable, Footer, Header, Input, Label, Static, Tex
 from textual.containers import Horizontal, Vertical
 from textual import events, on, work
 from textual.binding import Binding
+from textual.command import DiscoveryHit, Hit, Hits, Provider
 
 from bib_tui.bib.models import BibEntry
 from bib_tui.bib import parser
@@ -18,8 +19,23 @@ from bib_tui.widgets.entry_detail import EntryDetail
 from bib_tui.widgets.modals import ConfirmModal, DOIModal, EditModal, RawEditModal, SettingsModal, TagsModal
 
 
+class SettingsProvider(Provider):
+    """Exposes the Settings dialog through the command palette."""
+
+    async def discover(self) -> Hits:
+        yield DiscoveryHit("Settings", self.app.action_settings, help="Open the settings dialog")
+
+    async def search(self, query: str) -> Hits:
+        matcher = self.matcher(query)
+        score = matcher.match("Settings")
+        if score > 0:
+            yield Hit(score, matcher.highlight("Settings"), self.app.action_settings, help="Open the settings dialog")
+
+
 class BibTuiApp(App):
     """BibTeX TUI Application."""
+
+    COMMANDS = App.COMMANDS | {SettingsProvider}
 
     CSS_PATH = "bib_tui.tcss"
 
@@ -31,7 +47,7 @@ class BibTuiApp(App):
         Binding("space", "open_pdf", "Open PDF"),
         Binding("t", "edit_tags", "Tags"),
         Binding("r", "cycle_read_state", "Read state"),
-        Binding("P", "cycle_priority", "Priority"),
+        Binding("p", "cycle_priority", "Priority"),
         Binding("f,/", "focus_search", "Search"),
         Binding("1", "set_rating('1')", "★"),
         Binding("2", "set_rating('2')", "★★"),
@@ -40,7 +56,6 @@ class BibTuiApp(App):
         Binding("5", "set_rating('5')", "★★★★★"),
         Binding("0", "set_rating('0')", "Clear ★"),
         Binding("v", "toggle_view", "Raw/Fmt"),
-        Binding("p", "settings", "Settings"),
         Binding("escape", "clear_search", "Clear search", show=False),
     ]
 
