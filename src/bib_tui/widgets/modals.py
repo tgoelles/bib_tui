@@ -7,6 +7,8 @@ from textual.widgets import (
     Button,
     Input,
     Label,
+    ListItem,
+    ListView,
     LoadingIndicator,
     SelectionList,
     Static,
@@ -17,6 +19,20 @@ from textual.widgets._selection_list import Selection
 from bib_tui.bib.models import BibEntry
 from bib_tui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bib_tui.utils.config import Config
+
+
+def _format_age(mtime: float) -> str:
+    """Human-readable age string for a file modification time."""
+    import time
+
+    age = time.time() - mtime
+    if age < 60:
+        return "just now"
+    if age < 3600:
+        return f"{int(age / 60)} min ago"
+    if age < 86400:
+        return f"{int(age / 3600)} hr ago"
+    return f"{int(age / 86400)} days ago"
 
 
 class ConfirmModal(ModalScreen[bool]):
@@ -422,6 +438,15 @@ class SettingsModal(ModalScreen["Config | None"]):
             yield Static(
                 "[dim]Used for open-access PDF lookup via Unpaywall (free service).[/dim]"
             )
+            yield Label("PDF download directory")
+            yield Input(
+                value=self._config.pdf_download_dir,
+                placeholder=str(__import__("pathlib").Path.home() / "Downloads"),
+                id="pdf-download-dir",
+            )
+            yield Static(
+                "[dim]PDFs listed when you press [bold]a[/bold] to add an existing PDF. Defaults to ~/Downloads.[/dim]"
+            )
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
@@ -433,6 +458,9 @@ class SettingsModal(ModalScreen["Config | None"]):
         self._config.pdf_base_dir = self.query_one("#pdf-base-dir", Input).value.strip()
         self._config.unpaywall_email = self.query_one(
             "#unpaywall-email", Input
+        ).value.strip()
+        self._config.pdf_download_dir = self.query_one(
+            "#pdf-download-dir", Input
         ).value.strip()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -494,6 +522,7 @@ class HelpModal(ModalScreen[None]):
   [bold]␣[/bold]         Show PDF
   [bold]b[/bold]         Open URL in browser (validates http/https)
   [bold]f[/bold]         Fetch PDF and link it to the entry
+  [bold]a[/bold]         Add an existing PDF to the library and link it
 
 [bold]── Fetch PDF ─────────────────────────[/bold]
   Tries three sources in order:
@@ -680,6 +709,179 @@ class PasteModal(ModalScreen["BibEntry | None"]):
             self.dismiss(entry)
         except Exception as e:
             error.update(f"Parse error: {e}")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class AddPDFModal(ModalScreen["str | None"]):
+    """Pick an existing PDF from the download directory, filter by name, and link it."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    DEFAULT_CSS = """
+    AddPDFModal {
+        align: center middle;
+    }
+    AddPDFModal > Vertical {
+        width: 80;
+        height: 28;
+        border: double $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    AddPDFModal Input {
+        margin-bottom: 1;
+    }
+    AddPDFModal ListView {
+        height: 1fr;
+        border: solid $panel;
+        margin-bottom: 1;
+    }
+    AddPDFModal #add-hint {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+    AddPDFModal #add-error {
+        color: $error;
+    }
+    """
+
+    def __init__(
+        self,
+        entry: BibEntry,
+        base_dir: str,
+        download_dir: str,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self._entry = entry
+        self._base_dir = base_dir
+        from pathlib import Path
+
+        self._download_dir = download_dir or str(Path.home() / "Downloads")
+        self._all_pdfs: list = []
+        self._filtered: list = []
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label(
+                f"[bold]Add PDF[/bold]  [dim]{self._entry.key}[/dim]",
+                classes="modal-title",
+            )
+            yield Static("", id="add-hint")
+            yield Input(placeholder="type to filter…", id="add-filter")
+            yield ListView(id="add-list")
+            yield Static("", id="add-error")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Add", variant="primary", id="btn-add")
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self._scan()
+        self.call_after_refresh(self.query_one("#add-filter", Input).focus)
+
+    def _scan(self) -> None:
+        from pathlib import Path
+
+        dl = Path(self._download_dir).expanduser()
+        hint = self.query_one("#add-hint", Static)
+        if not dl.is_dir():
+            hint.update(
+                f"[dim]Download dir not found: {dl}  ·  enter a path manually[/dim]"
+            )
+            self._all_pdfs = []
+        else:
+            pdfs = sorted(
+                dl.glob("*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True
+            )
+            self._all_pdfs = pdfs
+            hint.update(
+                f"[dim]{dl}  ·  {len(pdfs)} PDF{'s' if len(pdfs) != 1 else ''}[/dim]"
+            )
+        self._filtered = list(self._all_pdfs)
+        self._refresh_list()
+
+    def _refresh_list(self) -> None:
+        lv = self.query_one(ListView)
+        lv.clear()
+        for p in self._filtered:
+            stat = p.stat()
+            size = stat.st_size
+            size_str = (
+                f"{size / 1048576:.1f} MB"
+                if size >= 1048576
+                else f"{size / 1024:.0f} KB"
+            )
+            age = _format_age(stat.st_mtime)
+            lv.append(ListItem(Label(f"{p.name}  [dim]{size_str}  {age}[/dim]")))
+
+    @on(Input.Changed, "#add-filter")
+    def _on_filter(self, event: Input.Changed) -> None:
+        q = event.value.strip().lower()
+        self._filtered = (
+            [p for p in self._all_pdfs if q in p.name.lower()]
+            if q
+            else list(self._all_pdfs)
+        )
+        self._refresh_list()
+
+    def on_key(self, event: events.Key) -> None:
+        """Down in the Input moves focus to the list; Up from the first item returns focus."""
+        lv = self.query_one(ListView)
+        inp = self.query_one("#add-filter", Input)
+        if self.focused is inp and event.key == "down" and self._filtered:
+            lv.focus()
+            event.stop()
+        elif self.focused is lv and event.key == "up" and (lv.index or 0) == 0:
+            inp.focus()
+            event.stop()
+
+    @on(Input.Submitted, "#add-filter")
+    def _on_filter_submitted(self, _: Input.Submitted) -> None:
+        self._confirm()
+
+    @on(ListView.Selected)
+    def _on_list_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one(ListView).index
+        if idx is not None and idx < len(self._filtered):
+            self._add_path(self._filtered[idx])
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-add":
+            self._confirm()
+
+    def _confirm(self) -> None:
+        from pathlib import Path
+
+        lv = self.query_one(ListView)
+        idx = lv.index
+        if self._filtered and idx is not None and idx < len(self._filtered):
+            self._add_path(self._filtered[idx])
+        else:
+            # Fallback: treat the filter text as a custom path
+            val = self.query_one("#add-filter", Input).value.strip()
+            if val:
+                self._add_path(Path(val))
+            else:
+                self.query_one("#add-error", Static).update(
+                    "[red]Select a file or enter a path.[/red]"
+                )
+
+    def _add_path(self, src) -> None:
+        from pathlib import Path
+
+        from bib_tui.bib.pdf_fetcher import FetchError, add_pdf
+
+        error = self.query_one("#add-error", Static)
+        error.update("")
+        try:
+            dest = add_pdf(Path(src), self._entry, self._base_dir)
+            self.dismiss(str(dest))
+        except FetchError as exc:
+            error.update(f"[red]{exc}[/red]")
 
     def action_cancel(self) -> None:
         self.dismiss(None)

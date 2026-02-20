@@ -10,6 +10,7 @@ CONFIG_PATH = Path.home() / ".config" / "bib_tui" / "config.toml"
 class Config:
     pdf_base_dir: str = ""
     unpaywall_email: str = ""
+    pdf_download_dir: str = ""
 
 
 def load_config() -> Config:
@@ -21,13 +22,14 @@ def load_config() -> Config:
     return Config(
         pdf_base_dir=pdf.get("base_dir", ""),
         unpaywall_email=pdf.get("unpaywall_email", ""),
+        pdf_download_dir=pdf.get("download_dir", ""),
     )
 
 
 def save_config(config: Config) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(
-        f'[pdf]\nbase_dir = "{config.pdf_base_dir}"\nunpaywall_email = "{config.unpaywall_email}"\n',
+        f'[pdf]\nbase_dir = "{config.pdf_base_dir}"\nunpaywall_email = "{config.unpaywall_email}"\ndownload_dir = "{config.pdf_download_dir}"\n',
         encoding="utf-8",
     )
 

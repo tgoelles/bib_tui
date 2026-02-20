@@ -11,7 +11,9 @@ Raises FetchError if none of the strategies succeed.
 import json
 import os
 import re
+import shutil
 import urllib.request
+from pathlib import Path
 from urllib.parse import urlparse
 
 from bib_tui.bib.models import BibEntry
@@ -47,6 +49,48 @@ def pdf_filename(entry: BibEntry) -> str:
             title = title[:_MAX_TITLE_LEN].rstrip()
         return f"{key} - {title}.pdf"
     return f"{key}.pdf"
+
+
+def add_pdf(src: Path, entry: BibEntry, base_dir: str) -> Path:
+    """Move an existing PDF to the canonical location for *entry*.
+
+    Parameters
+    ----------
+    src:
+        Path to the existing PDF file.  ``~`` is expanded and the path is
+        resolved to an absolute location.
+    entry:
+        The BibTeX entry to associate the file with.
+    base_dir:
+        Destination directory (from ``Config.pdf_base_dir``).  Must not be empty.
+
+    Returns
+    -------
+    Path
+        The destination path the file was moved to.
+
+    Raises
+    ------
+    FetchError
+        If ``base_dir`` is empty, the source file does not exist, the source
+        is not a ``.pdf``, or the destination already exists.
+    """
+    if not base_dir:
+        raise FetchError(
+            "PDF base directory is not set. "
+            "Open Settings (Ctrl+P → Settings) and set a base directory first."
+        )
+    src = Path(src).expanduser().resolve()
+    if not src.exists():
+        raise FetchError(f"File not found: {src}")
+    if src.suffix.lower() != ".pdf":
+        raise FetchError(f"Not a PDF file: {src.name}")
+    dest = Path(base_dir) / pdf_filename(entry)
+    if dest.exists() and dest.resolve() != src:
+        raise FetchError(f"Destination already exists: {dest}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(src), dest)
+    return dest
 
 
 # ---------------------------------------------------------------------------

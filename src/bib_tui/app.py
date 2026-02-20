@@ -18,6 +18,7 @@ from bib_tui.utils.theme import detect_theme
 from bib_tui.widgets.entry_detail import EntryDetail
 from bib_tui.widgets.entry_list import EntryList
 from bib_tui.widgets.modals import (
+    AddPDFModal,
     ConfirmModal,
     DOIModal,
     EditModal,
@@ -72,6 +73,7 @@ class BibTuiApp(App):
         Binding("space", "open_pdf", "␣ Show PDF"),
         Binding("b", "open_url", "Browser"),
         Binding("f", "fetch_pdf", "Fetch PDF"),
+        Binding("a", "add_pdf", "Add PDF"),
         # Rating (hidden from footer)
         Binding("0", "set_rating('0')", "Unrated", show=False),
         Binding("1", "set_rating('1')", "★", show=False),
@@ -328,6 +330,37 @@ class BibTuiApp(App):
         self.query_one(EntryList).refresh_row(entry)
         self.query_one(EntryDetail).show_entry(entry)
         self.notify(f"PDF saved and linked: {entry.key}", timeout=4)
+
+    def action_add_pdf(self) -> None:
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            self.notify("No entry selected.", severity="warning")
+            return
+        dest_dir = self._config.pdf_base_dir
+        if not dest_dir:
+            self.notify(
+                "PDF base directory not set. Open Settings (Ctrl+P → Settings).",
+                severity="warning",
+            )
+            return
+        self.push_screen(
+            AddPDFModal(entry, dest_dir, self._config.pdf_download_dir),
+            self._on_add_pdf_done,
+        )
+
+    def _on_add_pdf_done(self, result: str | None) -> None:
+        if result is None:
+            return
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            return
+        from bib_tui.utils.config import format_jabref_path
+
+        entry.file = format_jabref_path(result, self._config.pdf_base_dir)
+        self._dirty = True
+        self.query_one(EntryList).refresh_row(entry)
+        self.query_one(EntryDetail).show_entry(entry)
+        self.notify(f"PDF added and linked: {entry.key}", timeout=4)
 
     def action_open_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry
