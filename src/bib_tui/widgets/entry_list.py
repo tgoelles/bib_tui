@@ -12,12 +12,12 @@ from bib_tui.bib.models import PRIORITIES, READ_STATES, BibEntry
 from bib_tui.utils.config import parse_jabref_path
 
 # Original header labels in column order
-_COL_LABELS = ("◉", "!", "◫", "◍", "Type", "Year", "Author", "Journal", "Title", "★")
+_COL_LABELS = ("◉", "!", "◫", "🔗", "Type", "Year", "Author", "Journal", "Title", "★")
 
 # Sum of all fixed column widths + per-column padding (2 each) + EntryList border (2) + scrollbar (1).
 # Fixed widths: ◉(1)+!(1)+◫(1)+⊕(1)+Type(7)+Year(4)+Author(13)+Journal(17)+★(5) = 50
 # Padding: 10 cols × 2 = 20  |  border+scrollbar = 3
-_COL_OVERHEAD = 73
+_COL_OVERHEAD = 74
 
 _FIELD_PREFIXES: dict[str, str] = {
     "t": "title",
@@ -153,7 +153,7 @@ class EntryList(Widget):
         col_state = table.add_column("◉", width=1)
         col_priority = table.add_column("!", width=1)
         col_file = table.add_column("◫", width=1)
-        col_url = table.add_column("◍", width=1)
+        col_url = table.add_column("🔗", width=2)
         col_type = table.add_column("Type", width=7)
         col_year = table.add_column("Year", width=4)
         col_author = table.add_column("Author", width=13)

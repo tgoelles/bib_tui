@@ -493,7 +493,18 @@ class HelpModal(ModalScreen[None]):
   [bold]p[/bold]         Cycle priority
   [bold]␣[/bold]         Show PDF
   [bold]b[/bold]         Open URL in browser (validates http/https)
-  [bold]f[/bold]         Fetch PDF (arXiv → Unpaywall → direct URL)
+  [bold]f[/bold]         Fetch PDF and link it to the entry
+
+[bold]── Fetch PDF ─────────────────────────[/bold]
+  Tries three sources in order:
+  [bold]1.[/bold] arXiv     — for entries with a 10.48550/arXiv.* DOI or arxiv.org URL
+  [bold]2.[/bold] Unpaywall — open-access lookup by DOI (free, no registration needed)
+             Requires your email address in Settings (Ctrl+P → Settings).
+             Unpaywall uses the email only for rate-limiting; it is never
+             used for marketing or account creation.
+  [bold]3.[/bold] Direct URL — if the entry's URL points directly to a PDF file
+  PDF is saved to the base directory from Settings and linked to the entry.
+  [dim]  Note: some publishers block automated downloads even for OA papers.[/dim]
 
 [bold]── Rating ────────────────────────────[/bold]
   [bold]1 – 5[/bold]     Set star rating
@@ -510,7 +521,7 @@ class HelpModal(ModalScreen[None]):
   Click any column header to sort by that column.
   Click the same header again to reverse the order.
   Active sort column is marked with [bold]▲[/bold] (asc) or [bold]▼[/bold] (desc).
-  Cols: [bold]◉[/bold] state  [bold]![/bold] prio  [bold]◫[/bold] PDF  [bold]◍[/bold] URL  Type  Year  Author  Journal  Title  [bold]★[/bold]
+  Cols: [bold]◉[/bold] state  [bold]![/bold] prio  [bold]◫[/bold] PDF  [bold]🔗[/bold] URL  Type  Year  Author  Journal  Title  [bold]★[/bold]
 """
     _SEARCH = """\
 [bold]── Plain text ────────────────────────[/bold]

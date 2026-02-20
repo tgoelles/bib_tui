@@ -108,7 +108,7 @@ class BibEntry:
 
     @property
     def url_icon(self) -> str:
-        return "◍" if self.url else " "
+        return "🔗" if self.url else "  "
 
     @property
     def authors_short(self) -> str:
