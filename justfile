@@ -9,3 +9,6 @@ release-patch:
     git tag "v$(uv version --short)"
     git push
     git push --tags
+
+run:
+  uv run bibtui tests/bib_examples/MyCollection.bib
