@@ -67,7 +67,7 @@ Well, I mostly built this for myself. I was trying many bibliography tools over 
 
 Then I switched to Linux on my MacBook M1 and suddenly couldn't install JabRef anymore, even after trying different approaches. That was it, I decided to make my own that does what I want, looks nice, and nothing more.
 
-I also wanted to try out Claude Code for a project from scratch, so yes, most of the code was AI-generated. Otherwise I would never have done it. It still took many hours of work and I used my experience from many Python projects. Did I read every line of code? No. Did I enjoy the process and am I proud of the final product? Yes :)
+I also wanted to try out Claude Code for a project from scratch, so yes, most of the code was AI-generated. Otherwise I would never have done it. It still took many hours of work and I used my experience from many Python projects. I reviewed everything and have tests for the non ui part. 
 
 ---
 
@@ -193,3 +193,4 @@ Yes. they both just read bib files and bibtui follows JabRef conventions.
 ## License
 
 MIT © Thomas Gölles
+
