@@ -311,7 +311,7 @@ class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
             )
             yield SelectionList(id="kw-list")
             yield Static(
-                "[dim]Esc close · Enter add new  |  ↓/↑ navigate · Space toggle · d delete everywhere[/dim]",
+                "[dim]Esc close · Enter add new  |  ↓/↑ navigate · Space toggle · ⌫ delete everywhere[/dim]",
                 id="kw-hints",
             )
             with Horizontal(classes="modal-buttons"):
@@ -331,7 +331,7 @@ class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
         elif self.focused is sl and event.key == "up" and sl.highlighted == 0:
             kw_filter.focus()
             event.stop()
-        elif self.focused is sl and event.key == "d":
+        elif self.focused is sl and event.key == "backspace":
             self._delete_highlighted()
             event.stop()
 
@@ -562,6 +562,12 @@ class HelpModal(ModalScreen[None]):
 
 [bold]── Delete entry ──────────────────────[/bold]
   [bold]Del / ⌫[/bold]   Delete the selected entry (confirmation required)
+
+[bold]── Keywords modal ────────────────────[/bold]
+  [bold]Enter[/bold]     Add typed keyword
+  [bold]Space[/bold]     Toggle selected keyword on/off
+  [bold]⌫[/bold]         Delete highlighted keyword from all entries
+  [bold]↓ / ↑[/bold]     Move between filter and list
 
 [bold]── Entry state ───────────────────────[/bold]
   [bold]r[/bold]         Cycle read state
