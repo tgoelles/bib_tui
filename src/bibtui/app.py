@@ -245,12 +245,7 @@ class BibTuiApp(App):
         self._dirty = True
         el = self.query_one(EntryList)
         el.refresh_entries(self._entries)
-        try:
-            idx = next(i for i, e in enumerate(el._filtered) if e.key == result.key)
-            self.query_one(DataTable).move_cursor(row=idx)
-            self.query_one(EntryDetail).show_entry(result)
-        except StopIteration:
-            pass
+        self.call_after_refresh(self._jump_to_entry, result)
         self.notify(f"Added: {result.key}", timeout=3)
         self._maybe_auto_fetch(result)
 
@@ -292,15 +287,19 @@ class BibTuiApp(App):
         self._dirty = True
         el = self.query_one(EntryList)
         el.refresh_entries(self._entries)
-        # Jump cursor to the newly added entry
+        self.call_after_refresh(self._jump_to_entry, result)
+        self.notify(f"Added: {result.key}", timeout=3)
+        self._maybe_auto_fetch(result)
+
+    def _jump_to_entry(self, result: BibEntry) -> None:
+        """Move cursor to the given entry after the table has been rendered."""
+        el = self.query_one(EntryList)
         try:
             idx = next(i for i, e in enumerate(el._filtered) if e.key == result.key)
             self.query_one(DataTable).move_cursor(row=idx)
             self.query_one(EntryDetail).show_entry(result)
         except StopIteration:
             pass
-        self.notify(f"Added: {result.key}", timeout=3)
-        self._maybe_auto_fetch(result)
 
     def _maybe_auto_fetch(self, entry: BibEntry) -> None:
         """Trigger PDF fetch after import if the setting is enabled and prerequisites are met."""
