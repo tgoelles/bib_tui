@@ -91,10 +91,12 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
 def test_load_config_returns_defaults_when_missing(tmp_path: Path, monkeypatch) -> None:
     config_file = tmp_path / "nonexistent.toml"
     monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    monkeypatch.setattr("bibtui.utils.config._git_email", lambda: "")
     cfg = load_config()
-    assert cfg.pdf_base_dir == ""
+    home = Path.home()
+    assert cfg.pdf_base_dir == str(home / "Documents" / "papers")
     assert cfg.unpaywall_email == ""
-    assert cfg.pdf_download_dir == ""
+    assert cfg.pdf_download_dir == str(home / "Downloads")
 
 
 def test_save_config_creates_parent_dirs(tmp_path: Path, monkeypatch) -> None:
