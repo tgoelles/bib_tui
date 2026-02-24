@@ -615,13 +615,15 @@ class HelpModal(ModalScreen[None]):
   [bold]k:[/bold] / [bold]kw:[/bold]        filter by keyword
   [bold]y:[/bold] / [bold]year:[/bold]      filter by year or range
   [bold]u:[/bold] / [bold]url:[/bold]       filter by URL
+  [bold]c:[/bold] / [bold]citekey:[/bold]   filter by cite key
 
 [bold]── Examples ──────────────────────────[/bold]
   [dim]glacier[/dim]                    all fields
   [dim]a:smith t:glacier[/dim]          combined
   [dim]j:nature AND y:2025[/dim]        journal + year
   [dim]y:2015-2023[/dim]                year range
-  [dim]k:ice a:jones[/dim]              keyword + author"""
+  [dim]k:ice a:jones[/dim]              keyword + author
+  [dim]c:smith2020[/dim]                exact cite key search"""
 
     def compose(self) -> ComposeResult:
         with Vertical():

@@ -34,6 +34,9 @@ _FIELD_PREFIXES: dict[str, str] = {
     "year": "year",
     "u": "url",
     "url": "url",
+    "c": "citekey",
+    "citekey": "citekey",
+    "key": "citekey",
 }
 
 
@@ -95,6 +98,9 @@ def _entry_matches(
         elif field == "url":
             if value not in entry.url.lower():
                 return False
+        elif field == "citekey":
+            if value not in entry.key.lower():
+                return False
     for term in free_terms:
         if not (
             term in entry.title.lower()
@@ -153,7 +159,7 @@ class EntryList(Widget):
 
     def compose(self) -> ComposeResult:
         yield Input(
-            placeholder="Search… (a:smith j:nature AND y:2025 k:ice)",
+            placeholder="Search… (a:smith j:nature y:2025 k:ice c:smith2020)",
             id="search-input",
         )
         yield DataTable(id="entry-table", cursor_type="row")
