@@ -795,7 +795,7 @@ class AddPDFModal(ModalScreen["str | None"]):
     }
     AddPDFModal > Vertical {
         width: 80;
-        height: 28;
+        height: 30;
         border: double $accent;
         background: $surface;
         padding: 1 2;
@@ -810,6 +810,11 @@ class AddPDFModal(ModalScreen["str | None"]):
     }
     AddPDFModal #add-hint {
         color: $text-muted;
+        margin-bottom: 1;
+    }
+    AddPDFModal #add-preview-hint {
+        color: $text-muted;
+        height: auto;
         margin-bottom: 1;
     }
     AddPDFModal #add-error {
@@ -842,6 +847,10 @@ class AddPDFModal(ModalScreen["str | None"]):
             yield Static("", id="add-hint")
             yield Input(placeholder="type to filter…", id="add-filter")
             yield ListView(id="add-list")
+            yield Static(
+                "[dim]↓/↑ navigate · Space preview [/dim]",
+                id="add-preview-hint",
+            )
             yield Static("", id="add-error")
             with Horizontal(classes="modal-buttons"):
                 yield Button("Add", variant="primary", id="btn-add")
@@ -906,6 +915,28 @@ class AddPDFModal(ModalScreen["str | None"]):
         elif self.focused is lv and event.key == "up" and (lv.index or 0) == 0:
             inp.focus()
             event.stop()
+        elif self.focused is lv and event.key == "space":
+            self._preview_selected()
+            event.stop()
+
+    def _preview_selected(self) -> None:
+        import platform
+        import subprocess
+
+        lv = self.query_one(ListView)
+        idx = lv.index
+        if idx is None or idx >= len(self._filtered):
+            return
+        path = self._filtered[idx]
+        try:
+            if platform.system() == "Darwin":
+                subprocess.Popen(["open", str(path)])
+            else:
+                subprocess.Popen(["xdg-open", str(path)])
+        except Exception as e:
+            self.query_one("#add-error", Static).update(
+                f"[red]Could not open: {e}[/red]"
+            )
 
     @on(Input.Submitted, "#add-filter")
     def _on_filter_submitted(self, _: Input.Submitted) -> None:
