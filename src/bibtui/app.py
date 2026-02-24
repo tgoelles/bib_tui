@@ -252,6 +252,7 @@ class BibTuiApp(App):
         except StopIteration:
             pass
         self.notify(f"Added: {result.key}", timeout=3)
+        self._maybe_auto_fetch(result)
 
     def action_doi_import(self) -> None:
         self.push_screen(DOIModal(), self._on_doi_done)
@@ -299,6 +300,17 @@ class BibTuiApp(App):
         except StopIteration:
             pass
         self.notify(f"Added: {result.key}", timeout=3)
+        self._maybe_auto_fetch(result)
+
+    def _maybe_auto_fetch(self, entry: BibEntry) -> None:
+        """Trigger PDF fetch after import if the setting is enabled and prerequisites are met."""
+        if not self._config.auto_fetch_pdf:
+            return
+        if not (entry.doi or entry.url):
+            return
+        if not self._config.pdf_base_dir:
+            return
+        self._do_fetch_pdf(entry, True)
 
     def action_open_url(self) -> None:
         entry = self.query_one(EntryList).selected_entry

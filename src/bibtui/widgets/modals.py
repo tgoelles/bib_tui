@@ -12,6 +12,7 @@ from textual.widgets import (
     LoadingIndicator,
     SelectionList,
     Static,
+    Switch,
     TextArea,
 )
 from textual.widgets._selection_list import Selection
@@ -443,6 +444,14 @@ class SettingsModal(ModalScreen["Config | None"]):
     SettingsModal Input {
         margin-bottom: 1;
     }
+    SettingsModal .setting-row {
+        height: auto;
+        align: left middle;
+        margin-bottom: 1;
+    }
+    SettingsModal .setting-row Label {
+        width: 1fr;
+    }
     """
 
     def __init__(self, config: Config, **kwargs):
@@ -479,6 +488,12 @@ class SettingsModal(ModalScreen["Config | None"]):
             yield Static(
                 "[dim]PDFs listed when you press [bold]a[/bold] to add an existing PDF. Defaults to ~/Downloads.[/dim]"
             )
+            with Horizontal(classes="setting-row"):
+                yield Label("Auto-fetch PDF on import")
+                yield Switch(value=self._config.auto_fetch_pdf, id="auto-fetch-pdf")
+            yield Static(
+                "[dim]Automatically fetch the PDF after importing an entry by DOI or paste.[/dim]"
+            )
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
@@ -494,6 +509,7 @@ class SettingsModal(ModalScreen["Config | None"]):
         self._config.pdf_download_dir = self.query_one(
             "#pdf-download-dir", Input
         ).value.strip()
+        self._config.auto_fetch_pdf = self.query_one("#auto-fetch-pdf", Switch).value
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":

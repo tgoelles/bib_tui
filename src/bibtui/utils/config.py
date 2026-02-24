@@ -11,6 +11,7 @@ class Config:
     pdf_base_dir: str = ""
     unpaywall_email: str = ""
     pdf_download_dir: str = ""
+    auto_fetch_pdf: bool = True
 
 
 def is_first_run() -> bool:
@@ -54,6 +55,7 @@ def load_config() -> Config:
         pdf_base_dir=pdf.get("base_dir", ""),
         unpaywall_email=pdf.get("unpaywall_email", ""),
         pdf_download_dir=pdf.get("download_dir", ""),
+        auto_fetch_pdf=pdf.get("auto_fetch_pdf", True),
     )
 
 
@@ -69,6 +71,7 @@ def save_config(config: Config) -> None:
         f'base_dir = "{_toml_escape(config.pdf_base_dir)}"',
         f'unpaywall_email = "{_toml_escape(config.unpaywall_email)}"',
         f'download_dir = "{_toml_escape(config.pdf_download_dir)}"',
+        f'auto_fetch_pdf = {"true" if config.auto_fetch_pdf else "false"}',
         "",
     ]
     CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")
