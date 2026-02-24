@@ -10,5 +10,10 @@ release-patch:
     git push
     git push --tags
 
+# run with MyCollection.bib example
 run:
   uv run bibtui tests/bib_examples/MyCollection.bib
+
+# delete config files to test first run experience
+fresh:
+  rm -r $HOME/.config/bibtui
