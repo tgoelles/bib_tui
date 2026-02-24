@@ -606,20 +606,22 @@ class HelpModal(ModalScreen[None]):
     _SEARCH = """\
 [bold]── Plain text ────────────────────────[/bold]
   Searches title, author, keywords, and key.
-  Multiple words are ANDed together.
+  Multiple tokens are ANDed (AND keyword optional).
 
 [bold]── Field prefixes ────────────────────[/bold]
   [bold]a:[/bold] / [bold]author:[/bold]    filter by author
   [bold]t:[/bold] / [bold]title:[/bold]     filter by title
+  [bold]j:[/bold] / [bold]journal:[/bold]   filter by journal
   [bold]k:[/bold] / [bold]kw:[/bold]        filter by keyword
   [bold]y:[/bold] / [bold]year:[/bold]      filter by year or range
   [bold]u:[/bold] / [bold]url:[/bold]       filter by URL
 
 [bold]── Examples ──────────────────────────[/bold]
-  [dim]glacier[/dim]              all fields
-  [dim]a:smith t:glacier[/dim]    combined
-  [dim]y:2015-2023[/dim]          year range
-  [dim]k:ice a:jones[/dim]        keyword + author"""
+  [dim]glacier[/dim]                    all fields
+  [dim]a:smith t:glacier[/dim]          combined
+  [dim]j:nature AND y:2025[/dim]        journal + year
+  [dim]y:2015-2023[/dim]                year range
+  [dim]k:ice a:jones[/dim]              keyword + author"""
 
     def compose(self) -> ComposeResult:
         with Vertical():

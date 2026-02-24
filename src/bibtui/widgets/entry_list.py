@@ -24,6 +24,8 @@ _FIELD_PREFIXES: dict[str, str] = {
     "title": "title",
     "a": "author",
     "author": "author",
+    "j": "journal",
+    "journal": "journal",
     "k": "keywords",
     "kw": "keywords",
     "keyword": "keywords",
@@ -40,10 +42,14 @@ def _parse_query(query: str) -> tuple[list[tuple[str, str]], list[str]]:
 
     Each space-separated token is either ``prefix:value`` (field filter) or a
     plain word (searched across all fields).  Multiple tokens are ANDed.
+    The keyword ``AND`` (case-insensitive) is ignored, allowing queries like
+    ``j:nature AND y:2025``.
     """
     filters: list[tuple[str, str]] = []
     free_terms: list[str] = []
     for token in query.split():
+        if token.upper() == "AND":
+            continue
         if ":" in token:
             prefix, _, value = token.partition(":")
             field = _FIELD_PREFIXES.get(prefix.lower())
@@ -82,6 +88,10 @@ def _entry_matches(
             else:
                 if value not in entry.year:
                     return False
+        elif field == "journal":
+            journal = (entry.journal or entry.raw_fields.get("booktitle", "")).lower()
+            if value not in journal:
+                return False
         elif field == "url":
             if value not in entry.url.lower():
                 return False
@@ -143,7 +153,7 @@ class EntryList(Widget):
 
     def compose(self) -> ComposeResult:
         yield Input(
-            placeholder="Search… (a:smith t:glacier k:ice y:2020-2023)",
+            placeholder="Search… (a:smith j:nature AND y:2025 k:ice)",
             id="search-input",
         )
         yield DataTable(id="entry-table", cursor_type="row")
