@@ -1101,7 +1101,7 @@ class FirstRunModal(ModalScreen[bool]):
                 id="welcome-title",
             )
             yield Static(
-                "A keyboard-driven terminal UI for your BibTeX libraries.\n\n"
+                "A terminal UI with keyboard and mouse support for your BibTeX libraries.\n\n"
                 "[bold green]You're ready to go[/bold green] — no setup required.\n"
                 "Just run  [bold]bibtui yourfile.bib[/bold]  and start browsing.\n\n"
                 "[dim]Optional:[/dim] PDF fetching and attaching require a few"

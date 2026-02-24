@@ -18,19 +18,35 @@ def is_first_run() -> bool:
     return not CONFIG_PATH.exists()
 
 
+def _git_email() -> str:
+    """Read user.email from global git config, or return empty string."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "config", "--global", "user.email"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return ""
+
+
 def default_config() -> Config:
     """Return a Config pre-filled with sensible platform defaults."""
     home = Path.home()
     return Config(
         pdf_base_dir=str(home / "Documents" / "papers"),
-        unpaywall_email="",
+        unpaywall_email=_git_email(),
         pdf_download_dir=str(home / "Downloads"),
     )
 
 
 def load_config() -> Config:
     if not CONFIG_PATH.exists():
-        return Config()
+        return default_config()
     with open(CONFIG_PATH, "rb") as f:
         data = tomllib.load(f)
     pdf = data.get("pdf", {})
