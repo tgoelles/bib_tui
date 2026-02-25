@@ -5,7 +5,6 @@ import pytest
 from bibtui.bib.models import (
     PRIORITIES,
     PRIORITY_ICONS,
-    PRIORITY_LABELS,
     READ_STATE_ICONS,
     READ_STATES,
     BibEntry,
