@@ -71,7 +71,7 @@ def save_config(config: Config) -> None:
         f'base_dir = "{_toml_escape(config.pdf_base_dir)}"',
         f'unpaywall_email = "{_toml_escape(config.unpaywall_email)}"',
         f'download_dir = "{_toml_escape(config.pdf_download_dir)}"',
-        f'auto_fetch_pdf = {"true" if config.auto_fetch_pdf else "false"}',
+        f"auto_fetch_pdf = {'true' if config.auto_fetch_pdf else 'false'}",
         "",
     ]
     CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")
@@ -95,7 +95,9 @@ def parse_jabref_path(file_field: str, base_dir: str = "") -> str:
     return path
 
 
-def find_pdf_for_entry(file_field: str, entry_key: str, base_dir: str = "") -> str | None:
+def find_pdf_for_entry(
+    file_field: str, entry_key: str, base_dir: str = ""
+) -> str | None:
     """Return an existing PDF path for an entry, or None.
 
     First tries the path stored in *file_field*.  If that doesn't exist,

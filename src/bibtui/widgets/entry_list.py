@@ -158,7 +158,11 @@ class EntryList(Widget):
     def _file_icon(self, entry: BibEntry) -> str:
         if not entry.file:
             return " "
-        return "■" if find_pdf_for_entry(entry.file, entry.key, self._pdf_base_dir) else "□"
+        return (
+            "■"
+            if find_pdf_for_entry(entry.file, entry.key, self._pdf_base_dir)
+            else "□"
+        )
 
     def compose(self) -> ComposeResult:
         yield Input(

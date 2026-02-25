@@ -1067,7 +1067,9 @@ class FetchPDFModal(ModalScreen["str | None"]):
         from bibtui.bib.pdf_fetcher import FetchError, fetch_pdf
 
         try:
-            path = fetch_pdf(self._entry, self._dest_dir, self._email, overwrite=self._overwrite)
+            path = fetch_pdf(
+                self._entry, self._dest_dir, self._email, overwrite=self._overwrite
+            )
             self.app.call_from_thread(self._on_success, path)
         except FetchError as exc:
             self.app.call_from_thread(self._on_error, str(exc))
