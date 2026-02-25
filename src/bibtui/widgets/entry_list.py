@@ -17,7 +17,9 @@ _COL_LABELS = ("◉", "!", "◫", "🔗", "Type", "Year", "Author", "Journal", "
 # Sum of all fixed column widths + per-column padding (2 each) + EntryList border (2) + scrollbar (1).
 # Fixed widths: ◉(1)+!(1)+◫(1)+⊕(1)+Type(7)+Year(4)+Author(13)+Journal(17)+★(5) = 50
 # Padding: 10 cols × 2 = 20  |  border+scrollbar = 3
-_COL_OVERHEAD = 74
+_COL_OVERHEAD_WITH_JOURNAL = 74
+_COL_OVERHEAD_NO_JOURNAL = 57  # 74 - journal width (17)
+_JOURNAL_THRESHOLD = 120  # min widget width (chars) to show the Journal column
 
 _FIELD_PREFIXES: dict[str, str] = {
     "t": "title",
@@ -141,9 +143,11 @@ class EntryList(Widget):
         self._col_priority: ColumnKey | None = None
         self._col_file: ColumnKey | None = None
         self._col_url: ColumnKey | None = None
+        self._col_journal: ColumnKey | None = None
         self._col_title: ColumnKey | None = None
         self._col_rating: ColumnKey | None = None
         self._title_width: int = 30
+        self._journal_visible: bool = True
         self._sort_key: ColumnKey | None = None
         self._sort_reverse: bool = False
         self._pdf_base_dir: str = ""
@@ -192,6 +196,7 @@ class EntryList(Widget):
         self._col_priority = col_priority
         self._col_file = col_file
         self._col_url = col_url
+        self._col_journal = col_journal
         self._col_title = col_title
         self._col_rating = col_rating
         self._populate_table(self._all_entries)
@@ -200,14 +205,26 @@ class EntryList(Widget):
         self._update_title_width()
 
     def _update_title_width(self) -> None:
-        """Recompute title column width to fill available horizontal space."""
+        """Recompute title column width to fill available horizontal space.
+
+        Also shows/hides the Journal column based on _JOURNAL_THRESHOLD.
+        """
         if self._col_title is None:
             return
-        width = max(10, self.size.width - _COL_OVERHEAD)
+        show_journal = self.size.width >= _JOURNAL_THRESHOLD
+        table = self.query_one(DataTable)
+        if self._col_journal is not None and show_journal != self._journal_visible:
+            self._journal_visible = show_journal
+            table.columns[self._col_journal].width = 17 if show_journal else 0
+        overhead = (
+            _COL_OVERHEAD_WITH_JOURNAL
+            if self._journal_visible
+            else _COL_OVERHEAD_NO_JOURNAL
+        )
+        width = max(10, self.size.width - overhead)
         if width == self._title_width:
             return
         self._title_width = width
-        table = self.query_one(DataTable)
         table.columns[self._col_title].width = width
         table.refresh()
 
