@@ -16,6 +16,7 @@ from bibtui.bib.models import BibEntry
 from bibtui.utils.config import (
     CONFIG_PATH,
     Config,
+    find_pdf_for_entry,
     is_first_run,
     load_config,
     parse_jabref_path,
@@ -364,6 +365,7 @@ class BibTuiApp(App):
                 entry,
                 self._config.pdf_base_dir,
                 self._config.unpaywall_email,
+                overwrite=True,
             ),
             self._on_fetch_pdf_done,
         )
@@ -421,9 +423,10 @@ class BibTuiApp(App):
         if not entry.file:
             self.notify("No PDF linked for this entry.", severity="warning")
             return
-        path = parse_jabref_path(entry.file, self._config.pdf_base_dir)
-        if not os.path.exists(path):
-            self.notify(f"PDF not found: {path}", severity="error", timeout=5)
+        path = find_pdf_for_entry(entry.file, entry.key, self._config.pdf_base_dir)
+        if not path:
+            stored = parse_jabref_path(entry.file, self._config.pdf_base_dir)
+            self.notify(f"PDF not found: {stored}", severity="error", timeout=5)
             return
         try:
             if platform.system() == "Darwin":

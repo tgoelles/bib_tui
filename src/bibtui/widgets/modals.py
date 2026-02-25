@@ -1037,12 +1037,14 @@ class FetchPDFModal(ModalScreen["str | None"]):
         entry: BibEntry,
         dest_dir: str,
         unpaywall_email: str = "",
+        overwrite: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self._entry = entry
         self._dest_dir = dest_dir
         self._email = unpaywall_email
+        self._overwrite = overwrite
         self._saved_path: str | None = None
 
     def compose(self) -> ComposeResult:
@@ -1065,7 +1067,7 @@ class FetchPDFModal(ModalScreen["str | None"]):
         from bibtui.bib.pdf_fetcher import FetchError, fetch_pdf
 
         try:
-            path = fetch_pdf(self._entry, self._dest_dir, self._email)
+            path = fetch_pdf(self._entry, self._dest_dir, self._email, overwrite=self._overwrite)
             self.app.call_from_thread(self._on_success, path)
         except FetchError as exc:
             self.app.call_from_thread(self._on_error, str(exc))

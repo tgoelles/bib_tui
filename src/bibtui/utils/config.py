@@ -95,6 +95,28 @@ def parse_jabref_path(file_field: str, base_dir: str = "") -> str:
     return path
 
 
+def find_pdf_for_entry(file_field: str, entry_key: str, base_dir: str = "") -> str | None:
+    """Return an existing PDF path for an entry, or None.
+
+    First tries the path stored in *file_field*.  If that doesn't exist,
+    falls back to a glob search for ``{entry_key}*.pdf`` in *base_dir* to
+    handle filename mismatches between JabRef and bibtui naming conventions.
+    """
+    import glob as _glob
+
+    if file_field:
+        path = parse_jabref_path(file_field, base_dir)
+        if os.path.exists(path):
+            return path
+
+    if base_dir and entry_key:
+        matches = _glob.glob(os.path.join(base_dir, f"{entry_key}*.pdf"))
+        if matches:
+            return matches[0]
+
+    return None
+
+
 def format_jabref_path(filepath: str, base_dir: str = "") -> str:
     """Format a path as a JabRef file field value ``:filename.pdf:PDF``.
 

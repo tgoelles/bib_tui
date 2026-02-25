@@ -9,7 +9,7 @@ from textual.widgets import DataTable, Input
 from textual.widgets._data_table import ColumnKey
 
 from bibtui.bib.models import READ_STATES, BibEntry
-from bibtui.utils.config import parse_jabref_path
+from bibtui.utils.config import find_pdf_for_entry, parse_jabref_path
 
 # Original header labels in column order
 _COL_LABELS = ("◉", "!", "◫", "🔗", "Type", "Year", "Author", "Journal", "Title", "★")
@@ -158,8 +158,7 @@ class EntryList(Widget):
     def _file_icon(self, entry: BibEntry) -> str:
         if not entry.file:
             return " "
-        path = parse_jabref_path(entry.file, self._pdf_base_dir)
-        return "■" if os.path.exists(path) else "□"
+        return "■" if find_pdf_for_entry(entry.file, entry.key, self._pdf_base_dir) else "□"
 
     def compose(self) -> ComposeResult:
         yield Input(

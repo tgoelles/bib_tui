@@ -113,6 +113,21 @@ def test_fetch_pdf_raises_when_file_exists(tmp_path):
         fetch_pdf(e, dest_dir=str(tmp_path), overwrite=False)
 
 
+def test_fetch_pdf_overwrite_skips_existing_file_check(tmp_path):
+    """overwrite=True must not raise 'already exists' — regression for the bug where
+    confirming overwrite in the UI still showed the 'file already exists' error because
+    FetchPDFModal called fetch_pdf without overwrite=True.
+    """
+    dest = tmp_path / "x.pdf"
+    dest.write_bytes(b"%PDF-1.4 fake")
+    e = BibEntry(key="x", entry_type="article")  # no DOI/URL → all strategies fail
+    with pytest.raises(FetchError) as exc_info:
+        fetch_pdf(e, dest_dir=str(tmp_path), overwrite=True)
+    # The error must be about fetch strategies failing, not about file existence
+    assert "already exists" not in str(exc_info.value)
+    assert "arXiv" in str(exc_info.value) or "Could not fetch" in str(exc_info.value)
+
+
 def test_fetch_pdf_no_doi_or_url_all_strategies_fail(tmp_path):
     e = BibEntry(key="nodoi", entry_type="article")
     with pytest.raises(FetchError) as exc_info:
