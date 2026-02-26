@@ -2,12 +2,39 @@ import re
 import unicodedata
 from string import ascii_lowercase
 
-_AUTHOR_YEAR_RE = re.compile(r"^[A-Z][A-Za-z0-9]*\d{4}[a-z]?$")
+_AUTHOR_YEAR_RE = re.compile(r"^[A-Z][A-Za-z0-9-]*\d{4}[a-z]?$")
+_AUTHOR_YEAR_PARTS_RE = re.compile(r"^([A-Za-z0-9-]+?)(\d{4})([A-Za-z]?)$")
 _YEAR_RE = re.compile(r"(\d{4})")
 
 
 def is_author_year_key(key: str) -> bool:
     return bool(_AUTHOR_YEAR_RE.fullmatch((key or "").strip()))
+
+
+def canonicalize_author_year_key(key: str) -> str:
+    """Normalize casing for AuthorYear-like keys.
+
+    Examples:
+    - STEINIGER2021 -> Steiniger2021
+    - steininger2021a -> Steininger2021a
+    """
+    k = (key or "").strip()
+    match = _AUTHOR_YEAR_PARTS_RE.fullmatch(k)
+    if not match:
+        return k
+    author_part, year_part, suffix = match.groups()
+    if not author_part:
+        return k
+    author_part = "-".join(
+        segment[0].upper() + segment[1:].lower() if segment else segment
+        for segment in author_part.split("-")
+    )
+    return f"{author_part}{year_part}{suffix.lower()}"
+
+
+def is_canonical_author_year_key(key: str) -> bool:
+    k = (key or "").strip()
+    return is_author_year_key(k) and canonicalize_author_year_key(k) == k
 
 
 def author_year_base(author_field: str, year_field: str) -> str:

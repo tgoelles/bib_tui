@@ -1,4 +1,10 @@
-from bibtui.bib.citekeys import author_year_base, is_author_year_key, make_unique_key
+from bibtui.bib.citekeys import (
+    author_year_base,
+    canonicalize_author_year_key,
+    is_author_year_key,
+    is_canonical_author_year_key,
+    make_unique_key,
+)
 
 
 def test_author_year_base_strips_latex_braces_and_accents() -> None:
@@ -30,3 +36,16 @@ def test_is_author_year_key_accepts_optional_suffix() -> None:
 def test_make_unique_key_adds_letter_suffixes() -> None:
     used = {"Goelles2025", "Goelles2025a"}
     assert make_unique_key("Goelles2025", used) == "Goelles2025b"
+
+
+def test_canonicalize_author_year_key_normalizes_case() -> None:
+    assert canonicalize_author_year_key("STEINIGER2021") == "Steiniger2021"
+    assert canonicalize_author_year_key("steiniger2021a") == "Steiniger2021a"
+    assert canonicalize_author_year_key("IRVINE-FYNN2025") == "Irvine-Fynn2025"
+
+
+def test_is_canonical_author_year_key() -> None:
+    assert is_canonical_author_year_key("Melcher2014")
+    assert is_canonical_author_year_key("Irvine-Fynn2025")
+    assert not is_canonical_author_year_key("MELCHER2014")
+    assert not is_canonical_author_year_key("Irvine-fynn2025")

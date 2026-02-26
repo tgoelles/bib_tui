@@ -15,7 +15,11 @@ from textual.widgets import DataTable, Footer, Header, Input, TextArea
 
 from bibtui import __version__
 from bibtui.bib import parser
-from bibtui.bib.citekeys import author_year_base, make_unique_key
+from bibtui.bib.citekeys import (
+    author_year_base,
+    is_canonical_author_year_key,
+    make_unique_key,
+)
 from bibtui.bib.models import BibEntry
 from bibtui.pdf.fetcher import pdf_filename
 from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
@@ -708,20 +712,27 @@ class BibTuiApp(App):
         used_keys: set[str] = set()
         plan: list[tuple[BibEntry, str]] = []
         already_ok = 0
+        pending: list[BibEntry] = []
 
         for entry in self._entries:
-            if not self._has_author_and_year(entry):
-                skipped_missing_metadata += 1
-                used_keys.add(entry.key)
-
-        for entry in self._entries:
-            if not self._has_author_and_year(entry):
+            current_key = (entry.key or "").strip()
+            if is_canonical_author_year_key(current_key):
+                already_ok += 1
+                used_keys.add(current_key)
                 continue
 
+            if not self._has_author_and_year(entry):
+                skipped_missing_metadata += 1
+                used_keys.add(current_key)
+                continue
+
+            pending.append(entry)
+
+        for entry in pending:
             base = author_year_base(entry.author, entry.year)
             new_key = make_unique_key(base, used_keys)
             used_keys.add(new_key)
-            if new_key == entry.key:
+            if new_key == (entry.key or "").strip():
                 already_ok += 1
             else:
                 plan.append((entry, new_key))

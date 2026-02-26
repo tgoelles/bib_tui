@@ -167,6 +167,40 @@ def test_scan_citekey_unification_normalizes_key_casing_from_author_year() -> No
     assert scan["plan"][1][1] == "Steininger2021a"
 
 
+def test_scan_citekey_unification_keeps_canonical_key_even_if_author_differs() -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app._entries = [
+        BibEntry(
+            key="Melcher2014",
+            entry_type="article",
+            author="Mechler, Reinhard",
+            year="2014",
+        )
+    ]
+
+    scan = app._scan_citekey_unification()
+
+    assert scan["already_ok"] == 1
+    assert scan["plan"] == []
+
+
+def test_scan_citekey_unification_keeps_hyphenated_canonical_key() -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app._entries = [
+        BibEntry(
+            key="Irvine-Fynn2025",
+            entry_type="article",
+            author="Irvine-Fynn, Tristram",
+            year="2025",
+        )
+    ]
+
+    scan = app._scan_citekey_unification()
+
+    assert scan["already_ok"] == 1
+    assert scan["plan"] == []
+
+
 def test_start_unify_citekeys_hints_when_only_missing_metadata(monkeypatch) -> None:
     app = BibTuiApp("tests/bib_examples/MyCollection.bib")
     notifications: list[str] = []
