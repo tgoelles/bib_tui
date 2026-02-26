@@ -480,7 +480,17 @@ class BibTuiApp(App):
             )
             return
         dest_path = os.path.join(dest_dir, pdf_filename(entry))
+        has_valid_link = bool(
+            entry.file and os.path.exists(parse_jabref_path(entry.file, dest_dir))
+        )
         if os.path.exists(dest_path):
+            if not has_valid_link:
+                self._link_pdf_to_entry(
+                    entry,
+                    dest_path,
+                    f"Found existing PDF and linked: {entry.key}",
+                )
+                return
             self.push_screen(
                 ConfirmModal(f"PDF already exists:\n{dest_path}\n\nOverwrite?"),
                 lambda confirmed: self._do_fetch_pdf(entry, confirmed),
@@ -507,11 +517,7 @@ class BibTuiApp(App):
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        entry.file = format_jabref_path(result, self._config.pdf_base_dir)
-        self._dirty = True
-        self.query_one(EntryList).refresh_row(entry)
-        self.query_one(EntryDetail).show_entry(entry)
-        self.notify(f"PDF saved and linked: {entry.key}", timeout=4)
+        self._link_pdf_to_entry(entry, result, f"PDF saved and linked: {entry.key}")
 
     def action_add_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -536,11 +542,14 @@ class BibTuiApp(App):
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        entry.file = format_jabref_path(result, self._config.pdf_base_dir)
+        self._link_pdf_to_entry(entry, result, f"PDF added and linked: {entry.key}")
+
+    def _link_pdf_to_entry(self, entry: BibEntry, path: str, message: str) -> None:
+        entry.file = format_jabref_path(path, self._config.pdf_base_dir)
         self._dirty = True
         self.query_one(EntryList).refresh_row(entry)
         self.query_one(EntryDetail).show_entry(entry)
-        self.notify(f"PDF added and linked: {entry.key}", timeout=4)
+        self.notify(message, timeout=4)
 
     def action_open_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -612,6 +621,14 @@ class BibTuiApp(App):
             )
             return
 
+        linked_count = self._autolink_existing_local_pdfs()
+        if linked_count:
+            self.notify(
+                f"Auto-linked {linked_count} existing PDF"
+                f"{'s' if linked_count != 1 else ''}.",
+                timeout=4,
+            )
+
         candidates = self._missing_pdf_candidates(overwrite_broken_links)
         if not candidates:
             self.notify("No missing PDFs found in this library.", timeout=4)
@@ -641,6 +658,31 @@ class BibTuiApp(App):
                 continue
             candidates.append(entry)
         return candidates
+
+    def _autolink_existing_local_pdfs(self) -> int:
+        base_dir = self._config.pdf_base_dir
+        linked = 0
+        for entry in self._entries:
+            stored_valid = bool(
+                entry.file and os.path.exists(parse_jabref_path(entry.file, base_dir))
+            )
+            if stored_valid:
+                continue
+
+            found = find_pdf_for_entry(entry.file, entry.key, base_dir)
+            if not found:
+                continue
+
+            entry.file = format_jabref_path(found, base_dir)
+            linked += 1
+
+        if linked:
+            self._dirty = True
+            self.query_one(EntryList).refresh_entries(self._entries)
+            selected = self.query_one(EntryList).selected_entry
+            self.query_one(EntryDetail).show_entry(selected)
+
+        return linked
 
     def _run_batch_fetch_missing_pdfs(
         self, candidates: list[BibEntry], overwrite_broken_links: bool
