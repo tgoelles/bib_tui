@@ -350,7 +350,7 @@ class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
             lambda confirmed: self._on_delete_confirmed(confirmed, kw),
         )
 
-    def _on_delete_confirmed(self, confirmed: bool, kw: str) -> None:
+    def _on_delete_confirmed(self, confirmed: bool | None, kw: str) -> None:
         if not confirmed:
             return
         self._delete_everywhere.add(kw)
@@ -950,9 +950,7 @@ class AddPDFModal(ModalScreen["str | None"]):
             else:
                 subprocess.Popen(["xdg-open", str(path)])
         except Exception as e:
-            self.query_one("#add-error", Static).update(
-                f"[red]Could not open: {e}[/red]"
-            )
+            self.query_one("#add-error", Static).update(f"Could not open: {e}")
 
     @on(Input.Submitted, "#add-filter")
     def _on_filter_submitted(self, _: Input.Submitted) -> None:
@@ -984,7 +982,7 @@ class AddPDFModal(ModalScreen["str | None"]):
                 self._add_path(Path(val))
             else:
                 self.query_one("#add-error", Static).update(
-                    "[red]Select a file or enter a path.[/red]"
+                    "Select a file or enter a path."
                 )
 
     def _add_path(self, src) -> None:
@@ -998,7 +996,7 @@ class AddPDFModal(ModalScreen["str | None"]):
             dest = add_pdf(Path(src), self._entry, self._base_dir)
             self.dismiss(str(dest))
         except FetchError as exc:
-            error.update(f"[red]{exc}[/red]")
+            error.update(str(exc))
 
     def action_add(self) -> None:
         self._confirm()
@@ -1159,7 +1157,7 @@ class FirstRunModal(ModalScreen[bool]):
             )
             yield Static(
                 "A terminal UI with keyboard and mouse support for your BibTeX libraries.\n\n"
-                "[bold green]You're ready to go[/bold green] — no setup required.\n"
+                "[bold]You're ready to go[/bold] — no setup required.\n"
                 "Just run  [bold]bibtui yourfile.bib[/bold]  and start browsing.\n\n"
                 "[dim]Optional:[/dim] PDF fetching and attaching require a few"
                 " extra settings\n"
