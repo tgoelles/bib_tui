@@ -368,6 +368,9 @@ class EntryList(Widget):
 
     def refresh_entries(self, entries: list[BibEntry]) -> None:
         """Reload all entries (e.g. after add/edit)."""
+        table = self.query_one(DataTable)
+        selected_before = self.selected_entry
+        selected_key = selected_before.key if selected_before is not None else None
         self._all_entries = entries
         search = self.query_one(Input).value
         if search:
@@ -376,6 +379,14 @@ class EntryList(Widget):
             self._populate_table(entries)
             if self._sort_key is not None:
                 self._apply_sort()
+
+        if selected_key is None:
+            return
+        try:
+            row_idx = next(i for i, e in enumerate(self._filtered) if e.key == selected_key)
+        except StopIteration:
+            return
+        table.move_cursor(row=row_idx)
 
     def refresh_row(self, entry: BibEntry) -> None:
         """Update the read-state, priority, file, and rating cells for a single row."""
