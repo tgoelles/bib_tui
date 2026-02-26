@@ -383,7 +383,9 @@ class EntryList(Widget):
         if selected_key is None:
             return
         try:
-            row_idx = next(i for i, e in enumerate(self._filtered) if e.key == selected_key)
+            row_idx = next(
+                i for i, e in enumerate(self._filtered) if e.key == selected_key
+            )
         except StopIteration:
             return
         table.move_cursor(row=row_idx)
