@@ -845,6 +845,13 @@ class BibTuiApp(App):
         self.push_screen(HelpModal())
 
     def action_copy_key(self) -> None:
+        focused = self.focused
+        if isinstance(focused, (Input, TextArea)):
+            copy_action = getattr(focused, "action_copy", None)
+            if callable(copy_action):
+                copy_action()
+                return
+
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return

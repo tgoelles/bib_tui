@@ -641,7 +641,7 @@ class HelpModal(ModalScreen[None]):
   [bold]0[/bold]         Mark unrated
 
 [bold]── Other ─────────────────────────────[/bold]
-  [bold]ctrl+c[/bold]    Copy cite key to clipboard
+    [bold]ctrl+c[/bold]    Copy selected text (or cite key if none focused)
   [bold]?[/bold]         Show this help
     [bold]ctrl+p[/bold]    Command palette (Settings + Library actions)
   [bold]Esc[/bold]       Clear search / close modal
