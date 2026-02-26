@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from habanero import Crossref
+
+from bibtui.utils.dates import now_date_added_value
 
 from .citekeys import author_year_base
 from .models import BibEntry
@@ -65,7 +65,7 @@ def fetch_by_doi(doi: str) -> BibEntry:
     key = author_year_base(author_str, year)
 
     raw: dict[str, str] = {
-        "date-added": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "date-added": now_date_added_value(),
     }
     if msg.get("volume"):
         raw["volume"] = str(msg["volume"])

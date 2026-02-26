@@ -8,16 +8,29 @@ from textual.widgets._data_table import ColumnKey
 
 from bibtui.bib.models import READ_STATES, BibEntry
 from bibtui.pdf.paths import find_pdf_for_entry
+from bibtui.utils.dates import extract_date_added, format_bib_date
 
 # Original header labels in column order
-_COL_LABELS = ("◉", "!", "◫", "🔗", "Type", "Year", "Author", "Journal", "Title", "★")
+_COL_LABELS = (
+    "◉",
+    "!",
+    "◫",
+    "🔗",
+    "Type",
+    "Year",
+    "Author",
+    "Journal",
+    "Title",
+    "Added",
+    "★",
+)
 
-# Sum of all fixed column widths + per-column padding (2 each) + EntryList border (2) + scrollbar (1).
-# Fixed widths: ◉(1)+!(1)+◫(1)+⊕(1)+Type(7)+Year(4)+Author(13)+Journal(17)+★(5) = 50
-# Padding: 10 cols × 2 = 20  |  border+scrollbar = 3
-_COL_OVERHEAD_WITH_JOURNAL = 74
-_COL_OVERHEAD_NO_JOURNAL = 57  # 74 - journal width (17)
+_COL_OVERHEAD_WITH_JOURNAL_AND_ADDED = 85
+_COL_OVERHEAD_WITH_JOURNAL_NO_ADDED = 75
+_COL_OVERHEAD_NO_JOURNAL_WITH_ADDED = 68
+_COL_OVERHEAD_NO_JOURNAL_NO_ADDED = 58
 _JOURNAL_THRESHOLD = 120  # min widget width (chars) to show the Journal column
+_ADDED_THRESHOLD = 140  # min widget width (chars) to show the Date Added column
 
 _FIELD_PREFIXES: dict[str, str] = {
     "t": "title",
@@ -145,9 +158,11 @@ class EntryList(Widget):
         self._col_url: ColumnKey | None = None
         self._col_journal: ColumnKey | None = None
         self._col_title: ColumnKey | None = None
+        self._col_added: ColumnKey | None = None
         self._col_rating: ColumnKey | None = None
         self._title_width: int = 30
         self._journal_visible: bool = True
+        self._added_visible: bool = True
         self._sort_key: ColumnKey | None = None
         self._sort_reverse: bool = False
         self._pdf_base_dir: str = ""
@@ -182,6 +197,7 @@ class EntryList(Widget):
         col_author = table.add_column("Author", width=13)
         col_journal = table.add_column("Journal", width=17)
         col_title = table.add_column("Title", width=self._title_width)
+        col_added = table.add_column("Added", width=10)
         col_rating = table.add_column("★", width=5)
         self._col_keys = (
             col_state,
@@ -193,6 +209,7 @@ class EntryList(Widget):
             col_author,
             col_journal,
             col_title,
+            col_added,
             col_rating,
         )
         self._col_state = col_state
@@ -201,8 +218,10 @@ class EntryList(Widget):
         self._col_url = col_url
         self._col_journal = col_journal
         self._col_title = col_title
+        self._col_added = col_added
         self._col_rating = col_rating
         self._populate_table(self._all_entries)
+        self._update_title_width()
 
     def on_resize(self, event) -> None:
         self._update_title_width()
@@ -210,26 +229,37 @@ class EntryList(Widget):
     def _update_title_width(self) -> None:
         """Recompute title column width to fill available horizontal space.
 
-        Also shows/hides the Journal column based on _JOURNAL_THRESHOLD.
+        Also shows/hides Journal and Added columns based on width thresholds.
         """
         if self._col_title is None:
             return
         show_journal = self.size.width >= _JOURNAL_THRESHOLD
+        show_added = self.size.width >= _ADDED_THRESHOLD
         table = self.query_one(DataTable)
         if self._col_journal is not None and show_journal != self._journal_visible:
             self._journal_visible = show_journal
             table.columns[self._col_journal].width = 17 if show_journal else 0
-        overhead = (
-            _COL_OVERHEAD_WITH_JOURNAL
-            if self._journal_visible
-            else _COL_OVERHEAD_NO_JOURNAL
-        )
+        if self._col_added is not None and show_added != self._added_visible:
+            self._added_visible = show_added
+            table.columns[self._col_added].width = 10 if show_added else 0
+        if self._journal_visible and self._added_visible:
+            overhead = _COL_OVERHEAD_WITH_JOURNAL_AND_ADDED
+        elif self._journal_visible and not self._added_visible:
+            overhead = _COL_OVERHEAD_WITH_JOURNAL_NO_ADDED
+        elif not self._journal_visible and self._added_visible:
+            overhead = _COL_OVERHEAD_NO_JOURNAL_WITH_ADDED
+        else:
+            overhead = _COL_OVERHEAD_NO_JOURNAL_NO_ADDED
         width = max(10, self.size.width - overhead)
         if width == self._title_width:
             return
         self._title_width = width
         table.columns[self._col_title].width = width
         table.refresh()
+
+    @staticmethod
+    def _date_added_text(entry: BibEntry) -> str:
+        return format_bib_date(extract_date_added(entry.raw_fields))
 
     def _populate_table(self, entries: list[BibEntry]) -> None:
         table = self.query_one(DataTable)
@@ -249,6 +279,7 @@ class EntryList(Widget):
                 else e.authors_short,
                 journal[:16] + "…" if len(journal) > 16 else journal,
                 e.title,
+                self._date_added_text(e),
                 e.rating_stars,
                 key=e.key,
             )
@@ -289,7 +320,9 @@ class EntryList(Widget):
             return lambda e: (e.journal or e.raw_fields.get("booktitle", "")).lower()
         if idx == 8:  # Title
             return lambda e: e.title.lower()
-        if idx == 9:  # ★ rating
+        if idx == 9:  # Added
+            return lambda e: self._date_added_text(e)
+        if idx == 10:  # ★ rating
             return lambda e: e.rating
         return lambda e: ""
 
@@ -318,6 +351,7 @@ class EntryList(Widget):
                 else e.authors_short,
                 journal[:16] + "…" if len(journal) > 16 else journal,
                 e.title,
+                self._date_added_text(e),
                 e.rating_stars,
                 key=e.key,
             )

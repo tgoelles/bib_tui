@@ -655,7 +655,7 @@ class HelpModal(ModalScreen[None]):
   Click any column header to sort by that column.
   Click the same header again to reverse the order.
   Active sort column is marked with [bold]▲[/bold] (asc) or [bold]▼[/bold] (desc).
-  Cols: [bold]◉[/bold] state  [bold]![/bold] prio  [bold]◫[/bold] PDF  [bold]🔗[/bold] URL  Type  Year  Author  Journal  Title  [bold]★[/bold]
+    Cols: [bold]◉[/bold] state  [bold]![/bold] prio  [bold]◫[/bold] PDF  [bold]🔗[/bold] URL  Type  Year  Author  Journal  Title  Added  [bold]★[/bold]
 """
     _SEARCH = """\
 [bold]── Plain text ────────────────────────[/bold]
