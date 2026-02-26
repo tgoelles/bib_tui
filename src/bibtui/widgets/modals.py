@@ -990,7 +990,7 @@ class AddPDFModal(ModalScreen["str | None"]):
     def _add_path(self, src) -> None:
         from pathlib import Path
 
-        from bibtui.bib.pdf_fetcher import FetchError, add_pdf
+        from bibtui.pdf.fetcher import FetchError, add_pdf
 
         error = self.query_one("#add-error", Static)
         error.update("")
@@ -1064,7 +1064,7 @@ class FetchPDFModal(ModalScreen["str | None"]):
 
     @work(thread=True)
     def _do_fetch(self) -> None:
-        from bibtui.bib.pdf_fetcher import FetchError, fetch_pdf
+        from bibtui.pdf.fetcher import FetchError, fetch_pdf
 
         try:
             path = fetch_pdf(

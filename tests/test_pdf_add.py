@@ -1,12 +1,11 @@
-"""Tests for add_pdf() in bib_tui.bib.pdf_fetcher."""
+"""Tests for add_pdf() in bibtui.pdf.fetcher."""
 
 from pathlib import Path
 
 import pytest
 
 from bibtui.bib.models import BibEntry
-from bibtui.bib.pdf_fetcher import FetchError, add_pdf, pdf_filename
-
+from bibtui.pdf.fetcher import FetchError, add_pdf, pdf_filename
 
 # ---------------------------------------------------------------------------
 # Fixtures
