@@ -586,8 +586,7 @@ class HelpModal(ModalScreen[None]):
             f"[bold]bibtui[/bold] v{version}  —  BibTeX TUI\n"
             "[dim]Author:[/dim] Thomas Gölles\n"
             "[dim]Web:[/dim] https://thomasgoelles.com\n"
-            "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui\n"
-            "[dim]Built with Claude Sonnet (Anthropic)[/dim]"
+            "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui"
         )
 
     _KEYS = """\
