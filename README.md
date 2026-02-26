@@ -76,7 +76,7 @@ I also wanted to try out Claude Code for a project from scratch, so yes, most of
 - **Browse & search** — instant search across title, author, keywords, and cite key
 - **Import by DOI** — paste a DOI and metadata is fetched automatically
 - **Fetch PDFs automatically** — tries arXiv → Unpaywall (free, open-access) → direct URL
-- **Library-wide PDF fetch** — fetch all missing PDFs across the whole `.bib` file (with optional broken-link overwrite)
+- **Library-wide actions** — fetch all missing PDFs and unify citekeys to AuthorYear (scan first, then warning + confirm)
 - **Add existing PDFs** — pick a file from your Downloads folder with a live filter
 - **Edit entries** — field-by-field form *or* raw BibTeX editor (toggle with `v`)
 - **Read states & priorities** — track what you've read and what matters most

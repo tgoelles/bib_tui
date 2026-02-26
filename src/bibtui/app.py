@@ -1,5 +1,6 @@
 import os
 import platform
+import re
 import subprocess
 import webbrowser
 from typing import cast
@@ -14,6 +15,11 @@ from textual.widgets import DataTable, Footer, Header, Input, TextArea
 
 from bibtui import __version__
 from bibtui.bib import parser
+from bibtui.bib.citekeys import (
+    author_year_base,
+    is_canonical_author_year_key,
+    make_unique_key,
+)
 from bibtui.bib.models import BibEntry
 from bibtui.pdf.fetcher import pdf_filename
 from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
@@ -38,7 +44,6 @@ from bibtui.widgets.modals import (
     FirstRunModal,
     HelpModal,
     KeywordsModal,
-    LibraryModal,
     PasteModal,
     RawEditModal,
     SettingsModal,
@@ -73,23 +78,29 @@ class LibraryProvider(Provider):
     async def discover(self) -> Hits:
         app = cast("BibTuiApp", self.app)
         yield DiscoveryHit(
-            "Library", app.action_library, help="Open library-wide actions"
-        )
-        yield DiscoveryHit(
             "Library: Fetch missing PDFs",
             app.action_fetch_missing_pdfs,
             help="Fetch PDFs for entries missing local files",
+        )
+        yield DiscoveryHit(
+            "Library: Unify citekeys (AuthorYear)",
+            app.action_unify_citekeys,
+            help="Unify citekeys to AuthorYear format",
         )
 
     async def search(self, query: str) -> Hits:
         app = cast("BibTuiApp", self.app)
         matcher = self.matcher(query)
         for label, action, help_text in (
-            ("Library", app.action_library, "Open library-wide actions"),
             (
                 "Library: Fetch missing PDFs",
                 app.action_fetch_missing_pdfs,
                 "Fetch PDFs for entries missing local files",
+            ),
+            (
+                "Library: Unify citekeys (AuthorYear)",
+                app.action_unify_citekeys,
+                "Unify citekeys to AuthorYear format",
             ),
         ):
             score = matcher.match(label)
@@ -563,16 +574,11 @@ class BibTuiApp(App):
     def action_settings(self) -> None:
         self.push_screen(SettingsModal(self._config), self._on_settings_done)
 
-    def action_library(self) -> None:
-        self.push_screen(LibraryModal(), self._on_library_done)
-
     def action_fetch_missing_pdfs(self) -> None:
         self._start_library_fetch_missing_pdfs(overwrite_broken_links=False)
 
-    def _on_library_done(self, overwrite_broken_links: bool | None) -> None:
-        if overwrite_broken_links is None:
-            return
-        self._start_library_fetch_missing_pdfs(overwrite_broken_links)
+    def action_unify_citekeys(self) -> None:
+        self._start_library_unify_citekeys()
 
     def _start_library_fetch_missing_pdfs(self, overwrite_broken_links: bool) -> None:
         dest_dir = self._config.pdf_base_dir
@@ -645,6 +651,149 @@ class BibTuiApp(App):
             f"Library fetch finished: {result.get('success', 0)} fetched, "
             f"{result.get('failed', 0)} failed, {result.get('skipped', 0)} skipped.",
             timeout=5,
+        )
+
+    def _start_library_unify_citekeys(self) -> None:
+        scan = self._scan_citekey_unification()
+        rename_count = len(scan["plan"])
+        already_ok = scan["already_ok"]
+        skipped_missing_metadata = scan["skipped_missing_metadata"]
+        if rename_count == 0:
+            self.notify(
+                "No citekeys to change "
+                f"({already_ok} already match AuthorYear"
+                + (
+                    f", {skipped_missing_metadata} skipped: missing author/year"
+                    if skipped_missing_metadata
+                    else ""
+                )
+                + ").",
+                timeout=5,
+            )
+            return
+
+        preview_count = min(3, rename_count)
+        preview_lines = "\n".join(
+            f"  {entry.key} → {new_key}"
+            for entry, new_key in scan["plan"][:preview_count]
+        )
+        preview_more = (
+            f"\n  … and {rename_count - preview_count} more"
+            if rename_count > preview_count
+            else ""
+        )
+
+        msg = (
+            "This will change citation keys across the whole library.\n\n"
+            "[bold]Warning:[/bold] Existing LaTeX documents using old citekeys may break.\n\n"
+            f"Entries scanned: {scan['total']}\n"
+            f"Already matching AuthorYear: {already_ok}\n"
+            f"Will be renamed: {rename_count}\n\n"
+            + (
+                f"Skipped (missing author/year): {skipped_missing_metadata}\n\n"
+                if skipped_missing_metadata
+                else ""
+            )
+            + "Preview:\n"
+            + preview_lines
+            + preview_more
+            + "\n\n"
+            + "Continue?"
+        )
+        self.push_screen(
+            ConfirmModal(msg),
+            lambda confirmed: (
+                self._apply_citekey_unification(scan["plan"]) if confirmed else None
+            ),
+        )
+
+    def _scan_citekey_unification(self) -> dict:
+        skipped_missing_metadata = 0
+        used_keys: set[str] = set()
+        plan: list[tuple[BibEntry, str]] = []
+        already_ok = 0
+        pending: list[BibEntry] = []
+
+        for entry in self._entries:
+            current_key = (entry.key or "").strip()
+            if is_canonical_author_year_key(current_key):
+                already_ok += 1
+                used_keys.add(current_key)
+                continue
+
+            if not self._has_author_and_year(entry):
+                skipped_missing_metadata += 1
+                used_keys.add(current_key)
+                continue
+
+            pending.append(entry)
+
+        for entry in pending:
+            base = author_year_base(entry.author, entry.year)
+            new_key = make_unique_key(base, used_keys)
+            used_keys.add(new_key)
+            if new_key == (entry.key or "").strip():
+                already_ok += 1
+            else:
+                plan.append((entry, new_key))
+
+        return {
+            "total": len(self._entries),
+            "already_ok": already_ok,
+            "skipped_missing_metadata": skipped_missing_metadata,
+            "plan": plan,
+        }
+
+    def _has_author_and_year(self, entry: BibEntry) -> bool:
+        if not (entry.author or "").strip():
+            return False
+        return bool(re.search(r"\d{4}", entry.year or ""))
+
+    def _apply_citekey_unification(self, plan: list[tuple[BibEntry, str]]) -> None:
+        if not plan:
+            return
+
+        file_renamed = 0
+        file_conflicts = 0
+        base_dir = self._config.pdf_base_dir
+
+        for entry, new_key in plan:
+            old_key = entry.key
+
+            if base_dir and entry.file:
+                current_path = find_pdf_for_entry(entry.file, old_key, base_dir)
+                if current_path and os.path.exists(current_path):
+                    target_name = pdf_filename(
+                        BibEntry(
+                            key=new_key,
+                            entry_type=entry.entry_type,
+                            title=entry.title,
+                        )
+                    )
+                    target_path = os.path.join(base_dir, target_name)
+                    if os.path.abspath(current_path) != os.path.abspath(target_path):
+                        if os.path.exists(target_path):
+                            file_conflicts += 1
+                        else:
+                            os.replace(current_path, target_path)
+                            entry.file = format_jabref_path(target_path, base_dir)
+                            file_renamed += 1
+
+            entry.key = new_key
+
+        self._dirty = True
+        self.query_one(EntryList).refresh_entries(self._entries)
+        selected = self.query_one(EntryList).selected_entry
+        self.query_one(EntryDetail).show_entry(selected)
+
+        self.notify(
+            f"Citekeys unified: {len(plan)} renamed, {file_renamed} PDF files renamed"
+            + (
+                f", {file_conflicts} file renames skipped (target exists)."
+                if file_conflicts
+                else "."
+            ),
+            timeout=6,
         )
 
     def _show_first_run(self) -> None:

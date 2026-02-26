@@ -77,6 +77,20 @@ def test_citation_key_format() -> None:
     assert e.key == "Smith2023"
 
 
+def test_citation_key_normalizes_accents_and_braces() -> None:
+    msg = _make_msg(author=[{"family": r"G{\"o}lles", "given": "Thomas"}])
+    with patch("bibtui.bib.doi.Crossref", return_value=_mock_cr(msg)):
+        e = fetch_by_doi("10.1000/test")
+    assert e.key == "Goelles2023"
+
+
+def test_citation_key_normalizes_punctuation() -> None:
+    msg = _make_msg(author=[{"family": "O'Neil-Smith", "given": "Jane"}])
+    with patch("bibtui.bib.doi.Crossref", return_value=_mock_cr(msg)):
+        e = fetch_by_doi("10.1000/test")
+    assert e.key == "ONeilSmith2023"
+
+
 # ---------------------------------------------------------------------------
 # Type mapping
 # ---------------------------------------------------------------------------

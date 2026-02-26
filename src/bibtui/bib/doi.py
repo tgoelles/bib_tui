@@ -2,6 +2,7 @@ from datetime import datetime
 
 from habanero import Crossref
 
+from .citekeys import author_year_base
 from .models import BibEntry
 
 
@@ -60,11 +61,8 @@ def fetch_by_doi(doi: str) -> BibEntry:
     }
     entry_type = type_map.get(crossref_type, "misc")
 
-    # Build citation key: AuthorYEAR
-    key_author = (
-        authors[0].get("family", "Unknown").replace(" ", "") if authors else "Unknown"
-    )
-    key = f"{key_author}{year}"
+    # Build citation key: AuthorYear (normalized)
+    key = author_year_base(author_str, year)
 
     raw: dict[str, str] = {
         "date-added": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
