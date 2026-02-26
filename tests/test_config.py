@@ -75,6 +75,10 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
         pdf_base_dir="/papers",
         unpaywall_email="user@example.com",
         pdf_download_dir="/home/user/Downloads",
+        update_last_check_utc="2026-02-26T10:00:00Z",
+        update_last_notified_utc="2026-02-26T10:00:00Z",
+        update_latest_version="0.10.0",
+        check_for_updates=False,
     )
     save_config(cfg)
     assert config_file.exists()
@@ -83,6 +87,10 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
     assert loaded.pdf_base_dir == "/papers"
     assert loaded.unpaywall_email == "user@example.com"
     assert loaded.pdf_download_dir == "/home/user/Downloads"
+    assert loaded.update_last_check_utc == "2026-02-26T10:00:00Z"
+    assert loaded.update_last_notified_utc == "2026-02-26T10:00:00Z"
+    assert loaded.update_latest_version == "0.10.0"
+    assert loaded.check_for_updates is False
 
 
 def test_load_config_returns_defaults_when_missing(tmp_path: Path, monkeypatch) -> None:
@@ -94,6 +102,7 @@ def test_load_config_returns_defaults_when_missing(tmp_path: Path, monkeypatch) 
     assert cfg.pdf_base_dir == str(home / "Documents" / "papers")
     assert cfg.unpaywall_email == ""
     assert cfg.pdf_download_dir == str(home / "Downloads")
+    assert cfg.check_for_updates is True
 
 
 def test_save_config_creates_parent_dirs(tmp_path: Path, monkeypatch) -> None:
@@ -101,6 +110,21 @@ def test_save_config_creates_parent_dirs(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
     save_config(Config())
     assert config_file.exists()
+
+
+def test_load_config_returns_defaults_when_toml_invalid(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_file = tmp_path / "config.toml"
+    config_file.write_text('[pdf\nbase_dir = "/broken"\n', encoding="utf-8")
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    monkeypatch.setattr("bibtui.utils.config._git_email", lambda: "")
+
+    cfg = load_config()
+    home = Path.home()
+    assert cfg.pdf_base_dir == str(home / "Documents" / "papers")
+    assert cfg.unpaywall_email == ""
+    assert cfg.pdf_download_dir == str(home / "Downloads")
 
 
 # ---------------------------------------------------------------------------

@@ -4,17 +4,19 @@ import subprocess
 import webbrowser
 from urllib.parse import urlparse
 
-from textual import events, on
+from textual import events, on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.command import DiscoveryHit, Hit, Hits, Provider
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Input, TextArea
 
+from bibtui import __version__
 from bibtui.bib import parser
 from bibtui.bib.models import BibEntry
 from bibtui.pdf.fetcher import pdf_filename
 from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
+from bibtui.utils import update_check
 from bibtui.utils.config import (
     CONFIG_PATH,
     Config,
@@ -119,8 +121,70 @@ class BibTuiApp(App):
         self.theme = detect_theme()
         self.title = f"bibtui — {os.path.basename(self._bib_path)}"
         self._load_entries()
+        self._start_update_check()
         if self._first_run:
             self.call_after_refresh(self._show_first_run)
+
+    def _start_update_check(self) -> None:
+        if not self._config.check_for_updates:
+            return
+        self._check_for_updates()
+
+    @work(thread=True)
+    def _check_for_updates(self) -> None:
+        now = update_check.utc_now()
+        now_iso = update_check.to_utc_iso(now)
+
+        if not update_check.is_due(self._config.update_last_check_utc, now):
+            cached = self._config.update_latest_version
+            if (
+                cached
+                and update_check.is_newer_version(__version__, cached)
+                and not update_check.notified_today(
+                    self._config.update_last_notified_utc, now
+                )
+            ):
+                self.app.call_from_thread(
+                    self._on_cached_update_available, cached, now_iso
+                )
+            return
+
+        latest = update_check.fetch_latest_stable_version(timeout=3)
+        self.app.call_from_thread(self._on_update_check_done, latest, now_iso)
+
+    def _on_update_check_done(self, latest: str | None, checked_at_utc: str) -> None:
+        self._config.update_last_check_utc = checked_at_utc
+
+        if latest:
+            self._config.update_latest_version = latest
+
+        should_notify = bool(
+            latest
+            and update_check.is_newer_version(__version__, latest)
+            and not update_check.notified_today(
+                self._config.update_last_notified_utc,
+                update_check.parse_utc_iso(checked_at_utc) or update_check.utc_now(),
+            )
+        )
+        if should_notify:
+            self._config.update_last_notified_utc = checked_at_utc
+
+        save_config(self._config)
+
+        if should_notify and latest:
+            self._show_update_notification(latest)
+
+    def _on_cached_update_available(self, latest: str, notified_at_utc: str) -> None:
+        self._config.update_last_notified_utc = notified_at_utc
+        save_config(self._config)
+        self._show_update_notification(latest)
+
+    def _show_update_notification(self, latest: str) -> None:
+        self.notify(
+            f"Update available: {latest} (installed {__version__}). "
+            "Upgrade with: uv tool upgrade bibtui",
+            timeout=8,
+        )
 
     def on_resize(self, event) -> None:
         self.query_one("#main-content").set_class(

@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import tempfile
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
@@ -139,20 +140,45 @@ def _download(url: str, dest_path: str, timeout: int = 30) -> None:
             "Accept": "application/pdf,*/*",
         },
     )
+    dest = Path(dest_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path: str | None = None
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             content_type = resp.headers.get("Content-Type", "")
-            if "pdf" not in content_type.lower():
+            first_chunk = resp.read(65536)
+            if not first_chunk:
+                raise FetchError(f"URL returned empty response: {url}")
+
+            is_pdf_type = "pdf" in content_type.lower()
+            is_pdf_magic = first_chunk.startswith(b"%PDF")
+            if not is_pdf_type and not is_pdf_magic:
                 raise FetchError(
                     f"URL did not return a PDF (Content-Type: {content_type}): {url}"
                 )
-            with open(dest_path, "wb") as f:
+
+            fd, tmp_path = tempfile.mkstemp(
+                prefix=f".{dest.name}.", suffix=".tmp", dir=str(dest.parent)
+            )
+            with os.fdopen(fd, "wb") as f:
+                f.write(first_chunk)
                 while chunk := resp.read(65536):
                     f.write(chunk)
+                f.flush()
+                os.fsync(f.fileno())
+
+            os.replace(tmp_path, dest_path)
+            tmp_path = None
     except FetchError:
         raise
     except Exception as exc:
         raise FetchError(f"Download failed from {url}: {exc}") from exc
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -253,13 +279,15 @@ def _try_direct_url(entry: BibEntry, dest_path: str) -> str | None:
             )
         },
     )
+    content_type = ""
     try:
         with urllib.request.urlopen(head_req, timeout=10) as resp:
             content_type = resp.headers.get("Content-Type", "")
-    except Exception as exc:
-        return f"HEAD request failed: {exc}"
+    except Exception:
+        # Some servers reject HEAD; try GET download as fallback.
+        content_type = ""
 
-    if "pdf" not in content_type.lower():
+    if content_type and "pdf" not in content_type.lower():
         return f"URL does not serve a PDF (Content-Type: {content_type})"
 
     try:
@@ -292,6 +320,11 @@ def fetch_pdf(
             "PDF base directory is not set. "
             "Open Settings (Ctrl+P → Settings) and set a base directory first."
         )
+
+    try:
+        os.makedirs(dest_dir, exist_ok=True)
+    except OSError as exc:
+        raise FetchError(f"Could not create destination directory: {dest_dir}: {exc}")
 
     dest_path = os.path.join(dest_dir, pdf_filename(entry))
 

@@ -52,6 +52,14 @@ class ConfirmModal(ModalScreen[bool]):
         background: $surface;
         padding: 1 2;
     }
+    ConfirmModal #btn-yes {
+        background: $error;
+        color: $text;
+    }
+    ConfirmModal #btn-no {
+        background: $primary;
+        color: $text;
+    }
     """
 
     def __init__(self, message: str, **kwargs):
@@ -63,8 +71,8 @@ class ConfirmModal(ModalScreen[bool]):
             yield Label("[bold]Confirm[/bold]", classes="modal-title")
             yield Static(self._message)
             with Horizontal(classes="modal-buttons"):
-                yield Button("Yes", variant="error", id="btn-yes")
-                yield Button("No", variant="primary", id="btn-no")
+                yield Button("Yes", id="btn-yes")
+                yield Button("No", id="btn-no")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id == "btn-yes")
@@ -350,7 +358,7 @@ class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
             lambda confirmed: self._on_delete_confirmed(confirmed, kw),
         )
 
-    def _on_delete_confirmed(self, confirmed: bool, kw: str) -> None:
+    def _on_delete_confirmed(self, confirmed: bool | None, kw: str) -> None:
         if not confirmed:
             return
         self._delete_everywhere.add(kw)
@@ -462,38 +470,55 @@ class SettingsModal(ModalScreen["Config | None"]):
         with Vertical():
             yield Label("[bold]Settings[/bold]", classes="modal-title")
             yield Label("PDF base directory")
+            yield Static(
+                "[dim]Filenames in the file field are resolved relative to this path.[/dim]"
+            )
             yield Input(
                 value=self._config.pdf_base_dir,
                 placeholder="/home/user/Papers",
                 id="pdf-base-dir",
             )
-            yield Static(
-                "[dim]Filenames in the file field are resolved relative to this path.[/dim]"
-            )
+            yield Static("")
+
             yield Label("Unpaywall email")
+            yield Static(
+                "[dim]Used for open-access PDF lookup via Unpaywall — no registration needed.[/dim]"
+            )
             yield Input(
                 value=self._config.unpaywall_email,
                 placeholder="me@example.com",
                 id="unpaywall-email",
             )
-            yield Static(
-                "[dim]Used for open-access PDF lookup via Unpaywall — no registration needed.[/dim]"
-            )
+            yield Static("")
+
             yield Label("PDF download directory")
+            yield Static(
+                "[dim]PDFs listed when you press [bold]a[/bold] to add an existing PDF. Defaults to ~/Downloads.[/dim]"
+            )
             yield Input(
                 value=self._config.pdf_download_dir,
                 placeholder=str(__import__("pathlib").Path.home() / "Downloads"),
                 id="pdf-download-dir",
             )
-            yield Static(
-                "[dim]PDFs listed when you press [bold]a[/bold] to add an existing PDF. Defaults to ~/Downloads.[/dim]"
-            )
-            with Horizontal(classes="setting-row"):
-                yield Label("Auto-fetch PDF on import")
-                yield Switch(value=self._config.auto_fetch_pdf, id="auto-fetch-pdf")
+            yield Static("")
+
+            yield Label("Auto-fetch PDF on import")
             yield Static(
                 "[dim]Automatically fetch the PDF after importing an entry by DOI or paste.[/dim]"
             )
+            with Horizontal(classes="setting-row"):
+                yield Switch(value=self._config.auto_fetch_pdf, id="auto-fetch-pdf")
+            yield Static("")
+
+            yield Label("Check for updates on startup")
+            yield Static(
+                "[dim]Checks PyPI at most once per day in the background and notifies when a newer stable release is available.[/dim]"
+            )
+            with Horizontal(classes="setting-row"):
+                yield Switch(
+                    value=self._config.check_for_updates, id="check-for-updates"
+                )
+
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
@@ -510,6 +535,9 @@ class SettingsModal(ModalScreen["Config | None"]):
             "#pdf-download-dir", Input
         ).value.strip()
         self._config.auto_fetch_pdf = self.query_one("#auto-fetch-pdf", Switch).value
+        self._config.check_for_updates = self.query_one(
+            "#check-for-updates", Switch
+        ).value
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
@@ -950,9 +978,7 @@ class AddPDFModal(ModalScreen["str | None"]):
             else:
                 subprocess.Popen(["xdg-open", str(path)])
         except Exception as e:
-            self.query_one("#add-error", Static).update(
-                f"[red]Could not open: {e}[/red]"
-            )
+            self.query_one("#add-error", Static).update(f"Could not open: {e}")
 
     @on(Input.Submitted, "#add-filter")
     def _on_filter_submitted(self, _: Input.Submitted) -> None:
@@ -984,7 +1010,7 @@ class AddPDFModal(ModalScreen["str | None"]):
                 self._add_path(Path(val))
             else:
                 self.query_one("#add-error", Static).update(
-                    "[red]Select a file or enter a path.[/red]"
+                    "Select a file or enter a path."
                 )
 
     def _add_path(self, src) -> None:
@@ -998,7 +1024,7 @@ class AddPDFModal(ModalScreen["str | None"]):
             dest = add_pdf(Path(src), self._entry, self._base_dir)
             self.dismiss(str(dest))
         except FetchError as exc:
-            error.update(f"[red]{exc}[/red]")
+            error.update(str(exc))
 
     def action_add(self) -> None:
         self._confirm()
@@ -1159,7 +1185,7 @@ class FirstRunModal(ModalScreen[bool]):
             )
             yield Static(
                 "A terminal UI with keyboard and mouse support for your BibTeX libraries.\n\n"
-                "[bold green]You're ready to go[/bold green] — no setup required.\n"
+                "[bold]You're ready to go[/bold] — no setup required.\n"
                 "Just run  [bold]bibtui yourfile.bib[/bold]  and start browsing.\n\n"
                 "[dim]Optional:[/dim] PDF fetching and attaching require a few"
                 " extra settings\n"
