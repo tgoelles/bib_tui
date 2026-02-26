@@ -13,13 +13,13 @@ from textual.widgets import DataTable, Footer, Header, Input, TextArea
 
 from bibtui.bib import parser
 from bibtui.bib.models import BibEntry
+from bibtui.pdf.fetcher import pdf_filename
+from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
 from bibtui.utils.config import (
     CONFIG_PATH,
     Config,
-    find_pdf_for_entry,
     is_first_run,
     load_config,
-    parse_jabref_path,
     save_config,
 )
 from bibtui.utils.theme import detect_theme
@@ -346,8 +346,6 @@ class BibTuiApp(App):
                 severity="warning",
             )
             return
-        from bibtui.bib.pdf_fetcher import pdf_filename
-
         dest_path = os.path.join(dest_dir, pdf_filename(entry))
         if os.path.exists(dest_path):
             self.push_screen(
@@ -376,8 +374,6 @@ class BibTuiApp(App):
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        from bibtui.utils.config import format_jabref_path
-
         entry.file = format_jabref_path(result, self._config.pdf_base_dir)
         self._dirty = True
         self.query_one(EntryList).refresh_row(entry)
@@ -407,8 +403,6 @@ class BibTuiApp(App):
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        from bibtui.utils.config import format_jabref_path
-
         entry.file = format_jabref_path(result, self._config.pdf_base_dir)
         self._dirty = True
         self.query_one(EntryList).refresh_row(entry)

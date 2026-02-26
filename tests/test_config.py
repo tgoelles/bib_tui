@@ -1,14 +1,11 @@
-"""Unit tests for bib_tui.utils.config."""
+"""Unit tests for configuration and PDF path helpers."""
 
 from pathlib import Path
 
-
+from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
 from bibtui.utils.config import (
     Config,
-    find_pdf_for_entry,
-    format_jabref_path,
     load_config,
-    parse_jabref_path,
     save_config,
 )
 

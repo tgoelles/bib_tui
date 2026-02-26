@@ -8,7 +8,7 @@ from textual.widgets import Label, Static, TextArea
 
 from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import entry_to_bibtex_str
-from bibtui.utils.config import parse_jabref_path
+from bibtui.pdf.paths import parse_jabref_path
 
 
 def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:

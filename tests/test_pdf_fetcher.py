@@ -1,4 +1,4 @@
-"""Tests for bib_tui.bib.pdf_fetcher.
+"""Tests for bibtui.pdf.fetcher.
 
 Unit tests run without network access.
 Integration tests (marked `network`) make real HTTP calls and require a
@@ -14,7 +14,7 @@ Run all including network tests:
 import pytest
 
 from bibtui.bib.models import BibEntry
-from bibtui.bib.pdf_fetcher import (
+from bibtui.pdf.fetcher import (
     FetchError,
     _arxiv_id,
     _try_unpaywall,
