@@ -2,6 +2,7 @@ import os
 import platform
 import subprocess
 import webbrowser
+from typing import cast
 from urllib.parse import urlparse
 
 from textual import events, on, work
@@ -29,6 +30,7 @@ from bibtui.widgets.entry_detail import EntryDetail
 from bibtui.widgets.entry_list import EntryList
 from bibtui.widgets.modals import (
     AddPDFModal,
+    BatchFetchPDFModal,
     ConfirmModal,
     DOIModal,
     EditModal,
@@ -36,6 +38,7 @@ from bibtui.widgets.modals import (
     FirstRunModal,
     HelpModal,
     KeywordsModal,
+    LibraryModal,
     PasteModal,
     RawEditModal,
     SettingsModal,
@@ -46,26 +49,58 @@ class SettingsProvider(Provider):
     """Exposes the Settings dialog through the command palette."""
 
     async def discover(self) -> Hits:
+        app = cast("BibTuiApp", self.app)
         yield DiscoveryHit(
-            "Settings", self.app.action_settings, help="Open the settings dialog"
+            "Settings", app.action_settings, help="Open the settings dialog"
         )
 
     async def search(self, query: str) -> Hits:
+        app = cast("BibTuiApp", self.app)
         matcher = self.matcher(query)
         score = matcher.match("Settings")
         if score > 0:
             yield Hit(
                 score,
                 matcher.highlight("Settings"),
-                self.app.action_settings,
+                app.action_settings,
                 help="Open the settings dialog",
             )
+
+
+class LibraryProvider(Provider):
+    """Exposes library-wide actions through the command palette."""
+
+    async def discover(self) -> Hits:
+        app = cast("BibTuiApp", self.app)
+        yield DiscoveryHit(
+            "Library", app.action_library, help="Open library-wide actions"
+        )
+        yield DiscoveryHit(
+            "Library: Fetch missing PDFs",
+            app.action_fetch_missing_pdfs,
+            help="Fetch PDFs for entries missing local files",
+        )
+
+    async def search(self, query: str) -> Hits:
+        app = cast("BibTuiApp", self.app)
+        matcher = self.matcher(query)
+        for label, action, help_text in (
+            ("Library", app.action_library, "Open library-wide actions"),
+            (
+                "Library: Fetch missing PDFs",
+                app.action_fetch_missing_pdfs,
+                "Fetch PDFs for entries missing local files",
+            ),
+        ):
+            score = matcher.match(label)
+            if score > 0:
+                yield Hit(score, matcher.highlight(label), action, help=help_text)
 
 
 class BibTuiApp(App):
     """BibTeX TUI Application."""
 
-    COMMANDS = App.COMMANDS | {SettingsProvider}
+    COMMANDS = App.COMMANDS | {SettingsProvider, LibraryProvider}
 
     CSS_PATH = "bibtui.tcss"
 
@@ -240,7 +275,7 @@ class BibTuiApp(App):
 
     # ── Actions ───────────────────────────────────────────────────────────
 
-    def action_quit(self) -> None:
+    async def action_quit(self) -> None:
         if not self._dirty:
             self.exit()
             return
@@ -419,7 +454,7 @@ class BibTuiApp(App):
         else:
             self._do_fetch_pdf(entry, True)
 
-    def _do_fetch_pdf(self, entry: BibEntry, confirmed: bool) -> None:
+    def _do_fetch_pdf(self, entry: BibEntry, confirmed: bool | None) -> None:
         if not confirmed:
             return
         self.push_screen(
@@ -528,8 +563,92 @@ class BibTuiApp(App):
     def action_settings(self) -> None:
         self.push_screen(SettingsModal(self._config), self._on_settings_done)
 
+    def action_library(self) -> None:
+        self.push_screen(LibraryModal(), self._on_library_done)
+
+    def action_fetch_missing_pdfs(self) -> None:
+        self._start_library_fetch_missing_pdfs(overwrite_broken_links=False)
+
+    def _on_library_done(self, overwrite_broken_links: bool | None) -> None:
+        if overwrite_broken_links is None:
+            return
+        self._start_library_fetch_missing_pdfs(overwrite_broken_links)
+
+    def _start_library_fetch_missing_pdfs(self, overwrite_broken_links: bool) -> None:
+        dest_dir = self._config.pdf_base_dir
+        if not dest_dir:
+            self.notify(
+                "PDF base directory not set. Open Settings (Ctrl+P → Settings).",
+                severity="warning",
+            )
+            return
+
+        candidates = self._missing_pdf_candidates(overwrite_broken_links)
+        if not candidates:
+            self.notify("No missing PDFs found in this library.", timeout=4)
+            return
+
+        msg = (
+            f"Fetch missing PDFs for {len(candidates)} entries?\n\n"
+            f"Overwrite broken links: {'Yes' if overwrite_broken_links else 'No'}"
+        )
+        self.push_screen(
+            ConfirmModal(msg),
+            lambda confirmed: (
+                self._run_batch_fetch_missing_pdfs(candidates, overwrite_broken_links)
+                if confirmed
+                else None
+            ),
+        )
+
+    def _missing_pdf_candidates(self, overwrite_broken_links: bool) -> list[BibEntry]:
+        candidates: list[BibEntry] = []
+        base_dir = self._config.pdf_base_dir
+        for entry in self._entries:
+            has_local_pdf = bool(find_pdf_for_entry(entry.file, entry.key, base_dir))
+            if has_local_pdf:
+                continue
+            if entry.file and not overwrite_broken_links:
+                continue
+            candidates.append(entry)
+        return candidates
+
+    def _run_batch_fetch_missing_pdfs(
+        self, candidates: list[BibEntry], overwrite_broken_links: bool
+    ) -> None:
+        self.push_screen(
+            BatchFetchPDFModal(
+                candidates,
+                self._config.pdf_base_dir,
+                self._config.unpaywall_email,
+                overwrite_broken_links=overwrite_broken_links,
+            ),
+            self._on_batch_fetch_missing_pdfs_done,
+        )
+
+    def _on_batch_fetch_missing_pdfs_done(self, result: dict | None) -> None:
+        if not result:
+            return
+
+        paths_by_key: dict[str, str] = result.get("paths_by_key", {})
+        if paths_by_key:
+            for entry in self._entries:
+                path = paths_by_key.get(entry.key)
+                if path:
+                    entry.file = format_jabref_path(path, self._config.pdf_base_dir)
+            self._dirty = True
+            self.query_one(EntryList).refresh_entries(self._entries)
+            selected = self.query_one(EntryList).selected_entry
+            self.query_one(EntryDetail).show_entry(selected)
+
+        self.notify(
+            f"Library fetch finished: {result.get('success', 0)} fetched, "
+            f"{result.get('failed', 0)} failed, {result.get('skipped', 0)} skipped.",
+            timeout=5,
+        )
+
     def _show_first_run(self) -> None:
-        def _after_welcome(open_settings: bool) -> None:
+        def _after_welcome(open_settings: bool | None) -> None:
             # Always persist an empty config so this modal never appears again.
             if not CONFIG_PATH.exists():
                 save_config(self._config)

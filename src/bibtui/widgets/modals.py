@@ -558,6 +558,74 @@ class SettingsModal(ModalScreen["Config | None"]):
         self.dismiss(None)
 
 
+class LibraryModal(ModalScreen["bool | None"]):
+    """Library-wide actions settings before running a batch operation."""
+
+    BINDINGS = [
+        Binding("ctrl+s", "run", "Run", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
+
+    DEFAULT_CSS = """
+    LibraryModal {
+        align: center middle;
+    }
+    LibraryModal > Vertical {
+        width: 70;
+        height: auto;
+        border: double $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    LibraryModal .setting-row {
+        height: auto;
+        align: left middle;
+        margin-top: 1;
+    }
+    LibraryModal .setting-row Label {
+        width: 1fr;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Library[/bold]", classes="modal-title")
+            yield Label("Fetch missing PDFs")
+            yield Static(
+                "[dim]Scans the whole bibliography and fetches PDFs for missing entries.[/dim]"
+            )
+            with Horizontal(classes="setting-row"):
+                yield Label("Also overwrite broken file links")
+                yield Switch(value=False, id="library-overwrite-broken")
+            yield Static(
+                "[dim]If enabled, entries with a file path that cannot be found on disk are re-fetched and relinked.[/dim]"
+            )
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Run", variant="primary", id="btn-run")
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.call_after_refresh(
+            self.query_one("#library-overwrite-broken", Switch).focus
+        )
+
+    def _run(self) -> None:
+        overwrite_broken = self.query_one("#library-overwrite-broken", Switch).value
+        self.dismiss(overwrite_broken)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-run":
+            self._run()
+
+    def action_run(self) -> None:
+        self._run()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class HelpModal(ModalScreen[None]):
     """Keybinding reference overlay."""
 
@@ -628,6 +696,11 @@ class HelpModal(ModalScreen[None]):
   PDF saved to base directory from Settings.
   [dim]Some publishers block automated downloads.[/dim]
 
+[bold]── Library actions ───────────────────[/bold]
+    [bold]ctrl+p[/bold]    Open command palette
+    [bold]Library[/bold]   Fetch missing PDFs for the whole bibliography
+    [dim]Optionally re-fetch entries with broken file links.[/dim]
+
 [bold]── Rating ────────────────────────────[/bold]
   [bold]1 – 5[/bold]     Set star rating
   [bold]0[/bold]         Mark unrated
@@ -635,7 +708,7 @@ class HelpModal(ModalScreen[None]):
 [bold]── Other ─────────────────────────────[/bold]
   [bold]ctrl+c[/bold]    Copy cite key to clipboard
   [bold]?[/bold]         Show this help
-  [bold]ctrl+p[/bold]    Command palette (Settings…)
+    [bold]ctrl+p[/bold]    Command palette (Settings…, Library…)
   [bold]Esc[/bold]       Clear search / close modal
   [dim]  Clipboard uses OSC 52 — requires a modern terminal[/dim]
   [dim]  In all modals: Ctrl+S = Write/Save, Esc = Cancel[/dim]
@@ -1158,6 +1231,170 @@ class FetchPDFModal(ModalScreen["str | None"]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class BatchFetchPDFModal(ModalScreen["dict | None"]):
+    """Fetch PDFs for many entries in a background thread and show progress."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    DEFAULT_CSS = """
+    BatchFetchPDFModal {
+        align: center middle;
+    }
+    BatchFetchPDFModal > Vertical {
+        width: 72;
+        height: auto;
+        border: double $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    BatchFetchPDFModal LoadingIndicator {
+        height: 3;
+    }
+    BatchFetchPDFModal #batch-fetch-progress,
+    BatchFetchPDFModal #batch-fetch-status {
+        margin-top: 1;
+        color: $text;
+    }
+    BatchFetchPDFModal #batch-fetch-status.success {
+        color: $success;
+    }
+    BatchFetchPDFModal #batch-fetch-status.error {
+        color: $error;
+    }
+    """
+
+    def __init__(
+        self,
+        entries: list[BibEntry],
+        dest_dir: str,
+        unpaywall_email: str = "",
+        overwrite_broken_links: bool = False,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self._entries = entries
+        self._dest_dir = dest_dir
+        self._email = unpaywall_email
+        self._overwrite_broken_links = overwrite_broken_links
+        self._cancel_requested = False
+        self._done = False
+        self._result: dict | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Fetch Missing PDFs[/bold]", classes="modal-title")
+            yield LoadingIndicator(id="batch-fetch-loading")
+            yield Static("Preparing…", id="batch-fetch-progress")
+            yield Static("", id="batch-fetch-status")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Close", variant="primary", id="btn-close", disabled=True)
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self._do_fetch()
+
+    @work(thread=True)
+    def _do_fetch(self) -> None:
+        from bibtui.pdf.fetcher import FetchError, fetch_pdf
+
+        total = len(self._entries)
+        success = 0
+        failed = 0
+        skipped = 0
+        canceled = False
+        paths_by_key: dict[str, str] = {}
+        failures: list[str] = []
+
+        for index, entry in enumerate(self._entries, start=1):
+            if self._cancel_requested:
+                canceled = True
+                break
+
+            self.app.call_from_thread(
+                self._on_progress,
+                f"[{index}/{total}] {entry.key}",
+            )
+
+            if not entry.doi and not entry.url:
+                skipped += 1
+                failures.append(f"{entry.key}: no DOI or URL")
+                continue
+
+            try:
+                path = fetch_pdf(
+                    entry,
+                    self._dest_dir,
+                    self._email,
+                    overwrite=False,
+                )
+                paths_by_key[entry.key] = path
+                success += 1
+            except FetchError as exc:
+                failed += 1
+                failures.append(f"{entry.key}: {exc}")
+            except Exception as exc:  # noqa: BLE001
+                failed += 1
+                failures.append(f"{entry.key}: unexpected error: {exc}")
+
+        processed = success + failed + skipped
+        self.app.call_from_thread(
+            self._on_done,
+            {
+                "paths_by_key": paths_by_key,
+                "processed": processed,
+                "total": total,
+                "success": success,
+                "failed": failed,
+                "skipped": skipped,
+                "canceled": canceled,
+                "failures": failures,
+            },
+        )
+
+    def _on_progress(self, message: str) -> None:
+        self.query_one("#batch-fetch-progress", Static).update(message)
+
+    def _on_done(self, result: dict) -> None:
+        self._done = True
+        self._result = result
+        self.query_one("#batch-fetch-loading", LoadingIndicator).display = False
+        status = self.query_one("#batch-fetch-status", Static)
+        if result["success"] > 0:
+            status.set_class(True, "success")
+            status.set_class(False, "error")
+        else:
+            status.set_class(False, "success")
+            status.set_class(True, "error")
+
+        canceled_text = " (canceled)" if result["canceled"] else ""
+        status.update(
+            "Finished"
+            f"{canceled_text}: {result['success']} fetched, {result['failed']} failed, "
+            f"{result['skipped']} skipped."
+        )
+        self.query_one("#batch-fetch-progress", Static).update(
+            f"Processed {result['processed']} of {result['total']} entries."
+        )
+        self.query_one("#btn-close", Button).disabled = False
+        self.query_one("#btn-cancel", Button).disabled = True
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.action_cancel()
+        elif event.button.id == "btn-close":
+            self.dismiss(self._result)
+
+    def action_cancel(self) -> None:
+        if self._done:
+            self.dismiss(self._result)
+            return
+        self._cancel_requested = True
+        self.query_one("#batch-fetch-status", Static).update(
+            "Stopping after current entry…"
+        )
+        self.query_one("#btn-cancel", Button).disabled = True
 
 
 class FirstRunModal(ModalScreen[bool]):
