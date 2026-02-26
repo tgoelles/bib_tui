@@ -123,6 +123,7 @@ class BibTuiApp(App):
         Binding("e", "edit_entry", "Edit"),
         Binding("d", "doi_import", "From DOI"),
         Binding("k", "edit_keywords", "Keywords"),
+        Binding("m", "toggle_table_maximize", "Max table"),
         Binding("v", "toggle_view", "View"),
         # Entry state
         Binding("r", "cycle_read_state", "State"),
@@ -840,6 +841,20 @@ class BibTuiApp(App):
 
     def action_toggle_view(self) -> None:
         self.query_one(EntryDetail).toggle_view()
+
+    def action_toggle_table_maximize(self) -> None:
+        entry_list = self.query_one(EntryList)
+        screen = self.screen
+        if screen.maximized is entry_list:
+            screen.minimize()
+            return
+        if screen.maximized is not None:
+            screen.minimize()
+        self.query_one(DataTable).focus()
+        if not screen.maximize(entry_list, container=False):
+            self.notify(
+                "Cannot maximize table pane in current state.", severity="warning"
+            )
 
     def action_show_help(self) -> None:
         self.push_screen(HelpModal())

@@ -596,6 +596,7 @@ class HelpModal(ModalScreen[None]):
   [bold]s[/bold]         Search
   [bold]e[/bold]         Edit entry (field form or raw BibTeX)
   [bold]k[/bold]         Edit keywords
+    [bold]m[/bold]         Maximize/restore table pane
   [bold]v[/bold]         Toggle raw / formatted view
 
 [bold]── Add new entry ─────────────────────[/bold]

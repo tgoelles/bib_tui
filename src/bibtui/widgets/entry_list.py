@@ -115,6 +115,8 @@ def _entry_matches(
 class EntryList(Widget):
     """Left pane: searchable DataTable of BibTeX entries."""
 
+    ALLOW_MAXIMIZE = True
+
     DEFAULT_CSS = """
     EntryList {
         layout: vertical;
