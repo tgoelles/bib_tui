@@ -199,7 +199,7 @@ def test_try_unpaywall_reports_landing_page_only(
     dest = str(tmp_path / f"{zeitz2021_entry.key}.pdf")
     reason = _try_unpaywall(zeitz2021_entry, dest, unpaywall_email)
     assert reason is not None, "Expected failure but got success"
-    assert "landing page" in reason
+    assert "no direct PDF" in reason
 
 
 @pytest.mark.network
