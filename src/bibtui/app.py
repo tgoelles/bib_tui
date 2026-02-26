@@ -44,6 +44,7 @@ from bibtui.widgets.modals import (
     FirstRunModal,
     HelpModal,
     KeywordsModal,
+    LibraryFetchConfirmModal,
     PasteModal,
     RawEditModal,
     SettingsModal,
@@ -607,12 +608,12 @@ class BibTuiApp(App):
         self.push_screen(SettingsModal(self._config), self._on_settings_done)
 
     def action_fetch_missing_pdfs(self) -> None:
-        self._start_library_fetch_missing_pdfs(overwrite_broken_links=False)
+        self._start_library_fetch_missing_pdfs()
 
     def action_unify_citekeys(self) -> None:
         self._start_library_unify_citekeys()
 
-    def _start_library_fetch_missing_pdfs(self, overwrite_broken_links: bool) -> None:
+    def _start_library_fetch_missing_pdfs(self) -> None:
         dest_dir = self._config.pdf_base_dir
         if not dest_dir:
             self.notify(
@@ -629,23 +630,21 @@ class BibTuiApp(App):
                 timeout=4,
             )
 
+        self.push_screen(LibraryFetchConfirmModal(), self._on_library_fetch_confirmed)
+
+    def _on_library_fetch_confirmed(self, result: tuple[bool, bool] | None) -> None:
+        if not result:
+            return
+        confirmed, overwrite_broken_links = result
+        if not confirmed:
+            return
+
         candidates = self._missing_pdf_candidates(overwrite_broken_links)
         if not candidates:
             self.notify("No missing PDFs found in this library.", timeout=4)
             return
 
-        msg = (
-            f"Fetch missing PDFs for {len(candidates)} entries?\n\n"
-            f"Overwrite broken links: {'Yes' if overwrite_broken_links else 'No'}"
-        )
-        self.push_screen(
-            ConfirmModal(msg),
-            lambda confirmed: (
-                self._run_batch_fetch_missing_pdfs(candidates, overwrite_broken_links)
-                if confirmed
-                else None
-            ),
-        )
+        self._run_batch_fetch_missing_pdfs(candidates, overwrite_broken_links)
 
     def _missing_pdf_candidates(self, overwrite_broken_links: bool) -> list[BibEntry]:
         candidates: list[BibEntry] = []

@@ -81,6 +81,62 @@ class ConfirmModal(ModalScreen[bool]):
         self.dismiss(False)
 
 
+class LibraryFetchConfirmModal(ModalScreen[tuple[bool, bool] | None]):
+    """Confirm library PDF fetch and choose whether broken links may be overwritten."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    DEFAULT_CSS = """
+    LibraryFetchConfirmModal {
+        align: center middle;
+    }
+    LibraryFetchConfirmModal > Vertical {
+        width: 50;
+        height: auto;
+        border: double $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    LibraryFetchConfirmModal #overwrite-row {
+        layout: horizontal;
+        align: left middle;
+        margin: 1 0;
+        height: 3;
+    }
+    LibraryFetchConfirmModal #overwrite-switch {
+        margin-right: 1;
+    }
+    LibraryFetchConfirmModal #library-fetch-note {
+        color: $text-muted;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Fetch Missing PDFs[/bold]", classes="modal-title")
+            yield Static("Run fetch for entries missing local PDFs?")
+            with Horizontal(id="overwrite-row"):
+                yield Switch(value=True, id="overwrite-switch")
+                yield Label("Overwrite broken links")
+            yield Static(
+                "Turn off to keep entries with broken file paths untouched.",
+                id="library-fetch-note",
+            )
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Start", variant="primary", id="btn-start")
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+            return
+        overwrite = self.query_one("#overwrite-switch", Switch).value
+        self.dismiss((True, overwrite))
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class DOIModal(ModalScreen[BibEntry | None]):
     """Modal to fetch an entry by DOI."""
 
@@ -634,6 +690,7 @@ class HelpModal(ModalScreen[None]):
 [bold]── Library actions ───────────────────[/bold]
     [bold]ctrl+p[/bold]    Open command palette
     [bold]Library: Fetch missing PDFs[/bold]
+    [dim]Shows a toggle for: Overwrite broken links.[/dim]
     [bold]Library: Unify citekeys (AuthorYear)[/bold]
     [dim]Entries already matching AuthorYear are left unchanged.[/dim]
     [dim]Changing citekeys may break existing LaTeX documents.[/dim]
