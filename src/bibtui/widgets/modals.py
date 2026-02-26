@@ -1029,6 +1029,13 @@ class FetchPDFModal(ModalScreen["str | None"]):
     FetchPDFModal #fetch-status {
         margin-top: 1;
         margin-bottom: 1;
+        color: $text;
+    }
+    FetchPDFModal #fetch-status.success {
+        color: $success;
+    }
+    FetchPDFModal #fetch-status.error {
+        color: $error;
     }
     """
 
@@ -1078,15 +1085,45 @@ class FetchPDFModal(ModalScreen["str | None"]):
 
     def _on_success(self, path: str) -> None:
         self.query_one("#fetch-loading", LoadingIndicator).display = False
-        self.query_one("#fetch-status", Static).update(f"[green]Saved:[/green] {path}")
+        status = self.query_one("#fetch-status", Static)
+        status.set_class(True, "success")
+        status.set_class(False, "error")
+        status.update(f"Saved PDF:\n{path}")
         self.query_one("#btn-close", Button).disabled = False
         self.query_one("#btn-cancel", Button).disabled = True
         self._saved_path = path
 
     def _on_error(self, message: str) -> None:
         self.query_one("#fetch-loading", LoadingIndicator).display = False
-        self.query_one("#fetch-status", Static).update(f"[red]{message}[/red]")
+        status = self.query_one("#fetch-status", Static)
+        status.set_class(False, "success")
+        status.set_class(True, "error")
+        status.update(self._format_fetch_error(message))
         self.query_one("#btn-close", Button).disabled = False
+
+    def _format_fetch_error(self, message: str) -> str:
+        title = "Could not fetch PDF for this entry."
+        lines = [line.strip() for line in message.splitlines() if line.strip()]
+        if not lines:
+            return title
+
+        reasons = [
+            line[1:].strip() if line.startswith("•") else line
+            for line in lines
+            if line.startswith("•") or line.startswith("-")
+        ]
+        if not reasons:
+            reasons = [
+                line
+                for line in lines
+                if not line.lower().startswith("could not fetch pdf")
+            ]
+
+        if not reasons:
+            return title
+
+        formatted_reasons = "\n".join(f"• {reason}" for reason in reasons)
+        return f"{title}\n\n{formatted_reasons}"
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":

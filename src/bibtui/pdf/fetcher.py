@@ -203,8 +203,8 @@ def _try_unpaywall(entry: BibEntry, dest_path: str, email: str) -> str | None:
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-    except Exception as exc:
-        return f"Unpaywall API error: {exc}"
+    except Exception:
+        return "Unpaywall lookup failed"
 
     # Collect all direct PDF URLs Unpaywall knows about
     pdf_candidates: list[str] = []
@@ -217,9 +217,7 @@ def _try_unpaywall(entry: BibEntry, dest_path: str, email: str) -> str | None:
             pdf_candidates.append(u)
 
     if not pdf_candidates:
-        return (
-            "Unpaywall found no direct PDF URL (publisher only provides a landing page)"
-        )
+        return "no direct PDF available"
 
     last_error = ""
     for url in pdf_candidates:
