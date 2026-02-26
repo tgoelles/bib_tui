@@ -52,6 +52,14 @@ class ConfirmModal(ModalScreen[bool]):
         background: $surface;
         padding: 1 2;
     }
+    ConfirmModal #btn-yes {
+        background: $error;
+        color: $text;
+    }
+    ConfirmModal #btn-no {
+        background: $primary;
+        color: $text;
+    }
     """
 
     def __init__(self, message: str, **kwargs):
@@ -63,8 +71,8 @@ class ConfirmModal(ModalScreen[bool]):
             yield Label("[bold]Confirm[/bold]", classes="modal-title")
             yield Static(self._message)
             with Horizontal(classes="modal-buttons"):
-                yield Button("Yes", variant="error", id="btn-yes")
-                yield Button("No", variant="primary", id="btn-no")
+                yield Button("Yes", id="btn-yes")
+                yield Button("No", id="btn-no")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id == "btn-yes")
