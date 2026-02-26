@@ -470,46 +470,55 @@ class SettingsModal(ModalScreen["Config | None"]):
         with Vertical():
             yield Label("[bold]Settings[/bold]", classes="modal-title")
             yield Label("PDF base directory")
+            yield Static(
+                "[dim]Filenames in the file field are resolved relative to this path.[/dim]"
+            )
             yield Input(
                 value=self._config.pdf_base_dir,
                 placeholder="/home/user/Papers",
                 id="pdf-base-dir",
             )
-            yield Static(
-                "[dim]Filenames in the file field are resolved relative to this path.[/dim]"
-            )
+            yield Static("")
+
             yield Label("Unpaywall email")
+            yield Static(
+                "[dim]Used for open-access PDF lookup via Unpaywall — no registration needed.[/dim]"
+            )
             yield Input(
                 value=self._config.unpaywall_email,
                 placeholder="me@example.com",
                 id="unpaywall-email",
             )
-            yield Static(
-                "[dim]Used for open-access PDF lookup via Unpaywall — no registration needed.[/dim]"
-            )
+            yield Static("")
+
             yield Label("PDF download directory")
+            yield Static(
+                "[dim]PDFs listed when you press [bold]a[/bold] to add an existing PDF. Defaults to ~/Downloads.[/dim]"
+            )
             yield Input(
                 value=self._config.pdf_download_dir,
                 placeholder=str(__import__("pathlib").Path.home() / "Downloads"),
                 id="pdf-download-dir",
             )
-            yield Static(
-                "[dim]PDFs listed when you press [bold]a[/bold] to add an existing PDF. Defaults to ~/Downloads.[/dim]"
-            )
-            with Horizontal(classes="setting-row"):
-                yield Label("Auto-fetch PDF on import")
-                yield Switch(value=self._config.auto_fetch_pdf, id="auto-fetch-pdf")
+            yield Static("")
+
+            yield Label("Auto-fetch PDF on import")
             yield Static(
                 "[dim]Automatically fetch the PDF after importing an entry by DOI or paste.[/dim]"
             )
             with Horizontal(classes="setting-row"):
-                yield Label("Check for updates on startup")
-                yield Switch(
-                    value=self._config.check_for_updates, id="check-for-updates"
-                )
+                yield Switch(value=self._config.auto_fetch_pdf, id="auto-fetch-pdf")
+            yield Static("")
+
+            yield Label("Check for updates on startup")
             yield Static(
                 "[dim]Checks PyPI at most once per day in the background and notifies when a newer stable release is available.[/dim]"
             )
+            with Horizontal(classes="setting-row"):
+                yield Switch(
+                    value=self._config.check_for_updates, id="check-for-updates"
+                )
+
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
