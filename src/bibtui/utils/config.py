@@ -14,6 +14,7 @@ class Config:
     update_last_check_utc: str = ""
     update_last_notified_utc: str = ""
     update_latest_version: str = ""
+    check_for_updates: bool = True
 
 
 def is_first_run() -> bool:
@@ -65,6 +66,7 @@ def load_config() -> Config:
         update_last_check_utc=updates.get("last_check_utc", ""),
         update_last_notified_utc=updates.get("last_notified_utc", ""),
         update_latest_version=updates.get("latest_version", ""),
+        check_for_updates=updates.get("check_for_updates", True),
     )
 
 
@@ -86,6 +88,7 @@ def save_config(config: Config) -> None:
         f'last_check_utc = "{_toml_escape(config.update_last_check_utc)}"',
         f'last_notified_utc = "{_toml_escape(config.update_last_notified_utc)}"',
         f'latest_version = "{_toml_escape(config.update_latest_version)}"',
+        f"check_for_updates = {'true' if config.check_for_updates else 'false'}",
         "",
     ]
     CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")

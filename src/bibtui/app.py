@@ -126,6 +126,8 @@ class BibTuiApp(App):
             self.call_after_refresh(self._show_first_run)
 
     def _start_update_check(self) -> None:
+        if not self._config.check_for_updates:
+            return
         self._check_for_updates()
 
     @work(thread=True)

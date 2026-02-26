@@ -502,6 +502,14 @@ class SettingsModal(ModalScreen["Config | None"]):
             yield Static(
                 "[dim]Automatically fetch the PDF after importing an entry by DOI or paste.[/dim]"
             )
+            with Horizontal(classes="setting-row"):
+                yield Label("Check for updates on startup")
+                yield Switch(
+                    value=self._config.check_for_updates, id="check-for-updates"
+                )
+            yield Static(
+                "[dim]Checks PyPI at most once per day in the background and notifies when a newer stable release is available.[/dim]"
+            )
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
@@ -518,6 +526,9 @@ class SettingsModal(ModalScreen["Config | None"]):
             "#pdf-download-dir", Input
         ).value.strip()
         self._config.auto_fetch_pdf = self.query_one("#auto-fetch-pdf", Switch).value
+        self._config.check_for_updates = self.query_one(
+            "#check-for-updates", Switch
+        ).value
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
