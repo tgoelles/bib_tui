@@ -558,74 +558,6 @@ class SettingsModal(ModalScreen["Config | None"]):
         self.dismiss(None)
 
 
-class LibraryModal(ModalScreen["bool | None"]):
-    """Library-wide actions settings before running a batch operation."""
-
-    BINDINGS = [
-        Binding("ctrl+s", "run", "Run", show=True),
-        Binding("escape", "cancel", "Cancel", show=True),
-    ]
-
-    DEFAULT_CSS = """
-    LibraryModal {
-        align: center middle;
-    }
-    LibraryModal > Vertical {
-        width: 70;
-        height: auto;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
-    }
-    LibraryModal .setting-row {
-        height: auto;
-        align: left middle;
-        margin-top: 1;
-    }
-    LibraryModal .setting-row Label {
-        width: 1fr;
-    }
-    """
-
-    def compose(self) -> ComposeResult:
-        with Vertical():
-            yield Label("[bold]Library[/bold]", classes="modal-title")
-            yield Label("Fetch missing PDFs")
-            yield Static(
-                "[dim]Scans the whole bibliography and fetches PDFs for missing entries.[/dim]"
-            )
-            with Horizontal(classes="setting-row"):
-                yield Label("Also overwrite broken file links")
-                yield Switch(value=False, id="library-overwrite-broken")
-            yield Static(
-                "[dim]If enabled, entries with a file path that cannot be found on disk are re-fetched and relinked.[/dim]"
-            )
-            with Horizontal(classes="modal-buttons"):
-                yield Button("Run", variant="primary", id="btn-run")
-                yield Button("Cancel", id="btn-cancel")
-
-    def on_mount(self) -> None:
-        self.call_after_refresh(
-            self.query_one("#library-overwrite-broken", Switch).focus
-        )
-
-    def _run(self) -> None:
-        overwrite_broken = self.query_one("#library-overwrite-broken", Switch).value
-        self.dismiss(overwrite_broken)
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-cancel":
-            self.dismiss(None)
-        elif event.button.id == "btn-run":
-            self._run()
-
-    def action_run(self) -> None:
-        self._run()
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
-
-
 class HelpModal(ModalScreen[None]):
     """Keybinding reference overlay."""
 
@@ -698,8 +630,10 @@ class HelpModal(ModalScreen[None]):
 
 [bold]── Library actions ───────────────────[/bold]
     [bold]ctrl+p[/bold]    Open command palette
-    [bold]Library[/bold]   Fetch missing PDFs for the whole bibliography
-    [dim]Optionally re-fetch entries with broken file links.[/dim]
+    [bold]Library: Fetch missing PDFs[/bold]
+    [bold]Library: Unify citekeys (AuthorYear)[/bold]
+    [dim]Entries already matching AuthorYear are left unchanged.[/dim]
+    [dim]Changing citekeys may break existing LaTeX documents.[/dim]
 
 [bold]── Rating ────────────────────────────[/bold]
   [bold]1 – 5[/bold]     Set star rating
@@ -708,7 +642,7 @@ class HelpModal(ModalScreen[None]):
 [bold]── Other ─────────────────────────────[/bold]
   [bold]ctrl+c[/bold]    Copy cite key to clipboard
   [bold]?[/bold]         Show this help
-    [bold]ctrl+p[/bold]    Command palette (Settings…, Library…)
+    [bold]ctrl+p[/bold]    Command palette (Settings + Library actions)
   [bold]Esc[/bold]       Clear search / close modal
   [dim]  Clipboard uses OSC 52 — requires a modern terminal[/dim]
   [dim]  In all modals: Ctrl+S = Write/Save, Esc = Cancel[/dim]
