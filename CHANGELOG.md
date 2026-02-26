@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] — 2026-02-26
+
+### Added
+- **Library-wide PDF fetching** — new command-palette workflow to fetch PDFs for all entries missing local files.
+- **Library-wide citekey unification** — new command to normalize citekeys to canonical `AuthorYear` form across the whole library.
+- **OpenAlex quick lookup** — `Shift+B` opens OpenAlex for the selected entry from the footer action; search uses title first and falls back to DOI.
+
+### Changed
+- **Citekey generation and normalization** — improved canonicalization and collision handling for more consistent keys.
+- **Clipboard behavior in context** — `Ctrl+C` now prefers focused text widgets (e.g., raw BibTeX view) and falls back to citekey copy when no text widget is focused.
+- **Documentation updates** — README installation/upgrade guidance and help text were updated for the new library and OpenAlex workflows.
+
+### Fixed
+- **Raw-view copy usability** — copying selected text now works reliably in non-edit raw BibTeX contexts.
+- **Regression coverage expansion** — added tests for library fetch and citekey normalization/unification paths.
+
 ## [0.9.9] — 2026-02-26
 
 ### Added
