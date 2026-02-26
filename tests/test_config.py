@@ -103,6 +103,21 @@ def test_save_config_creates_parent_dirs(tmp_path: Path, monkeypatch) -> None:
     assert config_file.exists()
 
 
+def test_load_config_returns_defaults_when_toml_invalid(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_file = tmp_path / "config.toml"
+    config_file.write_text('[pdf\nbase_dir = "/broken"\n', encoding="utf-8")
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    monkeypatch.setattr("bibtui.utils.config._git_email", lambda: "")
+
+    cfg = load_config()
+    home = Path.home()
+    assert cfg.pdf_base_dir == str(home / "Documents" / "papers")
+    assert cfg.unpaywall_email == ""
+    assert cfg.pdf_download_dir == str(home / "Downloads")
+
+
 # ---------------------------------------------------------------------------
 # find_pdf_for_entry — regression tests for filename-mismatch bug
 # ---------------------------------------------------------------------------

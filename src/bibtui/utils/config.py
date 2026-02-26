@@ -47,8 +47,11 @@ def default_config() -> Config:
 def load_config() -> Config:
     if not CONFIG_PATH.exists():
         return default_config()
-    with open(CONFIG_PATH, "rb") as f:
-        data = tomllib.load(f)
+    try:
+        with open(CONFIG_PATH, "rb") as f:
+            data = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return default_config()
     pdf = data.get("pdf", {})
     return Config(
         pdf_base_dir=pdf.get("base_dir", ""),

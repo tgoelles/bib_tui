@@ -14,9 +14,11 @@ Run all including network tests:
 import pytest
 
 from bibtui.bib.models import BibEntry
+from bibtui.pdf import fetcher as pdf_fetcher
 from bibtui.pdf.fetcher import (
     FetchError,
     _arxiv_id,
+    _try_direct_url,
     _try_unpaywall,
     fetch_pdf,
     pdf_filename,
@@ -136,6 +138,51 @@ def test_fetch_pdf_no_doi_or_url_all_strategies_fail(tmp_path):
     assert "arXiv" in msg
     assert "Unpaywall" in msg
     assert "Direct URL" in msg
+
+
+def test_try_direct_url_falls_back_to_get_when_head_fails(monkeypatch, tmp_path):
+    entry = BibEntry(key="x", entry_type="article", url="https://example.org/paper.pdf")
+    dest = str(tmp_path / "x.pdf")
+    called: list[tuple[str, str]] = []
+
+    def fake_urlopen(req, timeout=0):
+        if req.get_method() == "HEAD":
+            raise OSError("HEAD blocked")
+        raise AssertionError("GET should be handled by _download, not urlopen here")
+
+    def fake_download(url: str, dest_path: str, timeout: int = 30) -> None:
+        called.append((url, dest_path))
+
+    monkeypatch.setattr(pdf_fetcher.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(pdf_fetcher, "_download", fake_download)
+
+    reason = _try_direct_url(entry, dest)
+    assert reason is None
+    assert called == [(entry.url, dest)]
+
+
+def test_try_direct_url_rejects_non_pdf_content_type(monkeypatch, tmp_path):
+    entry = BibEntry(key="x", entry_type="article", url="https://example.org/page")
+    dest = str(tmp_path / "x.pdf")
+
+    class FakeHeadResponse:
+        headers = {"Content-Type": "text/html"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def fake_urlopen(req, timeout=0):
+        assert req.get_method() == "HEAD"
+        return FakeHeadResponse()
+
+    monkeypatch.setattr(pdf_fetcher.urllib.request, "urlopen", fake_urlopen)
+
+    reason = _try_direct_url(entry, dest)
+    assert reason is not None
+    assert "does not serve a PDF" in reason
 
 
 # ---------------------------------------------------------------------------
