@@ -597,6 +597,7 @@ class HelpModal(ModalScreen[None]):
   [bold]e[/bold]         Edit entry (field form or raw BibTeX)
   [bold]k[/bold]         Edit keywords
     [bold]m[/bold]         Maximize/restore table pane
+    [dim]Press m again to restore split view.[/dim]
   [bold]v[/bold]         Toggle raw / formatted view
 
 [bold]── Add new entry ─────────────────────[/bold]
@@ -645,6 +646,7 @@ class HelpModal(ModalScreen[None]):
     [bold]ctrl+c[/bold]    Copy selected text (or cite key if none focused)
   [bold]?[/bold]         Show this help
     [bold]ctrl+p[/bold]    Command palette (Settings + Library actions)
+        [bold]maximize[/bold]  (palette) maximize focused pane
   [bold]Esc[/bold]       Clear search / close modal
   [dim]  Clipboard uses OSC 52 — requires a modern terminal[/dim]
   [dim]  In all modals: Ctrl+S = Write/Save, Esc = Cancel[/dim]
