@@ -445,9 +445,9 @@ class BibTuiApp(App):
             self.notify("No entry selected.", severity="warning")
             return
 
-        doi = entry.doi.strip()
         title = entry.title.strip()
-        query = doi if doi else title
+        doi = entry.doi.strip()
+        query = title if title else doi
         if not query:
             self.notify("Entry has neither DOI nor title.", severity="warning")
             return
@@ -455,10 +455,10 @@ class BibTuiApp(App):
         openalex_url = f"https://openalex.org/works?search={quote_plus(query)}"
         webbrowser.open(openalex_url)
 
-        if doi:
-            self.notify("Opening OpenAlex (DOI search)", timeout=3)
-        else:
+        if title:
             self.notify("Opening OpenAlex (title search)", timeout=3)
+        else:
+            self.notify("Opening OpenAlex (DOI search)", timeout=3)
 
     def action_fetch_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry

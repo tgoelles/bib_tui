@@ -617,7 +617,7 @@ class HelpModal(ModalScreen[None]):
   [bold]p[/bold]         Cycle priority
   [bold]␣[/bold]         Show PDF
   [bold]b[/bold]         Open URL in browser (validates http/https)
-    [bold]Shift+b[/bold]   Search OpenAlex (DOI first, then title)
+    [bold]Shift+b[/bold]   Search OpenAlex (title first, then DOI)
   [bold]f[/bold]         Fetch PDF and link it to the entry
   [bold]a[/bold]         Add an existing PDF to the library and link it
 
