@@ -129,7 +129,7 @@ class BibTuiApp(App):
         Binding("p", "cycle_priority", "Prio"),
         Binding("space", "open_pdf", "␣ Show PDF"),
         Binding("b", "open_url", "Browser"),
-        Binding("B", "open_openalex", "OpenAlex", show=False),
+        Binding("B", "open_openalex", "OpenAlex"),
         Binding("f", "fetch_pdf", "Fetch PDF"),
         Binding("a", "add_pdf", "Add PDF"),
         # Rating (hidden from footer)
