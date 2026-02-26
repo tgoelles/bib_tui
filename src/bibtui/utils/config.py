@@ -11,6 +11,9 @@ class Config:
     unpaywall_email: str = ""
     pdf_download_dir: str = ""
     auto_fetch_pdf: bool = True
+    update_last_check_utc: str = ""
+    update_last_notified_utc: str = ""
+    update_latest_version: str = ""
 
 
 def is_first_run() -> bool:
@@ -53,11 +56,15 @@ def load_config() -> Config:
     except (OSError, tomllib.TOMLDecodeError):
         return default_config()
     pdf = data.get("pdf", {})
+    updates = data.get("updates", {})
     return Config(
         pdf_base_dir=pdf.get("base_dir", ""),
         unpaywall_email=pdf.get("unpaywall_email", ""),
         pdf_download_dir=pdf.get("download_dir", ""),
         auto_fetch_pdf=pdf.get("auto_fetch_pdf", True),
+        update_last_check_utc=updates.get("last_check_utc", ""),
+        update_last_notified_utc=updates.get("last_notified_utc", ""),
+        update_latest_version=updates.get("latest_version", ""),
     )
 
 
@@ -74,6 +81,11 @@ def save_config(config: Config) -> None:
         f'unpaywall_email = "{_toml_escape(config.unpaywall_email)}"',
         f'download_dir = "{_toml_escape(config.pdf_download_dir)}"',
         f"auto_fetch_pdf = {'true' if config.auto_fetch_pdf else 'false'}",
+        "",
+        "[updates]",
+        f'last_check_utc = "{_toml_escape(config.update_last_check_utc)}"',
+        f'last_notified_utc = "{_toml_escape(config.update_last_notified_utc)}"',
+        f'latest_version = "{_toml_escape(config.update_latest_version)}"',
         "",
     ]
     CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")

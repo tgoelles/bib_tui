@@ -75,6 +75,9 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
         pdf_base_dir="/papers",
         unpaywall_email="user@example.com",
         pdf_download_dir="/home/user/Downloads",
+        update_last_check_utc="2026-02-26T10:00:00Z",
+        update_last_notified_utc="2026-02-26T10:00:00Z",
+        update_latest_version="0.10.0",
     )
     save_config(cfg)
     assert config_file.exists()
@@ -83,6 +86,9 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
     assert loaded.pdf_base_dir == "/papers"
     assert loaded.unpaywall_email == "user@example.com"
     assert loaded.pdf_download_dir == "/home/user/Downloads"
+    assert loaded.update_last_check_utc == "2026-02-26T10:00:00Z"
+    assert loaded.update_last_notified_utc == "2026-02-26T10:00:00Z"
+    assert loaded.update_latest_version == "0.10.0"
 
 
 def test_load_config_returns_defaults_when_missing(tmp_path: Path, monkeypatch) -> None:
