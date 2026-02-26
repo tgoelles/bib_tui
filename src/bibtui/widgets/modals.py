@@ -617,6 +617,7 @@ class HelpModal(ModalScreen[None]):
   [bold]p[/bold]         Cycle priority
   [bold]␣[/bold]         Show PDF
   [bold]b[/bold]         Open URL in browser (validates http/https)
+    [bold]Shift+b[/bold]   Search OpenAlex (title first, then DOI)
   [bold]f[/bold]         Fetch PDF and link it to the entry
   [bold]a[/bold]         Add an existing PDF to the library and link it
 
@@ -640,7 +641,7 @@ class HelpModal(ModalScreen[None]):
   [bold]0[/bold]         Mark unrated
 
 [bold]── Other ─────────────────────────────[/bold]
-  [bold]ctrl+c[/bold]    Copy cite key to clipboard
+    [bold]ctrl+c[/bold]    Copy selected text (or cite key if none focused)
   [bold]?[/bold]         Show this help
     [bold]ctrl+p[/bold]    Command palette (Settings + Library actions)
   [bold]Esc[/bold]       Clear search / close modal

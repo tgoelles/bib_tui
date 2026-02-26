@@ -4,7 +4,7 @@ import re
 import subprocess
 import webbrowser
 from typing import cast
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
 from textual import events, on, work
 from textual.app import App, ComposeResult
@@ -129,6 +129,7 @@ class BibTuiApp(App):
         Binding("p", "cycle_priority", "Prio"),
         Binding("space", "open_pdf", "␣ Show PDF"),
         Binding("b", "open_url", "Browser"),
+        Binding("B", "open_openalex", "OpenAlex"),
         Binding("f", "fetch_pdf", "Fetch PDF"),
         Binding("a", "add_pdf", "Add PDF"),
         # Rating (hidden from footer)
@@ -437,6 +438,27 @@ class BibTuiApp(App):
             return
         webbrowser.open(url)
         self.notify(f"Opening: {url[:60]}", timeout=3)
+
+    def action_open_openalex(self) -> None:
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            self.notify("No entry selected.", severity="warning")
+            return
+
+        title = entry.title.strip()
+        doi = entry.doi.strip()
+        query = title if title else doi
+        if not query:
+            self.notify("Entry has neither DOI nor title.", severity="warning")
+            return
+
+        openalex_url = f"https://openalex.org/works?search={quote_plus(query)}"
+        webbrowser.open(openalex_url)
+
+        if title:
+            self.notify("Opening OpenAlex (title search)", timeout=3)
+        else:
+            self.notify("Opening OpenAlex (DOI search)", timeout=3)
 
     def action_fetch_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -823,6 +845,13 @@ class BibTuiApp(App):
         self.push_screen(HelpModal())
 
     def action_copy_key(self) -> None:
+        focused = self.focused
+        if isinstance(focused, (Input, TextArea)):
+            copy_action = getattr(focused, "action_copy", None)
+            if callable(copy_action):
+                copy_action()
+                return
+
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
