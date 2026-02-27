@@ -44,6 +44,7 @@ from bibtui.widgets.modals import (
     FirstRunModal,
     HelpModal,
     KeywordsModal,
+    LibraryFetchConfirmModal,
     PasteModal,
     RawEditModal,
     SettingsModal,
@@ -123,6 +124,7 @@ class BibTuiApp(App):
         Binding("e", "edit_entry", "Edit"),
         Binding("d", "doi_import", "From DOI"),
         Binding("k", "edit_keywords", "Keywords"),
+        Binding("m", "toggle_table_maximize", "Max table"),
         Binding("v", "toggle_view", "View"),
         # Entry state
         Binding("r", "cycle_read_state", "State"),
@@ -479,7 +481,17 @@ class BibTuiApp(App):
             )
             return
         dest_path = os.path.join(dest_dir, pdf_filename(entry))
+        has_valid_link = bool(
+            entry.file and os.path.exists(parse_jabref_path(entry.file, dest_dir))
+        )
         if os.path.exists(dest_path):
+            if not has_valid_link:
+                self._link_pdf_to_entry(
+                    entry,
+                    dest_path,
+                    f"Found existing PDF and linked: {entry.key}",
+                )
+                return
             self.push_screen(
                 ConfirmModal(f"PDF already exists:\n{dest_path}\n\nOverwrite?"),
                 lambda confirmed: self._do_fetch_pdf(entry, confirmed),
@@ -506,11 +518,7 @@ class BibTuiApp(App):
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        entry.file = format_jabref_path(result, self._config.pdf_base_dir)
-        self._dirty = True
-        self.query_one(EntryList).refresh_row(entry)
-        self.query_one(EntryDetail).show_entry(entry)
-        self.notify(f"PDF saved and linked: {entry.key}", timeout=4)
+        self._link_pdf_to_entry(entry, result, f"PDF saved and linked: {entry.key}")
 
     def action_add_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -535,11 +543,14 @@ class BibTuiApp(App):
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        entry.file = format_jabref_path(result, self._config.pdf_base_dir)
+        self._link_pdf_to_entry(entry, result, f"PDF added and linked: {entry.key}")
+
+    def _link_pdf_to_entry(self, entry: BibEntry, path: str, message: str) -> None:
+        entry.file = format_jabref_path(path, self._config.pdf_base_dir)
         self._dirty = True
         self.query_one(EntryList).refresh_row(entry)
         self.query_one(EntryDetail).show_entry(entry)
-        self.notify(f"PDF added and linked: {entry.key}", timeout=4)
+        self.notify(message, timeout=4)
 
     def action_open_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -597,12 +608,12 @@ class BibTuiApp(App):
         self.push_screen(SettingsModal(self._config), self._on_settings_done)
 
     def action_fetch_missing_pdfs(self) -> None:
-        self._start_library_fetch_missing_pdfs(overwrite_broken_links=False)
+        self._start_library_fetch_missing_pdfs()
 
     def action_unify_citekeys(self) -> None:
         self._start_library_unify_citekeys()
 
-    def _start_library_fetch_missing_pdfs(self, overwrite_broken_links: bool) -> None:
+    def _start_library_fetch_missing_pdfs(self) -> None:
         dest_dir = self._config.pdf_base_dir
         if not dest_dir:
             self.notify(
@@ -611,23 +622,29 @@ class BibTuiApp(App):
             )
             return
 
+        linked_count = self._autolink_existing_local_pdfs()
+        if linked_count:
+            self.notify(
+                f"Auto-linked {linked_count} existing PDF"
+                f"{'s' if linked_count != 1 else ''}.",
+                timeout=4,
+            )
+
+        self.push_screen(LibraryFetchConfirmModal(), self._on_library_fetch_confirmed)
+
+    def _on_library_fetch_confirmed(self, result: tuple[bool, bool] | None) -> None:
+        if not result:
+            return
+        confirmed, overwrite_broken_links = result
+        if not confirmed:
+            return
+
         candidates = self._missing_pdf_candidates(overwrite_broken_links)
         if not candidates:
             self.notify("No missing PDFs found in this library.", timeout=4)
             return
 
-        msg = (
-            f"Fetch missing PDFs for {len(candidates)} entries?\n\n"
-            f"Overwrite broken links: {'Yes' if overwrite_broken_links else 'No'}"
-        )
-        self.push_screen(
-            ConfirmModal(msg),
-            lambda confirmed: (
-                self._run_batch_fetch_missing_pdfs(candidates, overwrite_broken_links)
-                if confirmed
-                else None
-            ),
-        )
+        self._run_batch_fetch_missing_pdfs(candidates, overwrite_broken_links)
 
     def _missing_pdf_candidates(self, overwrite_broken_links: bool) -> list[BibEntry]:
         candidates: list[BibEntry] = []
@@ -640,6 +657,31 @@ class BibTuiApp(App):
                 continue
             candidates.append(entry)
         return candidates
+
+    def _autolink_existing_local_pdfs(self) -> int:
+        base_dir = self._config.pdf_base_dir
+        linked = 0
+        for entry in self._entries:
+            stored_valid = bool(
+                entry.file and os.path.exists(parse_jabref_path(entry.file, base_dir))
+            )
+            if stored_valid:
+                continue
+
+            found = find_pdf_for_entry(entry.file, entry.key, base_dir)
+            if not found:
+                continue
+
+            entry.file = format_jabref_path(found, base_dir)
+            linked += 1
+
+        if linked:
+            self._dirty = True
+            self.query_one(EntryList).refresh_entries(self._entries)
+            selected = self.query_one(EntryList).selected_entry
+            self.query_one(EntryDetail).show_entry(selected)
+
+        return linked
 
     def _run_batch_fetch_missing_pdfs(
         self, candidates: list[BibEntry], overwrite_broken_links: bool
@@ -840,6 +882,20 @@ class BibTuiApp(App):
 
     def action_toggle_view(self) -> None:
         self.query_one(EntryDetail).toggle_view()
+
+    def action_toggle_table_maximize(self) -> None:
+        entry_list = self.query_one(EntryList)
+        screen = self.screen
+        if screen.maximized is entry_list:
+            screen.minimize()
+            return
+        if screen.maximized is not None:
+            screen.minimize()
+        self.query_one(DataTable).focus()
+        if not screen.maximize(entry_list, container=False):
+            self.notify(
+                "Cannot maximize table pane in current state.", severity="warning"
+            )
 
     def action_show_help(self) -> None:
         self.push_screen(HelpModal())
