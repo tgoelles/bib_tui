@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] — 2026-02-27
+
+### Added
+- **Table-pane maximize toggle** — press `m` to maximize/restore the entry table pane for focused browsing.
+- **Date-added table column** — entry list now includes an `Added` column with normalized date display and sorting support.
+- **Library PDF fetch preflight modal** — library-wide fetch now opens a dedicated confirmation modal with an `Overwrite broken links` toggle.
+- **Release helper for minor bumps** — added `just minor` to bump, tag, and push minor versions.
+
+### Changed
+- **Library fetch workflow** — existing local PDFs are auto-linked before batch fetching missing files.
+- **PDF linking behavior** — fetching now re-links an entry to an already existing destination PDF when the stored link is broken.
+- **Entry refresh UX** — entry selection is preserved after list refresh operations.
+- **Layout behavior** — entry list pane now uses flexible width (`1fr`) for better split behavior.
+- **Release task naming** — `just release-patch` was renamed to `just patch`.
+
+### Fixed
+- **Date handling consistency** — DOI imports now use centralized date-added timestamp utilities.
+- **Regression coverage for dates** — added tests for extracting, parsing, and formatting bibliography date fields.
+
 ## [0.10.0] — 2026-02-26
 
 ### Added
