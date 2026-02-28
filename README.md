@@ -196,8 +196,5 @@ Yes. but we also write a backup file
 **Can I use it alongside JabRef or XYZ tool for .bib?**
 Yes. they both just read bib files and bibtui follows JabRef conventions.
 
-## License
-
-MIT © Thomas Gölles
 
 
