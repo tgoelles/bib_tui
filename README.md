@@ -184,7 +184,7 @@ uv run textual run --dev src/bibtui/main.py -- tests/bib_examples/MyCollection.b
 - [JabRef](https://www.jabref.org/) — GUI reference manager, same `.bib` format
 - [cobib](https://github.com/mrossinek/cobib) — another terminal BibTeX manager
 - [bibman](https://codeberg.org/KMIJPH/bibman) — minimal TUI reference manager
-- [bibiman](https://codeberg.org/lukeflo/bibiman) - looks interesting but it did not work
+- [bibiman](https://codeberg.org/lukeflo/bibiman) - A TUI for fast and simple interacting with your BibLaTeX database
 
 ---
 
@@ -195,6 +195,7 @@ Yes. but we also write a backup file
 
 **Can I use it alongside JabRef or XYZ tool for .bib?**
 Yes. they both just read bib files and bibtui follows JabRef conventions.
+
 
 
 
