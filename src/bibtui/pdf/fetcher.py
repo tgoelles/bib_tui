@@ -1,9 +1,10 @@
 """PDF fetching utilities.
 
-Tries three strategies in order:
+Tries four strategies in order:
 1. arXiv — free PDF via the arXiv API (DOI 10.48550/arXiv.* or arxiv.org URL)
-2. Unpaywall — open-access PDF lookup by DOI (requires email)
-3. Direct URL — download if the entry's URL points directly to a PDF
+2. Copernicus — direct PDF URL constructed from DOI (prefix 10.5194)
+3. Unpaywall — open-access PDF lookup by DOI (requires email)
+4. Direct URL — download if the entry's URL points directly to a PDF
 
 Raises FetchError if none of the strategies succeed.
 """
@@ -202,7 +203,58 @@ def _try_arxiv(entry: BibEntry, dest_path: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Strategy 2 — Unpaywall
+# Strategy 2 — Copernicus
+# ---------------------------------------------------------------------------
+
+_COPERNICUS_PREFIX = "10.5194/"
+
+
+def _copernicus_pdf_url(doi: str) -> str | None:
+    """Construct a direct PDF URL for a Copernicus publication (prefix 10.5194).
+
+    Copernicus DOI patterns:
+    - Preprint:          {abbrev}-{year}-{id}        → preprints/{doi_local}/{doi_local}.pdf
+    - EGUsphere preprint: egusphere-{year}-{id}      → preprints/{year}/{doi_local}/{doi_local}.pdf
+    - Published article: {abbrev}-{vol}-{page}-{year} → articles/{vol}/{page}/{year}/{doi_local}.pdf
+    """
+    if not doi.lower().startswith(_COPERNICUS_PREFIX):
+        return None
+    doi_local = doi[len(_COPERNICUS_PREFIX):]
+    parts = doi_local.split("-")
+
+    # Published article: 4 segments, year is last (e.g. tc-17-1585-2023)
+    if len(parts) == 4 and re.fullmatch(r"20\d\d", parts[3]):
+        abbrev, vol, page, year = parts
+        return f"https://{abbrev}.copernicus.org/articles/{vol}/{page}/{year}/{doi_local}.pdf"
+
+    # Preprint: 3 segments, year is second (e.g. essd-2025-745, egusphere-2026-485)
+    if len(parts) == 3 and re.fullmatch(r"20\d\d", parts[1]):
+        abbrev, year = parts[0], parts[1]
+        if abbrev == "egusphere":
+            return f"https://egusphere.copernicus.org/preprints/{year}/{doi_local}/{doi_local}.pdf"
+        return f"https://{abbrev}.copernicus.org/preprints/{doi_local}/{doi_local}.pdf"
+
+    return None
+
+
+def _try_copernicus(entry: BibEntry, dest_path: str) -> str | None:
+    """Try to fetch the PDF directly from copernicus.org using the DOI pattern.
+    Returns None on success, or an error reason string on failure.
+    """
+    if not entry.doi:
+        return "no DOI"
+    pdf_url = _copernicus_pdf_url(entry.doi)
+    if not pdf_url:
+        return "not a recognised Copernicus DOI"
+    try:
+        _download(pdf_url, dest_path)
+        return None
+    except FetchError as exc:
+        return str(exc)
+
+
+# ---------------------------------------------------------------------------
+# Strategy 3 — Unpaywall
 # ---------------------------------------------------------------------------
 
 
@@ -256,7 +308,7 @@ def _try_unpaywall(entry: BibEntry, dest_path: str, email: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Strategy 3 — Direct URL
+# Strategy 4 — Direct URL
 # ---------------------------------------------------------------------------
 
 
@@ -337,6 +389,11 @@ def fetch_pdf(
     if reason is None:
         return dest_path
     reasons.append(f"arXiv: {reason}")
+
+    reason = _try_copernicus(entry, dest_path)
+    if reason is None:
+        return dest_path
+    reasons.append(f"Copernicus: {reason}")
 
     reason = _try_unpaywall(entry, dest_path, unpaywall_email)
     if reason is None:

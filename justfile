@@ -25,3 +25,6 @@ run:
 # delete config files to test first run experience
 fresh:
   rm -r $HOME/.config/bibtui
+
+test:
+  uv run pytest -v tests

@@ -18,6 +18,8 @@ from bibtui.pdf import fetcher as pdf_fetcher
 from bibtui.pdf.fetcher import (
     FetchError,
     _arxiv_id,
+    _copernicus_pdf_url,
+    _try_copernicus,
     _try_direct_url,
     _try_unpaywall,
     fetch_pdf,
@@ -136,8 +138,66 @@ def test_fetch_pdf_no_doi_or_url_all_strategies_fail(tmp_path):
         fetch_pdf(e, dest_dir=str(tmp_path), unpaywall_email="x@y.com")
     msg = str(exc_info.value)
     assert "arXiv" in msg
+    assert "Copernicus" in msg
     assert "Unpaywall" in msg
     assert "Direct URL" in msg
+
+
+# ---------------------------------------------------------------------------
+# Copernicus URL construction
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "doi,expected",
+    [
+        # Published articles
+        (
+            "10.5194/tc-17-1585-2023",
+            "https://tc.copernicus.org/articles/17/1585/2023/tc-17-1585-2023.pdf",
+        ),
+        (
+            "10.5194/essd-10-2275-2018",
+            "https://essd.copernicus.org/articles/10/2275/2018/essd-10-2275-2018.pdf",
+        ),
+        # Journal-specific preprints
+        (
+            "10.5194/essd-2025-745",
+            "https://essd.copernicus.org/preprints/essd-2025-745/essd-2025-745.pdf",
+        ),
+        (
+            "10.5194/tc-2024-50",
+            "https://tc.copernicus.org/preprints/tc-2024-50/tc-2024-50.pdf",
+        ),
+        # EGUsphere general preprint server (year in path)
+        (
+            "10.5194/egusphere-2026-485",
+            "https://egusphere.copernicus.org/preprints/2026/egusphere-2026-485/egusphere-2026-485.pdf",
+        ),
+    ],
+)
+def test_copernicus_pdf_url(doi: str, expected: str) -> None:
+    assert _copernicus_pdf_url(doi) == expected
+
+
+def test_copernicus_pdf_url_non_copernicus_doi() -> None:
+    assert _copernicus_pdf_url("10.1038/s41586-020-1") is None
+
+
+def test_copernicus_pdf_url_no_doi() -> None:
+    assert _copernicus_pdf_url("") is None
+
+
+def test_try_copernicus_no_doi(tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article")
+    reason = _try_copernicus(e, str(tmp_path / "x.pdf"))
+    assert reason == "no DOI"
+
+
+def test_try_copernicus_non_copernicus_doi(tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article", doi="10.1038/s41586-020-1")
+    reason = _try_copernicus(e, str(tmp_path / "x.pdf"))
+    assert "not a recognised Copernicus DOI" in reason
 
 
 def test_try_direct_url_falls_back_to_get_when_head_fails(monkeypatch, tmp_path):
@@ -247,6 +307,32 @@ def test_try_unpaywall_reports_landing_page_only(
     reason = _try_unpaywall(zeitz2021_entry, dest, unpaywall_email)
     assert reason is not None, "Expected failure but got success"
     assert "no direct PDF" in reason
+
+
+@pytest.mark.network
+def test_try_copernicus_downloads_preprint(tmp_path) -> None:
+    """ESSD preprint — PDF must be fetched directly from copernicus.org."""
+    e = BibEntry(key="Wang2026", entry_type="misc", doi="10.5194/essd-2025-745")
+    dest = str(tmp_path / "Wang2026.pdf")
+    reason = _try_copernicus(e, dest)
+    assert reason is None, f"Expected success but got: {reason}"
+    import os
+    assert os.path.getsize(dest) > 10_000
+    with open(dest, "rb") as f:
+        assert f.read(4) == b"%PDF"
+
+
+@pytest.mark.network
+def test_try_copernicus_downloads_egusphere(tmp_path) -> None:
+    """EGUsphere preprint — PDF URL contains year subdirectory."""
+    e = BibEntry(key="Ruttner2026", entry_type="misc", doi="10.5194/egusphere-2026-485")
+    dest = str(tmp_path / "Ruttner2026.pdf")
+    reason = _try_copernicus(e, dest)
+    assert reason is None, f"Expected success but got: {reason}"
+    import os
+    assert os.path.getsize(dest) > 10_000
+    with open(dest, "rb") as f:
+        assert f.read(4) == b"%PDF"
 
 
 @pytest.mark.network

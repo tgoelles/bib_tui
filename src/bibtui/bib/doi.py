@@ -1,9 +1,68 @@
+import re
+
 from habanero import Crossref
 
 from bibtui.utils.dates import now_date_added_value
 
 from .citekeys import author_year_base
 from .models import BibEntry
+
+
+def _journal_for_preprint(msg: dict, doi: str, cr: Crossref) -> str:
+    """Derive the journal name for a posted-content preprint with no container-title.
+
+    Strategy:
+    1. Some servers (bioRxiv, medRxiv, …) populate `institution[0].name`.
+    2. Otherwise, find a published journal-article from the same DOI prefix and
+       abbreviation, retrieve its container-title, then check whether a Discussions
+       variant of that journal exists (Copernicus preprint model).
+    """
+    institution = msg.get("institution") or []
+    if institution:
+        name = institution[0].get("name", "")
+        if name:
+            return name
+
+    parts = doi.split("/", 1)
+    if len(parts) != 2:
+        return ""
+    prefix, local = parts
+    m = re.match(r"^([a-z]+)-", local)
+    if not m:
+        return ""
+    abbrev = m.group(1)
+
+    # EGUsphere is a general preprint server with no matching published-article DOIs;
+    # it is not registered as a journal in Crossref, so the lookup below would fail.
+    if abbrev == "egusphere":
+        return "EGUsphere"
+
+    try:
+        pub = cr.works(
+            filter={"prefix": prefix, "type": "journal-article"},
+            query=abbrev,
+            limit=5,
+            select=["container-title", "DOI"],
+        )
+        parent_journal = ""
+        for item in pub["message"]["items"]:
+            if (item.get("DOI", "").startswith(f"{prefix}/{abbrev}-")
+                    and item.get("container-title")):
+                parent_journal = item["container-title"][0]
+                break
+        if not parent_journal:
+            return ""
+
+        # Check if a Discussions variant exists (Copernicus preprint model)
+        journals = cr.journals(query=f"{parent_journal} Discussions", limit=5)
+        for journal in journals["message"]["items"]:
+            title = journal.get("title", "")
+            if title.startswith(parent_journal) and "Discussion" in title:
+                return title
+
+        return parent_journal
+    except Exception:
+        return ""
 
 
 def fetch_by_doi(doi: str) -> BibEntry:
@@ -32,7 +91,10 @@ def fetch_by_doi(doi: str) -> BibEntry:
     # Year
     year = ""
     date = (
-        msg.get("published-print") or msg.get("published-online") or msg.get("issued")
+        msg.get("published-print")
+        or msg.get("published-online")
+        or msg.get("issued")
+        or msg.get("posted")
     )
     if date:
         parts = date.get("date-parts", [[]])
@@ -46,6 +108,8 @@ def fetch_by_doi(doi: str) -> BibEntry:
     # Journal
     container = msg.get("container-title", [])
     journal = container[0] if container else ""
+    if not journal and msg.get("type") == "posted-content":
+        journal = _journal_for_preprint(msg, doi, cr)
 
     # Entry type
     crossref_type = msg.get("type", "journal-article")
