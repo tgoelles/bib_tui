@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Copernicus PDF fetching** — PDFs for all `10.5194` publications (preprints and articles) are now fetched directly from copernicus.org using the DOI structure.
+
+### Fixed
+- **From DOI — preprint journal** — journal name is now resolved for preprints via Crossref lookup; EGUsphere returns `"EGUsphere"` as a special case.
+- **From DOI — preprint year** — year extraction now falls back to the `posted` date field.
+
 ## [0.11.0] — 2026-02-27
 
 ### Added
