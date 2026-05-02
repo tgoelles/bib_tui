@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.12.0] - 2027-05-02
+
+### Added
+- **File browser startup mode** — start bibtui without an initial file, using Textual's native file tree to browse and open library files. Includes quick access to recently opened files.
+
+
+## [0.11.6] - 2027-04-01
 
 ### Added
 - **Copernicus PDF fetching** — PDFs for all `10.5194` publications (preprints and articles) are now fetched directly from copernicus.org using the DOI structure.
