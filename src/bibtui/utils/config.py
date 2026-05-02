@@ -16,6 +16,7 @@ class Config:
     update_latest_version: str = ""
     check_for_updates: bool = True
     recent_files: list[str] = field(default_factory=list)
+    theme: str = ""  # empty means auto-detect from OS/Omarchy
 
 
 def is_first_run() -> bool:
@@ -60,6 +61,7 @@ def load_config() -> Config:
     pdf = data.get("pdf", {})
     updates = data.get("updates", {})
     files_section = data.get("files", {})
+    ui_section = data.get("ui", {})
     recent_raw = files_section.get("recent", [])
     recent_files = [str(r) for r in recent_raw if isinstance(r, str)]
     return Config(
@@ -72,6 +74,7 @@ def load_config() -> Config:
         update_latest_version=updates.get("latest_version", ""),
         check_for_updates=updates.get("check_for_updates", True),
         recent_files=recent_files,
+        theme=ui_section.get("theme", ""),
     )
 
 
@@ -102,6 +105,9 @@ def save_config(config: Config) -> None:
         "",
         "[files]",
         f"recent = {_toml_str_list(config.recent_files[:8])}",
+        "",
+        "[ui]",
+        f'theme = "{_toml_escape(config.theme)}"',
         "",
     ]
     CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")

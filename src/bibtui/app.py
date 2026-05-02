@@ -168,7 +168,8 @@ class BibTuiApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.theme = detect_theme()
+        self.theme = self._config.theme or detect_theme()
+        self.theme_changed_signal.subscribe(self, self._on_theme_changed)
         if self._bib_path:
             self.title = f"bibtui — {os.path.basename(self._bib_path)}"
             self._record_recent_file(self._bib_path)
@@ -898,6 +899,10 @@ class BibTuiApp(App):
                 self.push_screen(SettingsModal(self._config), self._on_settings_done)
 
         self.push_screen(FirstRunModal(), _after_welcome)
+
+    def _on_theme_changed(self, theme) -> None:
+        self._config.theme = self.theme
+        save_config(self._config)
 
     def _on_settings_done(self, result: Config | None) -> None:
         if result is None:
