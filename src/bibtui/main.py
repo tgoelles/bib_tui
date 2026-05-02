@@ -5,14 +5,21 @@ from bibtui import __version__
 
 @click.command()
 @click.version_option(__version__, prog_name="bibtui")
-@click.argument("bib_file", type=click.Path(exists=True, readable=True, dir_okay=False))
-def main(bib_file: str) -> None:
+@click.argument(
+    "bib_file",
+    type=click.Path(exists=True, readable=True, dir_okay=False),
+    required=False,
+    default=None,
+)
+def main(bib_file: str | None) -> None:
     """Browse and manage BibTeX bibliography files.
 
-    BIB_FILE is the path to the .bib file to open.
+    BIB_FILE is the path to a .bib file to open.
+    If omitted, an interactive file picker is shown on startup.
 
     \b
     Examples:
+      bibtui
       bibtui references.bib
       bibtui ~/papers/MyCollection.bib
 

@@ -22,6 +22,10 @@ minor:
 run:
   uv run bibtui tests/bib_examples/MyCollection.bib
 
+# run without a file
+run_nofile:
+  uv run bibtui
+
 # delete config files to test first run experience
 fresh:
   rm -r $HOME/.config/bibtui

@@ -1,3 +1,6 @@
+from collections.abc import Iterable
+from pathlib import Path
+
 from textual import events, on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -5,6 +8,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
+    DirectoryTree,
     Input,
     Label,
     ListItem,
@@ -1435,3 +1439,91 @@ class FirstRunModal(ModalScreen[bool]):
 
     def action_got_it(self) -> None:
         self.dismiss(False)
+
+
+class BibDirectoryTree(DirectoryTree):
+    """DirectoryTree that shows only directories and .bib files."""
+
+    def filter_paths(self, paths: Iterable[Path]) -> Iterable[Path]:
+        return [p for p in paths if p.is_dir() or p.suffix == ".bib"]
+
+
+class FilePickerModal(ModalScreen["str | None"]):
+    """Browse the filesystem and select a .bib file, with recent-files shortcuts."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=True)]
+
+    DEFAULT_CSS = """
+    FilePickerModal {
+        align: center middle;
+    }
+    FilePickerModal > Vertical {
+        width: 90;
+        height: 82%;
+        border: double $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    FilePickerModal #fp-recent-label,
+    FilePickerModal #fp-browse-label {
+        color: $accent;
+        margin-top: 1;
+        margin-bottom: 0;
+    }
+    FilePickerModal #fp-recent-list {
+        height: auto;
+        max-height: 6;
+        border: solid $panel;
+        margin-bottom: 1;
+    }
+    FilePickerModal BibDirectoryTree {
+        height: 1fr;
+        border: solid $panel;
+        margin-bottom: 1;
+    }
+    FilePickerModal #fp-hint {
+        color: $text-muted;
+        height: 1;
+        margin-bottom: 1;
+    }
+    """
+
+    def __init__(self, recent_files: list[str], **kwargs):
+        super().__init__(**kwargs)
+        self._recent = [r for r in recent_files if Path(r).exists()]
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Open BibTeX File[/bold]", classes="modal-title")
+            if self._recent:
+                yield Label("Recent files", id="fp-recent-label")
+                yield ListView(id="fp-recent-list")
+            yield Label("Browse", id="fp-browse-label")
+            yield BibDirectoryTree(Path.home(), id="fp-bib-tree")
+            yield Static("[dim]Select a .bib file to open it[/dim]", id="fp-hint")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        if self._recent:
+            lv = self.query_one("#fp-recent-list", ListView)
+            for path_str in self._recent:
+                p = Path(path_str)
+                lv.append(ListItem(Label(f"{p.name}  [dim]{p.parent}[/dim]")))
+
+    @on(ListView.Selected, "#fp-recent-list")
+    def on_recent_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one("#fp-recent-list", ListView).index
+        if idx is not None and idx < len(self._recent):
+            self.dismiss(self._recent[idx])
+
+    @on(DirectoryTree.FileSelected, "#fp-bib-tree")
+    def on_file_selected(self, event: DirectoryTree.FileSelected) -> None:
+        self.dismiss(str(event.path))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
