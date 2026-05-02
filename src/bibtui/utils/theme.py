@@ -1,6 +1,5 @@
 """Detect the OS / Omarchy theme and map it to a Textual theme name."""
 
-import os
 from pathlib import Path
 
 # Omarchy theme name  →  Textual built-in theme name
@@ -21,21 +20,21 @@ _THEME_MAP: dict[str, str] = {
     "tokyo-night": "tokyo-night",
 }
 
-_OMARCHY_THEME_LINK = Path.home() / ".config" / "omarchy" / "current" / "theme"
+_OMARCHY_THEME_NAME = Path.home() / ".config" / "omarchy" / "current" / "theme.name"
+_OMARCHY_THEME_DIR = Path.home() / ".config" / "omarchy" / "current" / "theme"
 
 
 def _omarchy_theme_name() -> str | None:
-    """Return the active Omarchy theme name by reading the symlink, or None."""
+    """Return the active Omarchy theme name by reading theme.name, or None."""
     try:
-        target = os.readlink(_OMARCHY_THEME_LINK)
-        return Path(target).name
+        return _OMARCHY_THEME_NAME.read_text(encoding="utf-8").strip()
     except OSError:
         return None
 
 
 def _omarchy_is_light() -> bool:
     """True if the current Omarchy theme ships a light.mode marker file."""
-    return (_OMARCHY_THEME_LINK / "light.mode").exists()
+    return (_OMARCHY_THEME_DIR / "light.mode").exists()
 
 
 def detect_theme() -> str:
