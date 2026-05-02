@@ -41,6 +41,7 @@ from bibtui.widgets.modals import (
     DOIModal,
     EditModal,
     FetchPDFModal,
+    FilePickerModal,
     FirstRunModal,
     HelpModal,
     KeywordsModal,
@@ -151,7 +152,7 @@ class BibTuiApp(App):
         Binding("escape", "clear_search", "Clear search", show=False),
     ]
 
-    def __init__(self, bib_path: str, **kwargs):
+    def __init__(self, bib_path: str | None, **kwargs):
         super().__init__(**kwargs)
         self._bib_path = bib_path
         self._entries: list[BibEntry] = []
@@ -168,11 +169,39 @@ class BibTuiApp(App):
 
     def on_mount(self) -> None:
         self.theme = detect_theme()
-        self.title = f"bibtui — {os.path.basename(self._bib_path)}"
+        if self._bib_path:
+            self.title = f"bibtui — {os.path.basename(self._bib_path)}"
+            self._record_recent_file(self._bib_path)
+            self._load_entries()
+            self._start_update_check()
+            if self._first_run:
+                self.call_after_refresh(self._show_first_run)
+        else:
+            self.title = "bibtui"
+            self.call_after_refresh(self._show_file_picker)
+
+    def _show_file_picker(self) -> None:
+        self.push_screen(
+            FilePickerModal(self._config.recent_files), self._on_file_picked
+        )
+
+    def _on_file_picked(self, path: str | None) -> None:
+        if path is None:
+            self.exit()
+            return
+        self._bib_path = path
+        self.title = f"bibtui — {os.path.basename(path)}"
+        self._record_recent_file(path)
         self._load_entries()
         self._start_update_check()
         if self._first_run:
             self.call_after_refresh(self._show_first_run)
+
+    def _record_recent_file(self, path: str) -> None:
+        recent = [r for r in self._config.recent_files if r != path]
+        recent.insert(0, path)
+        self._config.recent_files = recent[:8]
+        save_config(self._config)
 
     def _start_update_check(self) -> None:
         if not self._config.check_for_updates:
