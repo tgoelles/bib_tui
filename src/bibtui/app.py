@@ -31,7 +31,7 @@ from bibtui.utils.config import (
     load_config,
     save_config,
 )
-from bibtui.utils.theme import detect_theme
+from bibtui.utils.theme import get_omarchy_theme
 from bibtui.widgets.entry_detail import EntryDetail
 from bibtui.widgets.entry_list import EntryList
 from bibtui.widgets.modals import (
@@ -178,7 +178,7 @@ class BibTuiApp(App):
     def on_mount(self) -> None:
         self._theme_initialized = False
         self._theme_auto_updating = True
-        self.theme = self._config.theme or detect_theme()
+        self.theme = self._config.theme or self._apply_omarchy_theme()
         self.call_after_refresh(self._mark_theme_initialized)
         if not self._config.theme:
             self.set_interval(2, self._sync_omarchy_theme)
@@ -653,7 +653,7 @@ class BibTuiApp(App):
         self._config.theme = ""
         save_config(self._config)
         self._theme_auto_updating = True
-        self.theme = detect_theme()
+        self.theme = self._apply_omarchy_theme()
         self._theme_auto_updating = False
         self.set_interval(2, self._sync_omarchy_theme)
         self.notify("Theme reset to auto (Omarchy/OS).", timeout=2)
@@ -921,6 +921,13 @@ class BibTuiApp(App):
 
         self.push_screen(FirstRunModal(), _after_welcome)
 
+    def _apply_omarchy_theme(self) -> str:
+        """Detect the Omarchy theme, register a custom one if needed, return name."""
+        theme_name, custom = get_omarchy_theme()
+        if custom:
+            self.register_theme(custom)
+        return theme_name
+
     def _mark_theme_initialized(self) -> None:
         self._theme_initialized = True
         self._theme_auto_updating = False
@@ -934,7 +941,7 @@ class BibTuiApp(App):
     def _sync_omarchy_theme(self) -> None:
         if self._config.theme:
             return
-        new_theme = detect_theme()
+        new_theme = self._apply_omarchy_theme()
         if new_theme != self.theme:
             self._theme_auto_updating = True
             self.theme = new_theme
