@@ -178,10 +178,11 @@ class BibTuiApp(App):
     def on_mount(self) -> None:
         self._theme_initialized = False
         self._theme_auto_updating = True
+        self._omarchy_timer = None
         self.theme = self._config.theme or self._apply_omarchy_theme()
         self.call_after_refresh(self._mark_theme_initialized)
         if not self._config.theme:
-            self.set_interval(2, self._sync_omarchy_theme)
+            self._start_omarchy_sync()
         if self._bib_path:
             self.title = f"bibtui — {os.path.basename(self._bib_path)}"
             self._record_recent_file(self._bib_path)
@@ -655,7 +656,7 @@ class BibTuiApp(App):
         self._theme_auto_updating = True
         self.theme = self._apply_omarchy_theme()
         self._theme_auto_updating = False
-        self.set_interval(2, self._sync_omarchy_theme)
+        self._start_omarchy_sync()
         self.notify("Theme reset to auto (Omarchy/OS).", timeout=2)
 
     def action_fetch_missing_pdfs(self) -> None:
@@ -920,6 +921,12 @@ class BibTuiApp(App):
                 self.push_screen(SettingsModal(self._config), self._on_settings_done)
 
         self.push_screen(FirstRunModal(), _after_welcome)
+
+    def _start_omarchy_sync(self) -> None:
+        """Start (or restart) the periodic Omarchy theme sync timer."""
+        if self._omarchy_timer is not None:
+            self._omarchy_timer.stop()
+        self._omarchy_timer = self.set_interval(2, self._sync_omarchy_theme)
 
     def _apply_omarchy_theme(self) -> str:
         """Detect the Omarchy theme, register a custom one if needed, return name."""
