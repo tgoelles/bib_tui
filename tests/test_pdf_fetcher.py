@@ -17,6 +17,7 @@ from bibtui.bib.models import BibEntry
 from bibtui.pdf import fetcher as pdf_fetcher
 from bibtui.pdf.fetcher import (
     FetchError,
+    FetchResult,
     _arxiv_id,
     _copernicus_pdf_url,
     _try_copernicus,
@@ -431,14 +432,16 @@ def test_fetch_pdf_uses_openalex_before_unpaywall(monkeypatch, tmp_path) -> None
     monkeypatch.setattr(pdf_fetcher, "_try_openalex", fake_openalex)
     monkeypatch.setattr(pdf_fetcher, "_try_unpaywall", fake_unpaywall)
 
-    path = fetch_pdf(
+    result = fetch_pdf(
         e,
         dest_dir=str(tmp_path),
         unpaywall_email="me@example.com",
         openalex_api_key="openalex-key",
         overwrite=True,
     )
-    assert path.endswith("x.pdf")
+    assert isinstance(result, FetchResult)
+    assert result.path.endswith("x.pdf")
+    assert result.provider == "OpenAlex"
     assert order == ["openalex"]
 
 
@@ -589,12 +592,19 @@ def test_try_copernicus_downloads_egusphere(tmp_path) -> None:
 
 @pytest.mark.network
 def test_fetch_pdf_full_pipeline(tc_entry, unpaywall_email, tmp_path):
-    saved = fetch_pdf(tc_entry, str(tmp_path), unpaywall_email=unpaywall_email)
+    result = fetch_pdf(tc_entry, str(tmp_path), unpaywall_email=unpaywall_email)
     import os
 
-    assert os.path.exists(saved)
+    assert os.path.exists(result.path)
     expected_name = pdf_filename(tc_entry)
-    assert os.path.basename(saved) == expected_name
-    assert os.path.getsize(saved) > 10_000
-    with open(saved, "rb") as f:
+    assert os.path.basename(result.path) == expected_name
+    assert result.provider in {
+        "arXiv",
+        "Copernicus",
+        "OpenAlex",
+        "Unpaywall",
+        "Direct URL",
+    }
+    assert os.path.getsize(result.path) > 10_000
+    with open(result.path, "rb") as f:
         assert f.read(4) == b"%PDF"

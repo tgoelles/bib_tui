@@ -1118,7 +1118,7 @@ class AddPDFModal(ModalScreen["str | None"]):
         self.dismiss(None)
 
 
-class FetchPDFModal(ModalScreen["str | None"]):
+class FetchPDFModal(ModalScreen["tuple[str, str] | None"]):
     """Fetch a PDF for an entry in a background thread and show progress."""
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
@@ -1165,7 +1165,7 @@ class FetchPDFModal(ModalScreen["str | None"]):
         self._email = unpaywall_email
         self._openalex_api_key = openalex_api_key
         self._overwrite = overwrite
-        self._saved_path: str | None = None
+        self._saved_result: tuple[str, str] | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -1187,28 +1187,28 @@ class FetchPDFModal(ModalScreen["str | None"]):
         from bibtui.pdf.fetcher import FetchError, fetch_pdf
 
         try:
-            path = fetch_pdf(
+            result = fetch_pdf(
                 self._entry,
                 self._dest_dir,
                 self._email,
                 openalex_api_key=self._openalex_api_key,
                 overwrite=self._overwrite,
             )  # type: ignore[call-arg]
-            self.app.call_from_thread(self._on_success, path)
+            self.app.call_from_thread(self._on_success, result.path, result.provider)
         except FetchError as exc:
             self.app.call_from_thread(self._on_error, str(exc))
         except Exception as exc:  # noqa: BLE001
             self.app.call_from_thread(self._on_error, f"Unexpected error: {exc}")
 
-    def _on_success(self, path: str) -> None:
+    def _on_success(self, path: str, provider: str) -> None:
         self.query_one("#fetch-loading", LoadingIndicator).display = False
         status = self.query_one("#fetch-status", Static)
         status.set_class(True, "success")
         status.set_class(False, "error")
-        status.update(f"Saved PDF:\n{path}")
+        status.update(f"Saved PDF via {provider}:\n{path}")
         self.query_one("#btn-close", Button).disabled = False
         self.query_one("#btn-cancel", Button).disabled = True
-        self._saved_path = path
+        self._saved_result = (path, provider)
 
     def _on_error(self, message: str) -> None:
         self.query_one("#fetch-loading", LoadingIndicator).display = False
@@ -1246,7 +1246,7 @@ class FetchPDFModal(ModalScreen["str | None"]):
         if event.button.id == "btn-cancel":
             self.dismiss(None)
         elif event.button.id == "btn-close":
-            self.dismiss(self._saved_path)
+            self.dismiss(self._saved_result)
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -1344,14 +1344,14 @@ class BatchFetchPDFModal(ModalScreen["dict | None"]):
                 continue
 
             try:
-                path = fetch_pdf(
+                result = fetch_pdf(
                     entry,
                     self._dest_dir,
                     self._email,
                     openalex_api_key=self._openalex_api_key,
                     overwrite=False,
                 )  # type: ignore[call-arg]
-                paths_by_key[entry.key] = path
+                paths_by_key[entry.key] = result.path
                 success += 1
             except FetchError as exc:
                 failed += 1

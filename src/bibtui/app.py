@@ -556,13 +556,18 @@ class BibTuiApp(App):
             self._on_fetch_pdf_done,
         )
 
-    def _on_fetch_pdf_done(self, result: str | None) -> None:
+    def _on_fetch_pdf_done(self, result: tuple[str, str] | None) -> None:
         if result is None:
             return
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        self._link_pdf_to_entry(entry, result, f"PDF saved and linked: {entry.key}")
+        path, provider = result
+        self._link_pdf_to_entry(
+            entry,
+            path,
+            f"PDF saved and linked via {provider}: {entry.key}",
+        )
 
     def action_add_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry

@@ -16,6 +16,7 @@ import re
 import shutil
 import tempfile
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -27,6 +28,14 @@ from bibtui.bib.models import BibEntry
 
 class FetchError(Exception):
     """Raised when all PDF fetch strategies fail."""
+
+
+@dataclass(frozen=True)
+class FetchResult:
+    """Successful PDF fetch result including the provider used."""
+
+    path: str
+    provider: str
 
 
 # ---------------------------------------------------------------------------
@@ -477,12 +486,12 @@ def fetch_pdf(
     unpaywall_email: str = "",
     openalex_api_key: str = "",
     overwrite: bool = False,
-) -> str:
+) -> FetchResult:
     """Fetch a PDF for *entry* and save it under *dest_dir*.
 
     Tries arXiv → Copernicus → OpenAlex (optional) → Unpaywall → direct URL.
 
-    Returns the saved file path on success.
+    Returns the saved file path and provider on success.
     Raises FetchError (with a human-readable message) if all strategies fail.
     """
     if not dest_dir:
@@ -505,28 +514,28 @@ def fetch_pdf(
 
     reason = _try_arxiv(entry, dest_path)
     if reason is None:
-        return dest_path
+        return FetchResult(dest_path, "arXiv")
     reasons.append(f"arXiv: {reason}")
 
     reason = _try_copernicus(entry, dest_path)
     if reason is None:
-        return dest_path
+        return FetchResult(dest_path, "Copernicus")
     reasons.append(f"Copernicus: {reason}")
 
     if openalex_api_key:
         reason = _try_openalex(entry, dest_path, openalex_api_key)
         if reason is None:
-            return dest_path
+            return FetchResult(dest_path, "OpenAlex")
         reasons.append(f"OpenAlex: {reason}")
 
     reason = _try_unpaywall(entry, dest_path, unpaywall_email)
     if reason is None:
-        return dest_path
+        return FetchResult(dest_path, "Unpaywall")
     reasons.append(f"Unpaywall: {reason}")
 
     reason = _try_direct_url(entry, dest_path)
     if reason is None:
-        return dest_path
+        return FetchResult(dest_path, "Direct URL")
     reasons.append(f"Direct URL: {reason}")
 
     raise FetchError("Could not fetch PDF:\n" + "\n".join(f"  • {r}" for r in reasons))
