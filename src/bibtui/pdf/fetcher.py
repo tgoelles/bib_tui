@@ -311,20 +311,33 @@ def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
 
     Returns None on success, or an error reason string on failure.
     """
-    if not entry.doi:
-        return "entry has no DOI"
+    if not entry.doi and not entry.title:
+        return "entry has no DOI or title"
     if not api_key:
         return "no API key configured in Settings"
 
-    lookup_doi = _normalized_doi(entry.doi)
     previous_api_key = pyalex.config.get("api_key")
     pyalex.config["api_key"] = api_key
 
     try:
-        works = cast(
-            list[dict[str, Any]],
-            pyalex.Works().filter(doi=f"https://doi.org/{lookup_doi}").get(per_page=1),
-        )
+        works: list[dict[str, Any]] = []
+
+        if entry.doi:
+            lookup_doi = _normalized_doi(entry.doi)
+            works = cast(
+                list[dict[str, Any]],
+                pyalex.Works()
+                .filter(doi=f"https://doi.org/{lookup_doi}")
+                .get(per_page=1),
+            )
+
+        # Fallback for older references with missing DOI.
+        if not works and entry.title:
+            works = cast(
+                list[dict[str, Any]],
+                pyalex.Works().search(entry.title).get(per_page=1),
+            )
+
         if not works:
             return "no OpenAlex work found"
 

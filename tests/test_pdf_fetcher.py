@@ -260,7 +260,7 @@ def test_try_direct_url_rejects_non_pdf_content_type(monkeypatch, tmp_path):
 def test_try_openalex_requires_doi(tmp_path) -> None:
     e = BibEntry(key="x", entry_type="article")
     reason = _try_openalex(e, str(tmp_path / "x.pdf"), api_key="abc")
-    assert reason == "entry has no DOI"
+    assert reason == "entry has no DOI or title"
 
 
 def test_try_openalex_requires_api_key(tmp_path) -> None:
@@ -312,6 +312,84 @@ def test_try_openalex_uses_best_pdf_url(monkeypatch, tmp_path) -> None:
     assert reason is None
     assert fake_works.filtered == {"doi": "https://doi.org/10.5194/tc-18-3807-2024"}
     assert called == [(b"%PDF-1.4 fake", dest)]
+
+
+def test_try_openalex_uses_title_search_when_no_doi(monkeypatch, tmp_path) -> None:
+    e = BibEntry(
+        key="Ritz2001",
+        entry_type="article",
+        title=(
+            "Modeling the evolution of Antarctic ice sheet over the last "
+            "420,000 years: Implications for altitude changes in the Vostok region"
+        ),
+    )
+    dest = str(tmp_path / "Ritz2001.pdf")
+    calls: list[tuple[str, str]] = []
+
+    class FakePDF:
+        def get(self):
+            return b"%PDF-1.4 title-search"
+
+    class FakeWorks:
+        def filter(self, **kwargs):
+            calls.append(("filter", str(kwargs)))
+            return self
+
+        def search(self, query):
+            calls.append(("search", query))
+            return self
+
+        def get(self, per_page=None):
+            return [{"id": "https://openalex.org/W2046172844"}]
+
+        def __getitem__(self, work_id):
+            assert work_id == "W2046172844"
+            return type("FakeWork", (), {"pdf": FakePDF()})()
+
+    monkeypatch.setattr(pdf_fetcher.pyalex, "Works", lambda: FakeWorks())
+
+    reason = _try_openalex(e, dest, api_key="test-key")
+    assert reason is None
+    # No DOI present, so it should use title fallback query.
+    assert any(c[0] == "search" for c in calls)
+
+
+def test_try_openalex_prefers_doi_before_title(monkeypatch, tmp_path) -> None:
+    e = BibEntry(
+        key="x",
+        entry_type="article",
+        doi="10.5194/tc-18-3807-2024",
+        title="Some title",
+    )
+    dest = str(tmp_path / "x.pdf")
+    calls: list[tuple[str, str]] = []
+
+    class FakePDF:
+        def get(self):
+            return b"%PDF-1.4 doi-first"
+
+    class FakeWorks:
+        def filter(self, **kwargs):
+            calls.append(("filter", str(kwargs)))
+            return self
+
+        def search(self, query):
+            calls.append(("search", query))
+            return self
+
+        def get(self, per_page=None):
+            return [{"id": "https://openalex.org/W123"}]
+
+        def __getitem__(self, work_id):
+            assert work_id == "W123"
+            return type("FakeWork", (), {"pdf": FakePDF()})()
+
+    monkeypatch.setattr(pdf_fetcher.pyalex, "Works", lambda: FakeWorks())
+
+    reason = _try_openalex(e, dest, api_key="test-key")
+    assert reason is None
+    assert calls[0][0] == "filter"
+    assert all(c[0] != "search" for c in calls)
 
 
 def test_try_openalex_uses_content_pdf_for_joughin2008(monkeypatch, tmp_path) -> None:
@@ -540,6 +618,28 @@ def test_try_openalex_downloads_pdf_for_joughin2008(openalex_api_key, tmp_path):
     dest = str(tmp_path / "Joughin2008.pdf")
     reason = _try_openalex(entry, dest, openalex_api_key)
     assert reason is None, f"Expected OpenAlex PDF success but got: {reason}"
+
+    import os
+
+    assert os.path.exists(dest)
+    assert os.path.getsize(dest) > 10_000
+    with open(dest, "rb") as f:
+        assert f.read(4) == b"%PDF"
+
+
+@pytest.mark.network
+def test_try_openalex_downloads_pdf_by_title_without_doi(openalex_api_key, tmp_path):
+    entry = BibEntry(
+        key="Ritz2001",
+        entry_type="article",
+        title=(
+            "Modeling the evolution of Antarctic ice sheet over the last "
+            "420,000 years: Implications for altitude changes in the Vostok region"
+        ),
+    )
+    dest = str(tmp_path / "Ritz2001.pdf")
+    reason = _try_openalex(entry, dest, openalex_api_key)
+    assert reason is None, f"Expected OpenAlex title PDF success but got: {reason}"
 
     import os
 
