@@ -408,9 +408,7 @@ def test_try_openalex_falls_back_from_blocked_publisher_pdf_to_content_pdf(
 
     reason = _try_openalex(e, dest, api_key="test-key")
     assert reason is None
-    assert called == [
-        "https://content.openalex.org/works/W2012092742.pdf"
-    ]
+    assert called == ["https://content.openalex.org/works/W2012092742.pdf"]
 
 
 def test_fetch_pdf_uses_openalex_before_unpaywall(monkeypatch, tmp_path) -> None:

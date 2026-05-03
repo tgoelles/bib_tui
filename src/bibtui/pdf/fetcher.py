@@ -314,7 +314,7 @@ def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
     try:
         works = cast(
             list[dict[str, Any]],
-            pyalex.Works().filter(doi=f"https://doi.org/{lookup_doi}").get(per_page=1)
+            pyalex.Works().filter(doi=f"https://doi.org/{lookup_doi}").get(per_page=1),
         )
         if not works:
             return "no OpenAlex work found"
