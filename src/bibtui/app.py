@@ -152,6 +152,14 @@ class BibTuiApp(App):
         Binding("5", "set_rating('5')", "★★★★★", show=False),
         # Copy
         Binding("ctrl+c", "copy_key", "Copy key", show=False, priority=True),
+        Binding(
+            "ctrl+shift+c",
+            "copy_entry",
+            "Copy BibTeX",
+            show=False,
+            priority=True,
+        ),
+        Binding("ctrl+y", "copy_entry", "Copy BibTeX", show=False, priority=True),
         # Delete
         Binding("delete", "delete_entry", "Delete", show=False),
         Binding("backspace", "delete_entry", "Delete", show=False),
@@ -1004,6 +1012,14 @@ class BibTuiApp(App):
             return
         self.copy_to_clipboard(entry.key)
         self.notify(f"Copied: {entry.key}", timeout=2)
+
+    def action_copy_entry(self) -> None:
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            self.notify("No entry selected.", severity="warning")
+            return
+        self.copy_to_clipboard(parser.entry_to_bibtex_str(entry))
+        self.notify(f"Copied BibTeX: {entry.key}", timeout=2)
 
     def action_edit_keywords(self) -> None:
         entry = self.query_one(EntryList).selected_entry

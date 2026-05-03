@@ -719,6 +719,8 @@ class HelpModal(ModalScreen[None]):
 
 [bold]── Other ─────────────────────────────[/bold]
     [bold]ctrl+c[/bold]    Copy selected text (or cite key if none focused)
+    [bold]ctrl+shift+c[/bold] Copy current BibTeX entry
+    [bold]ctrl+y[/bold]    Copy current BibTeX entry (terminal-safe fallback)
   [bold]?[/bold]         Show this help
     [bold]ctrl+p[/bold]    Command palette (Settings + Library actions)
         [bold]maximize[/bold]  (palette) maximize focused pane
