@@ -1,5 +1,7 @@
 # bibtui
 
+![bibtui logo](docs/pictures/logo2.png)
+
 > A quiet, powerful home for your references.
 
 [![PyPI](https://img.shields.io/pypi/v/bibtui)](https://pypi.org/project/bibtui/)
@@ -48,7 +50,7 @@ single keystroke, track what you've read, and never leave the command line —
 no database, no sync daemon, no account required.
 
 > **Mouse users welcome.** bibtui works fully with the mouse — click, scroll, select.
-> You just need to launch it from a terminal: `uvx --prerelease=allow bibtui myrefs.bib`
+> You just need to launch it from a terminal: `uvx --prerelease=allow bibtui` (then pick your file in the built-in browser, or pass a path directly).
 
 ---
 
@@ -86,6 +88,7 @@ I also wanted to try out Claude Code for a project from scratch, so yes, most of
 - **Git-friendly** — it's a plain text file (.bib); commit, diff, and collaborate normally
 - **Full Textual theme support** — including automatic detection of the [omarchy](https://omarchy.org) themes
 - **Works anywhere `uv` does** — SSH, HPC clusters, a colleague's laptop
+- **Build in file browser** - start with or without pointing to a bibfile.
 
 ---
 
@@ -96,7 +99,7 @@ I also wanted to try out Claude Code for a project from scratch, so yes, most of
 ```bash
 uv tool install --prerelease=allow bibtui
 ```
-updating an exising installation:
+updating an existing installation:
 
 ```bash
 uv tool upgrade bibtui
@@ -117,6 +120,8 @@ uvx --prerelease=allow bibtui references.bib
 > **Note:** The `--prerelease=allow` / `--pre` flag is needed because bibtui depends on
 > `bibtexparser` v2, which is currently in beta on PyPI. Once it releases a stable v2
 > this flag will no longer be required.
+
+
 
 ---
 
