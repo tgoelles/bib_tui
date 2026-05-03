@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **File browser startup mode** — start bibtui without an initial file, using Textual's native file tree to browse and open library files. Includes quick access to recently opened files
 - **Icon** -- I made a simple pixel based icon. So you can install it as a TUI with an icon.
+- **Optional OpenAlex PDF lookup** — add an OpenAlex API key in Settings to enable an additional PDF fetch source (used before Unpaywall).
 
 ### Fixed
 

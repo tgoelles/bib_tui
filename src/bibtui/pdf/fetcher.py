@@ -1,10 +1,11 @@
 """PDF fetching utilities.
 
-Tries four strategies in order:
+Tries strategies in order:
 1. arXiv — free PDF via the arXiv API (DOI 10.48550/arXiv.* or arxiv.org URL)
 2. Copernicus — direct PDF URL constructed from DOI (prefix 10.5194)
-3. Unpaywall — open-access PDF lookup by DOI (requires email)
-4. Direct URL — download if the entry's URL points directly to a PDF
+3. OpenAlex — open-access PDF lookup by DOI (optional, requires API key)
+4. Unpaywall — open-access PDF lookup by DOI (requires email)
+5. Direct URL — download if the entry's URL points directly to a PDF
 
 Raises FetchError if none of the strategies succeed.
 """
@@ -17,6 +18,8 @@ import tempfile
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
+
+import pyalex  # type: ignore[import-untyped]
 
 from bibtui.bib.models import BibEntry
 
@@ -219,7 +222,7 @@ def _copernicus_pdf_url(doi: str) -> str | None:
     """
     if not doi.lower().startswith(_COPERNICUS_PREFIX):
         return None
-    doi_local = doi[len(_COPERNICUS_PREFIX):]
+    doi_local = doi[len(_COPERNICUS_PREFIX) :]
     parts = doi_local.split("-")
 
     # Published article: 4 segments, year is last (e.g. tc-17-1585-2023)
@@ -254,7 +257,74 @@ def _try_copernicus(entry: BibEntry, dest_path: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Strategy 3 — Unpaywall
+# Strategy 3 — OpenAlex
+# ---------------------------------------------------------------------------
+
+
+def _normalized_doi(doi: str) -> str:
+    """Normalize DOI for provider lookups."""
+    norm = doi.strip()
+    norm = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", norm, flags=re.IGNORECASE)
+    return norm
+
+
+def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
+    """Try OpenAlex lookup and download a direct PDF URL.
+
+    Returns None on success, or an error reason string on failure.
+    """
+    if not entry.doi:
+        return "entry has no DOI"
+    if not api_key:
+        return "no API key configured in Settings"
+
+    lookup_doi = _normalized_doi(entry.doi)
+    previous_api_key = pyalex.config.get("api_key")
+    pyalex.config["api_key"] = api_key
+
+    try:
+        works = (
+            pyalex.Works().filter(doi=f"https://doi.org/{lookup_doi}").get(per_page=1)
+        )
+    except Exception:
+        return "OpenAlex lookup failed"
+    finally:
+        pyalex.config["api_key"] = previous_api_key
+
+    if not works:
+        return "no OpenAlex work found"
+
+    work = works[0]
+    pdf_candidates: list[str] = []
+
+    best = work.get("best_oa_location") or {}
+    if best.get("pdf_url"):
+        pdf_candidates.append(best["pdf_url"])
+
+    open_access = work.get("open_access") or {}
+    if open_access.get("oa_url") and open_access["oa_url"] not in pdf_candidates:
+        pdf_candidates.append(open_access["oa_url"])
+
+    for location in work.get("locations", []):
+        url = location.get("pdf_url")
+        if url and url not in pdf_candidates:
+            pdf_candidates.append(url)
+
+    if not pdf_candidates:
+        return "no direct PDF available"
+
+    last_error = ""
+    for url in pdf_candidates:
+        try:
+            _download(url, dest_path)
+            return None
+        except FetchError as exc:
+            last_error = str(exc)
+    return last_error
+
+
+# ---------------------------------------------------------------------------
+# Strategy 4 — Unpaywall
 # ---------------------------------------------------------------------------
 
 
@@ -308,7 +378,7 @@ def _try_unpaywall(entry: BibEntry, dest_path: str, email: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Strategy 4 — Direct URL
+# Strategy 5 — Direct URL
 # ---------------------------------------------------------------------------
 
 
@@ -358,11 +428,12 @@ def fetch_pdf(
     entry: BibEntry,
     dest_dir: str,
     unpaywall_email: str = "",
+    openalex_api_key: str = "",
     overwrite: bool = False,
 ) -> str:
     """Fetch a PDF for *entry* and save it under *dest_dir*.
 
-    Tries arXiv → Unpaywall → direct URL in order.
+    Tries arXiv → Copernicus → OpenAlex (optional) → Unpaywall → direct URL.
 
     Returns the saved file path on success.
     Raises FetchError (with a human-readable message) if all strategies fail.
@@ -394,6 +465,12 @@ def fetch_pdf(
     if reason is None:
         return dest_path
     reasons.append(f"Copernicus: {reason}")
+
+    if openalex_api_key:
+        reason = _try_openalex(entry, dest_path, openalex_api_key)
+        if reason is None:
+            return dest_path
+        reasons.append(f"OpenAlex: {reason}")
 
     reason = _try_unpaywall(entry, dest_path, unpaywall_email)
     if reason is None:

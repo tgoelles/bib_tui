@@ -21,6 +21,7 @@ from bibtui.pdf.fetcher import (
     _copernicus_pdf_url,
     _try_copernicus,
     _try_direct_url,
+    _try_openalex,
     _try_unpaywall,
     fetch_pdf,
     pdf_filename,
@@ -245,6 +246,115 @@ def test_try_direct_url_rejects_non_pdf_content_type(monkeypatch, tmp_path):
     assert "does not serve a PDF" in reason
 
 
+def test_try_openalex_requires_doi(tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article")
+    reason = _try_openalex(e, str(tmp_path / "x.pdf"), api_key="abc")
+    assert reason == "entry has no DOI"
+
+
+def test_try_openalex_requires_api_key(tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article", doi="10.5194/tc-18-3807-2024")
+    reason = _try_openalex(e, str(tmp_path / "x.pdf"), api_key="")
+    assert reason == "no API key configured in Settings"
+
+
+def test_try_openalex_uses_best_pdf_url(monkeypatch, tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article", doi="10.5194/tc-18-3807-2024")
+    dest = str(tmp_path / "x.pdf")
+    called: list[tuple[str, str]] = []
+
+    class FakeWorks:
+        def __init__(self) -> None:
+            self.filtered = None
+
+        def filter(self, **kwargs):
+            self.filtered = kwargs
+            return self
+
+        def get(self, per_page=None):
+            return [
+                {
+                    "best_oa_location": {"pdf_url": "https://example.org/best.pdf"},
+                    "open_access": {"oa_url": "https://example.org/oa.pdf"},
+                    "locations": [{"pdf_url": "https://example.org/loc.pdf"}],
+                }
+            ]
+
+    fake_works = FakeWorks()
+
+    def fake_download(url: str, dest_path: str, timeout: int = 30) -> None:
+        called.append((url, dest_path))
+
+    monkeypatch.setattr(pdf_fetcher.pyalex, "Works", lambda: fake_works)
+    monkeypatch.setattr(pdf_fetcher, "_download", fake_download)
+
+    reason = _try_openalex(e, dest, api_key="test-key")
+    assert reason is None
+    assert fake_works.filtered == {"doi": "https://doi.org/10.5194/tc-18-3807-2024"}
+    assert called == [("https://example.org/best.pdf", dest)]
+
+
+def test_fetch_pdf_uses_openalex_before_unpaywall(monkeypatch, tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article", doi="10.5194/tc-18-3807-2024")
+    order: list[str] = []
+
+    monkeypatch.setattr(pdf_fetcher, "_try_arxiv", lambda *_args, **_kwargs: "miss")
+    monkeypatch.setattr(
+        pdf_fetcher, "_try_copernicus", lambda *_args, **_kwargs: "miss"
+    )
+
+    def fake_openalex(*_args, **_kwargs):
+        order.append("openalex")
+        return None
+
+    def fake_unpaywall(*_args, **_kwargs):
+        order.append("unpaywall")
+        return "miss"
+
+    monkeypatch.setattr(pdf_fetcher, "_try_openalex", fake_openalex)
+    monkeypatch.setattr(pdf_fetcher, "_try_unpaywall", fake_unpaywall)
+
+    path = fetch_pdf(
+        e,
+        dest_dir=str(tmp_path),
+        unpaywall_email="me@example.com",
+        openalex_api_key="openalex-key",
+        overwrite=True,
+    )
+    assert path.endswith("x.pdf")
+    assert order == ["openalex"]
+
+
+def test_fetch_pdf_skips_openalex_without_api_key(monkeypatch, tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article")
+    monkeypatch.setattr(pdf_fetcher, "_try_arxiv", lambda *_args, **_kwargs: "miss")
+    monkeypatch.setattr(
+        pdf_fetcher, "_try_copernicus", lambda *_args, **_kwargs: "miss"
+    )
+    monkeypatch.setattr(
+        pdf_fetcher,
+        "_try_openalex",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("OpenAlex should be skipped when key is empty")
+        ),
+    )
+    monkeypatch.setattr(pdf_fetcher, "_try_unpaywall", lambda *_args, **_kwargs: "miss")
+    monkeypatch.setattr(
+        pdf_fetcher, "_try_direct_url", lambda *_args, **_kwargs: "miss"
+    )
+
+    with pytest.raises(FetchError) as exc_info:
+        fetch_pdf(
+            e,
+            dest_dir=str(tmp_path),
+            unpaywall_email="me@example.com",
+            openalex_api_key="",
+            overwrite=True,
+        )
+
+    assert "OpenAlex" not in str(exc_info.value)
+
+
 # ---------------------------------------------------------------------------
 # pdf_filename unit tests
 # ---------------------------------------------------------------------------
@@ -317,6 +427,7 @@ def test_try_copernicus_downloads_preprint(tmp_path) -> None:
     reason = _try_copernicus(e, dest)
     assert reason is None, f"Expected success but got: {reason}"
     import os
+
     assert os.path.getsize(dest) > 10_000
     with open(dest, "rb") as f:
         assert f.read(4) == b"%PDF"
@@ -330,6 +441,7 @@ def test_try_copernicus_downloads_egusphere(tmp_path) -> None:
     reason = _try_copernicus(e, dest)
     assert reason is None, f"Expected success but got: {reason}"
     import os
+
     assert os.path.getsize(dest) > 10_000
     with open(dest, "rb") as f:
         assert f.read(4) == b"%PDF"

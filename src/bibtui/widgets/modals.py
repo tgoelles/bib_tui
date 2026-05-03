@@ -551,6 +551,17 @@ class SettingsModal(ModalScreen["Config | None"]):
             )
             yield Static("")
 
+            yield Label("OpenAlex API key (optional)")
+            yield Static(
+                "[dim]Used for optional OpenAlex PDF lookup before Unpaywall.[/dim]"
+            )
+            yield Input(
+                value=self._config.openalex_api_key,
+                placeholder="sk-...",
+                id="openalex-api-key",
+            )
+            yield Static("")
+
             yield Label("PDF download directory")
             yield Static(
                 "[dim]PDFs listed when you press [bold]a[/bold] to add an existing PDF. Defaults to ~/Downloads.[/dim]"
@@ -590,6 +601,9 @@ class SettingsModal(ModalScreen["Config | None"]):
         self._config.pdf_base_dir = self.query_one("#pdf-base-dir", Input).value.strip()
         self._config.unpaywall_email = self.query_one(
             "#unpaywall-email", Input
+        ).value.strip()
+        self._config.openalex_api_key = self.query_one(
+            "#openalex-api-key", Input
         ).value.strip()
         self._config.pdf_download_dir = self.query_one(
             "#pdf-download-dir", Input
@@ -1141,6 +1155,7 @@ class FetchPDFModal(ModalScreen["str | None"]):
         entry: BibEntry,
         dest_dir: str,
         unpaywall_email: str = "",
+        openalex_api_key: str = "",
         overwrite: bool = False,
         **kwargs,
     ):
@@ -1148,6 +1163,7 @@ class FetchPDFModal(ModalScreen["str | None"]):
         self._entry = entry
         self._dest_dir = dest_dir
         self._email = unpaywall_email
+        self._openalex_api_key = openalex_api_key
         self._overwrite = overwrite
         self._saved_path: str | None = None
 
@@ -1172,8 +1188,12 @@ class FetchPDFModal(ModalScreen["str | None"]):
 
         try:
             path = fetch_pdf(
-                self._entry, self._dest_dir, self._email, overwrite=self._overwrite
-            )
+                self._entry,
+                self._dest_dir,
+                self._email,
+                openalex_api_key=self._openalex_api_key,
+                overwrite=self._overwrite,
+            )  # type: ignore[call-arg]
             self.app.call_from_thread(self._on_success, path)
         except FetchError as exc:
             self.app.call_from_thread(self._on_error, str(exc))
@@ -1269,6 +1289,7 @@ class BatchFetchPDFModal(ModalScreen["dict | None"]):
         entries: list[BibEntry],
         dest_dir: str,
         unpaywall_email: str = "",
+        openalex_api_key: str = "",
         overwrite_broken_links: bool = False,
         **kwargs,
     ):
@@ -1276,6 +1297,7 @@ class BatchFetchPDFModal(ModalScreen["dict | None"]):
         self._entries = entries
         self._dest_dir = dest_dir
         self._email = unpaywall_email
+        self._openalex_api_key = openalex_api_key
         self._overwrite_broken_links = overwrite_broken_links
         self._cancel_requested = False
         self._done = False
@@ -1326,8 +1348,9 @@ class BatchFetchPDFModal(ModalScreen["dict | None"]):
                     entry,
                     self._dest_dir,
                     self._email,
+                    openalex_api_key=self._openalex_api_key,
                     overwrite=False,
-                )
+                )  # type: ignore[call-arg]
                 paths_by_key[entry.key] = path
                 success += 1
             except FetchError as exc:

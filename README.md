@@ -13,12 +13,17 @@
 ## Quick start
 
 ```bash
-# Run without installing
+# Run without installing (opens built-in file browser)
+uvx --prerelease=allow bibtui
+
+# Or open a specific .bib directly
 uvx --prerelease=allow bibtui myrefs.bib
 
 # Or install permanently
 uv tool install --prerelease=allow bibtui
 ```
+
+You can now start bibtui without passing a `.bib` file and select one via the built-in file browser.
 
 > **Why `--prerelease=allow`?** bibtui depends on `bibtexparser` v2, which is
 > still in beta on PyPI. This flag tells uv to use it. Once bibtexparser
@@ -77,7 +82,7 @@ I also wanted to try out Claude Code for a project from scratch, so yes, most of
 
 - **Browse & search** — instant search across title, author, keywords, journals and cite key
 - **Import by DOI** — paste a DOI and metadata is fetched automatically
-- **Fetch PDFs automatically** — tries arXiv → Unpaywall (free, open-access) → direct URL
+- **Fetch PDFs automatically** — tries arXiv → Copernicus → OpenAlex (optional API key) → Unpaywall → direct URL
 - **Library-wide actions** — fetch all missing PDFs and unify citekeys to AuthorYear
 - **Add existing PDFs** — pick a file from your Downloads folder with a live filter
 - **Edit entries** — field-by-field form *or* raw BibTeX editor (toggle with `v`)
@@ -88,7 +93,7 @@ I also wanted to try out Claude Code for a project from scratch, so yes, most of
 - **Git-friendly** — it's a plain text file (.bib); commit, diff, and collaborate normally
 - **Full Textual theme support** — including automatic detection of the [omarchy](https://omarchy.org) themes
 - **Works anywhere `uv` does** — SSH, HPC clusters, a colleague's laptop
-- **Build in file browser** - start with or without pointing to a bibfile.
+- **Built-in file browser** — start with or without pointing to a `.bib` file
 
 ---
 
@@ -139,11 +144,13 @@ defaults for your PDF directory, Downloads folder, and Unpaywall email
 
 ## PDF workflow
 
-`f` tries three sources in order:
+`f` tries these sources in order:
 
 1. **arXiv** — for entries with a `10.48550/arXiv.*` DOI or an `arxiv.org` URL
-2. **Unpaywall** — free open-access lookup by DOI (set your email in Settings; no account needed)
-3. **Direct URL** — if the entry's `url` field points directly to a PDF
+2. **Copernicus** — direct PDF URL construction for `10.5194/*` DOIs
+3. **OpenAlex** — optional open-access lookup by DOI (set API key in Settings)
+4. **Unpaywall** — free open-access lookup by DOI (set your email in Settings; no account needed)
+5. **Direct URL** — if the entry's `url` field points directly to a PDF
 
 PDFs are saved to your configured base directory and the entry's `file` field is
 updated automatically in JabRef format.
