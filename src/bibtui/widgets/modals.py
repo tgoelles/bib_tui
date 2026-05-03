@@ -553,7 +553,7 @@ class SettingsModal(ModalScreen["Config | None"]):
 
             yield Label("OpenAlex API key (optional)")
             yield Static(
-                "[dim]Used for optional OpenAlex PDF lookup before Unpaywall.[/dim]"
+                "[dim]Used for optional OpenAlex PDF lookup. API key is free and highly recommended. https://openalex.org/[/dim]"
             )
             yield Input(
                 value=self._config.openalex_api_key,
