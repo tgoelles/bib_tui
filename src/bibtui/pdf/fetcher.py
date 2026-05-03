@@ -17,6 +17,7 @@ import shutil
 import tempfile
 import urllib.request
 from pathlib import Path
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import pyalex  # type: ignore[import-untyped]
@@ -185,6 +186,34 @@ def _download(url: str, dest_path: str, timeout: int = 30) -> None:
                 pass
 
 
+def _write_pdf_bytes(pdf_bytes: bytes, dest_path: str) -> None:
+    """Write raw PDF bytes to *dest_path* atomically after basic validation."""
+    if not pdf_bytes:
+        raise FetchError("OpenAlex returned empty PDF content")
+    if not pdf_bytes.startswith(b"%PDF"):
+        raise FetchError("OpenAlex did not return PDF content")
+
+    dest = Path(dest_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path: str | None = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(
+            prefix=f".{dest.name}.", suffix=".tmp", dir=str(dest.parent)
+        )
+        with os.fdopen(fd, "wb") as f:
+            f.write(pdf_bytes)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, dest_path)
+        tmp_path = None
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+
 # ---------------------------------------------------------------------------
 # Strategy 1 — arXiv
 # ---------------------------------------------------------------------------
@@ -283,44 +312,62 @@ def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
     pyalex.config["api_key"] = api_key
 
     try:
-        works = (
+        works = cast(
+            list[dict[str, Any]],
             pyalex.Works().filter(doi=f"https://doi.org/{lookup_doi}").get(per_page=1)
         )
+        if not works:
+            return "no OpenAlex work found"
+
+        work = works[0]
+        work_id = str(work.get("id") or "").rstrip("/").split("/")[-1]
+        if work_id:
+            try:
+                openalex_work = cast(Any, pyalex.Works()[work_id])
+                pdf_bytes = cast(bytes, openalex_work.pdf.get())
+                _write_pdf_bytes(pdf_bytes, dest_path)
+                return None
+            except Exception:
+                pass
+
+        pdf_candidates: list[str] = []
+
+        content_urls = work.get("content_urls") or {}
+        if content_urls.get("pdf"):
+            pdf_candidates.append(content_urls["pdf"])
+
+        best = work.get("best_oa_location") or {}
+        if best.get("pdf_url"):
+            pdf_candidates.append(best["pdf_url"])
+
+        primary = work.get("primary_location") or {}
+        if primary.get("pdf_url") and primary["pdf_url"] not in pdf_candidates:
+            pdf_candidates.append(primary["pdf_url"])
+
+        open_access = work.get("open_access") or {}
+        if open_access.get("oa_url") and open_access["oa_url"] not in pdf_candidates:
+            pdf_candidates.append(open_access["oa_url"])
+
+        for location in work.get("locations", []):
+            url = location.get("pdf_url")
+            if url and url not in pdf_candidates:
+                pdf_candidates.append(url)
+
+        if not pdf_candidates:
+            return "no direct PDF available"
+
+        last_error = ""
+        for url in pdf_candidates:
+            try:
+                _download(url, dest_path)
+                return None
+            except FetchError as exc:
+                last_error = str(exc)
+        return last_error
     except Exception:
         return "OpenAlex lookup failed"
     finally:
         pyalex.config["api_key"] = previous_api_key
-
-    if not works:
-        return "no OpenAlex work found"
-
-    work = works[0]
-    pdf_candidates: list[str] = []
-
-    best = work.get("best_oa_location") or {}
-    if best.get("pdf_url"):
-        pdf_candidates.append(best["pdf_url"])
-
-    open_access = work.get("open_access") or {}
-    if open_access.get("oa_url") and open_access["oa_url"] not in pdf_candidates:
-        pdf_candidates.append(open_access["oa_url"])
-
-    for location in work.get("locations", []):
-        url = location.get("pdf_url")
-        if url and url not in pdf_candidates:
-            pdf_candidates.append(url)
-
-    if not pdf_candidates:
-        return "no direct PDF available"
-
-    last_error = ""
-    for url in pdf_candidates:
-        try:
-            _download(url, dest_path)
-            return None
-        except FetchError as exc:
-            last_error = str(exc)
-    return last_error
 
 
 # ---------------------------------------------------------------------------
