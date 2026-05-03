@@ -31,7 +31,7 @@ from bibtui.utils.config import (
     load_config,
     save_config,
 )
-from bibtui.utils.theme import detect_theme
+from bibtui.utils.theme import get_omarchy_theme
 from bibtui.widgets.entry_detail import EntryDetail
 from bibtui.widgets.entry_list import EntryList
 from bibtui.widgets.modals import (
@@ -60,18 +60,26 @@ class SettingsProvider(Provider):
         yield DiscoveryHit(
             "Settings", app.action_settings, help="Open the settings dialog"
         )
+        yield DiscoveryHit(
+            "Theme: Reset to auto (Omarchy/OS)",
+            app.action_reset_theme,
+            help="Clear saved theme and follow the OS/Omarchy theme",
+        )
 
     async def search(self, query: str) -> Hits:
         app = cast("BibTuiApp", self.app)
         matcher = self.matcher(query)
-        score = matcher.match("Settings")
-        if score > 0:
-            yield Hit(
-                score,
-                matcher.highlight("Settings"),
-                app.action_settings,
-                help="Open the settings dialog",
-            )
+        for label, action, help_text in (
+            ("Settings", app.action_settings, "Open the settings dialog"),
+            (
+                "Theme: Reset to auto (Omarchy/OS)",
+                app.action_reset_theme,
+                "Clear saved theme and follow the OS/Omarchy theme",
+            ),
+        ):
+            score = matcher.match(label)
+            if score > 0:
+                yield Hit(score, matcher.highlight(label), action, help=help_text)
 
 
 class LibraryProvider(Provider):
@@ -168,7 +176,13 @@ class BibTuiApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.theme = detect_theme()
+        self._theme_initialized = False
+        self._theme_auto_updating = True
+        self._omarchy_timer = None
+        self.theme = self._config.theme or self._apply_omarchy_theme()
+        self.call_after_refresh(self._mark_theme_initialized)
+        if not self._config.theme:
+            self._start_omarchy_sync()
         if self._bib_path:
             self.title = f"bibtui — {os.path.basename(self._bib_path)}"
             self._record_recent_file(self._bib_path)
@@ -636,6 +650,15 @@ class BibTuiApp(App):
     def action_settings(self) -> None:
         self.push_screen(SettingsModal(self._config), self._on_settings_done)
 
+    def action_reset_theme(self) -> None:
+        self._config.theme = ""
+        save_config(self._config)
+        self._theme_auto_updating = True
+        self.theme = self._apply_omarchy_theme()
+        self._theme_auto_updating = False
+        self._start_omarchy_sync()
+        self.notify("Theme reset to auto (Omarchy/OS).", timeout=2)
+
     def action_fetch_missing_pdfs(self) -> None:
         self._start_library_fetch_missing_pdfs()
 
@@ -898,6 +921,38 @@ class BibTuiApp(App):
                 self.push_screen(SettingsModal(self._config), self._on_settings_done)
 
         self.push_screen(FirstRunModal(), _after_welcome)
+
+    def _start_omarchy_sync(self) -> None:
+        """Start (or restart) the periodic Omarchy theme sync timer."""
+        if self._omarchy_timer is not None:
+            self._omarchy_timer.stop()
+        self._omarchy_timer = self.set_interval(2, self._sync_omarchy_theme)
+
+    def _apply_omarchy_theme(self) -> str:
+        """Detect the Omarchy theme, register a custom one if needed, return name."""
+        theme_name, custom = get_omarchy_theme()
+        if custom:
+            self.register_theme(custom)
+        return theme_name
+
+    def _mark_theme_initialized(self) -> None:
+        self._theme_initialized = True
+        self._theme_auto_updating = False
+
+    def watch_theme(self, theme_name: str) -> None:
+        if not self._theme_initialized or self._theme_auto_updating:
+            return
+        self._config.theme = theme_name
+        save_config(self._config)
+
+    def _sync_omarchy_theme(self) -> None:
+        if self._config.theme:
+            return
+        new_theme = self._apply_omarchy_theme()
+        if new_theme != self.theme:
+            self._theme_auto_updating = True
+            self.theme = new_theme
+            self._theme_auto_updating = False
 
     def _on_settings_done(self, result: Config | None) -> None:
         if result is None:

@@ -8,27 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.12.0] - 2027-05-02
 
 ### Added
-- **File browser startup mode** — start bibtui without an initial file, using Textual's native file tree to browse and open library files. Includes quick access to recently opened files.
 
+- **File browser startup mode** — start bibtui without an initial file, using Textual's native file tree to browse and open library files. Includes quick access to recently opened files
+- **Icon** -- I made a simple pixel based icon. So you can install it as a TUI with an icon.
+
+### Fixed
+
+- **Theme synching with omarchy** -- now it can sync with any omarchy theme and does it automatically.
 
 ## [0.11.6] - 2027-04-01
 
 ### Added
+
 - **Copernicus PDF fetching** — PDFs for all `10.5194` publications (preprints and articles) are now fetched directly from copernicus.org using the DOI structure.
 
 ### Fixed
+
 - **From DOI — preprint journal** — journal name is now resolved for preprints via Crossref lookup; EGUsphere returns `"EGUsphere"` as a special case.
 - **From DOI — preprint year** — year extraction now falls back to the `posted` date field.
 
 ## [0.11.0] — 2026-02-27
 
 ### Added
+
 - **Table-pane maximize toggle** — press `m` to maximize/restore the entry table pane for focused browsing.
 - **Date-added table column** — entry list now includes an `Added` column with normalized date display and sorting support.
 - **Library PDF fetch preflight modal** — library-wide fetch now opens a dedicated confirmation modal with an `Overwrite broken links` toggle.
 - **Release helper for minor bumps** — added `just minor` to bump, tag, and push minor versions.
 
 ### Changed
+
 - **Library fetch workflow** — existing local PDFs are auto-linked before batch fetching missing files.
 - **PDF linking behavior** — fetching now re-links an entry to an already existing destination PDF when the stored link is broken.
 - **Entry refresh UX** — entry selection is preserved after list refresh operations.
@@ -36,37 +45,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Release task naming** — `just release-patch` was renamed to `just patch`.
 
 ### Fixed
+
 - **Date handling consistency** — DOI imports now use centralized date-added timestamp utilities.
 - **Regression coverage for dates** — added tests for extracting, parsing, and formatting bibliography date fields.
 
 ## [0.10.0] — 2026-02-26
 
 ### Added
+
 - **Library-wide PDF fetching** — new command-palette workflow to fetch PDFs for all entries missing local files.
 - **Library-wide citekey unification** — new command to normalize citekeys to canonical `AuthorYear` form across the whole library.
 - **OpenAlex quick lookup** — `Shift+B` opens OpenAlex for the selected entry from the footer action; search uses title first and falls back to DOI.
 
 ### Changed
+
 - **Citekey generation and normalization** — improved canonicalization and collision handling for more consistent keys.
 - **Clipboard behavior in context** — `Ctrl+C` now prefers focused text widgets (e.g., raw BibTeX view) and falls back to citekey copy when no text widget is focused.
 - **Documentation updates** — README installation/upgrade guidance and help text were updated for the new library and OpenAlex workflows.
 
 ### Fixed
+
 - **Raw-view copy usability** — copying selected text now works reliably in non-edit raw BibTeX contexts.
 - **Regression coverage expansion** — added tests for library fetch and citekey normalization/unification paths.
 
 ## [0.9.9] — 2026-02-26
 
 ### Added
+
 - **Background update check** — checks PyPI once per day on startup in a non-blocking background thread and notifies when a newer stable release is available.
 - **Update-check setting** — new Settings toggle to enable/disable startup update checks (enabled by default).
 - **Update metadata persistence** — stores last check time, last notification time, and latest seen version in config under `[updates]`.
 
 ### Changed
+
 - **PDF module consolidation** — PDF path helpers and fetch logic are now grouped under `bibtui.pdf`.
 - **Settings layout readability** — helper text is shown before each control with clearer spacing between setting groups.
 
 ### Fixed
+
 - **Theme consistency in modals** — removed hard-coded Rich color tags from Add PDF / Fetch PDF related messaging so colors follow theme tokens.
 - **Safer PDF downloads** — downloads now use atomic temp-file writes and cleanup to avoid leaving partial files.
 - **Direct URL fetch robustness** — falls back to GET when HEAD is blocked and validates PDF via content type or PDF magic bytes.
@@ -75,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.9.8] — 2026-02-24
 
 ### Added
+
 - **Auto-fetch PDF on import** — when the setting is enabled and a PDF base directory is configured, a PDF is automatically fetched after adding an entry via DOI or BibTeX paste.
 - **Jump to newly added entry** — after importing via DOI or pasting a BibTeX entry, the table cursor now scrolls to and selects the new entry.
 - **Add PDF modal preview** — the Add PDF dialog now shows a file preview before linking.
@@ -84,5 +101,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Improved onboarding** — better first-run modal and config initialisation flow.
 
 ### Fixed
+
 - `Backspace` now also triggers entry deletion (unified with `Delete`).
 - Config-related test fixed.
