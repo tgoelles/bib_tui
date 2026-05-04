@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+import bibtexparser as bibtexparser_lib
 
 import bibtui.bib.parser as parser_mod
 from bibtui.bib.models import BibEntry
@@ -513,3 +514,40 @@ def test_save_changing_field_on_entry_with_multiline_field_stays_valid(
     assert reparsed[0].read_state == "read"
     assert "First line of abstract" in out or "First line" in out
     assert "Normal title" in out
+
+
+def test_bibtexparser_field_start_line_is_absolute() -> None:
+    """Assert that bibtexparser Field.start_line is an *absolute* file-line index.
+
+    _patch_entry_block relies on: rel_line = field.start_line - entry.start_line
+    If Field.start_line were relative-to-entry this subtraction would yield
+    negative values and trigger fallback serialization for every patched entry.
+    This test pins the semantics so a bibtexparser upgrade that changes the
+    contract is caught immediately.
+    """
+    # Two entries so that the second entry's start_line is non-zero.
+    src = "@article{A,\n  title = {T},\n}\n\n@article{B,\n  year = {2023},\n  author = {Me},\n}\n"
+    lib = bibtexparser_lib.parse_string(src)
+    entries = {e.key: e for e in lib.entries}
+
+    a = entries["A"]
+    b = entries["B"]
+
+    # Entry A starts at line 0 (first line of the string).
+    assert a.start_line == 0
+
+    # Entry B starts at line 4 (blank line separates them).
+    assert b.start_line == 4
+
+    # Field.start_line values are absolute, not relative to their entry.
+    a_title = next(f for f in a.fields if f.key == "title")
+    assert a_title.start_line == 1  # absolute line 1 (second line overall)
+
+    b_year = next(f for f in b.fields if f.key == "year")
+    b_author = next(f for f in b.fields if f.key == "author")
+    assert b_year.start_line == 5    # absolute line 5
+    assert b_author.start_line == 6  # absolute line 6
+
+    # Confirm relative offset calculation used by _patch_entry_block is correct.
+    assert b_year.start_line - b.start_line == 1    # first field line in block
+    assert b_author.start_line - b.start_line == 2  # second field line in block
