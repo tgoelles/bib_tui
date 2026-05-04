@@ -463,3 +463,53 @@ def test_save_custom_raw_field_not_lost_when_other_field_changes(tmp_path) -> No
     reparsed = load(str(path))
     assert reparsed[0].read_state == "read"
     assert reparsed[0].raw_fields.get("my-custom-key") == "some custom value"
+
+
+def test_save_noop_preserves_multiline_field_bytes(tmp_path) -> None:
+    """No-op save on an entry with a multi-line field value must be byte-identical."""
+    source = """\
+@article{MultiLine2023,
+  title    = {Normal title},
+  abstract = {First line of abstract
+    and the second continuation line},
+  year     = {2023},
+}
+"""
+    path = tmp_path / "multiline_noop.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    save(entries, str(path))
+
+    assert path.read_text(encoding="utf-8") == source
+
+
+def test_save_changing_field_on_entry_with_multiline_field_stays_valid(
+    tmp_path,
+) -> None:
+    """Changing a single-line field when the entry also has a multi-line field
+    must produce valid, parseable BibTeX (fallback to full serialization is fine)."""
+    source = """\
+@article{MultiLine2023,
+  title    = {Normal title},
+  abstract = {First line of abstract
+    and the second continuation line},
+  year     = {2023},
+}
+"""
+    path = tmp_path / "multiline_change.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    entries[0].read_state = "read"
+    save(entries, str(path))
+
+    out = path.read_text(encoding="utf-8")
+
+    # Must still be parseable and contain the multi-line abstract verbatim or
+    # as a single-line re-serialization — both are acceptable.
+    reparsed = load(str(path))
+    assert reparsed[0].key == "MultiLine2023"
+    assert reparsed[0].read_state == "read"
+    assert "First line of abstract" in out or "First line" in out
+    assert "Normal title" in out
