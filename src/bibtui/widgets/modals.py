@@ -557,7 +557,7 @@ class SettingsModal(ModalScreen["Config | None"]):
             )
             yield Input(
                 value=self._config.openalex_api_key,
-                placeholder="sk-...",
+                placeholder="...",
                 id="openalex-api-key",
             )
             yield Static("")
