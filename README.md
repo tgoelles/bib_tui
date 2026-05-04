@@ -31,6 +31,13 @@ You can now start bibtui without passing a `.bib` file and select one via the bu
 
 ---
 
+## PDF fetching
+
+
+BibTui can fetch PDFs automatically on import, for individual records, or for your entire library. It uses only free and legal sources: arXiv, [Unpaywall](https://unpaywall.org), and [OpenAlex](https://openalex.org). For best results, provide an email address for Unpaywall and a free API key for OpenAlex.
+
+
+
 ## Screenshots
 
 <!-- screenshots -->
@@ -82,7 +89,7 @@ I also wanted to try out Claude Code for a project from scratch, so yes, most of
 
 - **Browse & search** — instant search across title, author, keywords, journals and cite key
 - **Import by DOI** — paste a DOI and metadata is fetched automatically
-- **Fetch PDFs automatically** — tries arXiv → Copernicus → OpenAlex (optional API key) → Unpaywall → direct URL
+- **Fetch PDFs automatically** — tries arXiv → Copernicus → OpenAlex (free tier by default; API key optional) → Unpaywall → direct URL
 - **Library-wide actions** — fetch all missing PDFs and unify citekeys to AuthorYear
 - **Add existing PDFs** — pick a file from your Downloads folder with a live filter
 - **Edit entries** — field-by-field form *or* raw BibTeX editor (toggle with `v`)
@@ -148,7 +155,7 @@ defaults for your PDF directory, Downloads folder, and Unpaywall email
 
 1. **arXiv** — for entries with a `10.48550/arXiv.*` DOI or an `arxiv.org` URL
 2. **Copernicus** — direct PDF URL construction for `10.5194/*` DOIs
-3. **OpenAlex** — optional open-access lookup by DOI (set API key in Settings)
+3. **OpenAlex** — open-access lookup by DOI/title using the free tier by default; add an API key in Settings for higher limits. If free-tier limits are hit (HTTP 429), bibtui tells you explicitly.
 4. **Unpaywall** — free open-access lookup by DOI (set your email in Settings; no account needed)
 5. **Direct URL** — if the entry's `url` field points directly to a PDF
 
