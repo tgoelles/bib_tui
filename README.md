@@ -201,7 +201,7 @@ uv run textual run --dev src/bibtui/main.py -- tests/bib_examples/MyCollection.b
 ## Related tools
 
 - [JabRef](https://www.jabref.org/) — GUI reference manager, same `.bib` format
-- [cobib](https://github.com/mrossinek/cobib) — another terminal BibTeX manager
+- [cobib](https://github.com/mrossinek/cobib) — coBib is a powerful but complex reference manager with git integration, a plugin API, and import from DOI, arXiv, ISBN, and URL — at the cost of a steeper setup and a non-.bib YAML database.
 - [bibman](https://codeberg.org/KMIJPH/bibman) — bibman is a format-agnostic, pipeline-friendly CLI/TUI that organises references as individual files in folders rather than a single .bib
 - [bibiman](https://codeberg.org/lukeflo/bibiman) - A TUI for fast and simple interacting with your BibLaTeX database. Does not have pdf fetching and importing form doi for example.
 
