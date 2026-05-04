@@ -6,11 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [0.12.3] - 2027-05-04
+## [0.12.4] - 2027-05-04
 
 ### Fixed
 
 - **bibtexparser import crash on startup** — removed a runtime type annotation reference to `bibtexparser.model.Library` in the BibTeX parser, preventing `AttributeError: module 'bibtexparser.model' has no attribute 'Library'` on environments where that symbol is absent.
+
+## [0.12.3] - 2027-05-04
+
+Error, release yanked
 
 ## [0.12.2] - 2027-05-04
 
