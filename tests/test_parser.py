@@ -414,3 +414,52 @@ def test_save_validates_changed_entry_and_falls_back_on_invalid_patch(
     reparsed = load(str(path))
     assert reparsed[0].key == "KeyA"
     assert reparsed[0].read_state == "read"
+
+
+def test_save_noop_preserves_entry_with_custom_raw_fields(tmp_path) -> None:
+    """A no-op save on an entry with custom/unknown fields must be byte-identical."""
+    source = """\
+@article{Custom2023,
+  title         = {Ice Dynamics},
+  author        = {Smith, A},
+  year          = {2023},
+  my-custom-key = {some custom value},
+  another-field = {42},
+}
+"""
+    path = tmp_path / "custom_noop.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    save(entries, str(path))
+
+    assert path.read_text(encoding="utf-8") == source
+
+
+def test_save_custom_raw_field_not_lost_when_other_field_changes(tmp_path) -> None:
+    """Changing one known field must not drop custom raw_fields from the same entry."""
+    source = """\
+@article{Custom2023,
+  title         = {Ice Dynamics},
+  author        = {Smith, A},
+  year          = {2023},
+  my-custom-key = {some custom value},
+}
+"""
+    path = tmp_path / "custom_keep.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    entries[0].read_state = "read"
+    save(entries, str(path))
+
+    out = path.read_text(encoding="utf-8")
+
+    # Custom field must still be present verbatim.
+    assert "my-custom-key = {some custom value}" in out
+    # The new field must have been added.
+    assert "readstatus" in out
+    # The result must be parseable and round-trippable.
+    reparsed = load(str(path))
+    assert reparsed[0].read_state == "read"
+    assert reparsed[0].raw_fields.get("my-custom-key") == "some custom value"

@@ -235,28 +235,29 @@ def _patch_entry_block(
     return "\n".join(result_lines)
 
 
-def _entry_signature(entry: BibEntry) -> tuple:
-    raw_items = tuple(
-        sorted((k, v) for k, v in entry.raw_fields.items() if isinstance(v, str) and v)
-    )
-    return (
-        entry.key,
-        entry.entry_type,
-        entry.title,
-        entry.author,
-        entry.year,
-        entry.journal,
-        entry.doi,
-        entry.url,
-        entry.abstract,
-        entry.keywords,
-        entry.comment,
-        entry.rating,
-        entry.read_state,
-        entry.priority,
-        entry.file,
-        raw_items,
-    )
+def _bp_field_map(bp_entry: bpmodel.Entry) -> dict[str, str]:
+    """Return a normalised ``{key_lower: value_str}`` map for all fields."""
+    return {f.key.lower(): str(f.value) for f in bp_entry.fields}
+
+
+def _entry_unchanged(block: "_SourceBlock", desired: BibEntry) -> bool:
+    """Return True when *desired* is semantically identical to the original block.
+
+    Both sides are normalised through the ``BibEntry -> bpmodel.Entry`` round-trip
+    so the comparison is driven by bibtexparser field data with no hard-coded field
+    list.  Custom / unknown fields stored in ``raw_fields`` are handled uniformly.
+    """
+    if block.parsed_entry is None or block.bp_entry is None:
+        return False
+    if block.bp_entry.key != desired.key:
+        return False
+    if block.bp_entry.entry_type.lower() != desired.entry_type.lower():
+        return False
+    # Normalise both sides through the same pipeline so brace-wrapping differences
+    # and field-casing quirks cancel out on both sides.
+    current_map = _bp_field_map(_to_bp_entry(block.parsed_entry))
+    desired_map = _bp_field_map(_to_bp_entry(desired))
+    return current_map == desired_map
 
 
 def _serialize_entry(entry: BibEntry) -> str:
@@ -477,9 +478,7 @@ def save(entries: list[BibEntry], path: str) -> None:
             continue
 
         used_keys.add(block.key)
-        if block.parsed_entry is not None and _entry_signature(
-            current
-        ) == _entry_signature(block.parsed_entry):
+        if _entry_unchanged(block, current):
             output.append(block.text)
         else:
             if block.bp_entry is not None:
