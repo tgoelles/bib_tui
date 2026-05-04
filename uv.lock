@@ -161,12 +161,13 @@ wheels = [
 
 [[package]]
 name = "bibtui"
-version = "0.12.0"
+version = "0.12.1"
 source = { editable = "." }
 dependencies = [
     { name = "bibtexparser" },
     { name = "click" },
     { name = "habanero" },
+    { name = "httpx" },
     { name = "packaging" },
     { name = "pyalex" },
     { name = "textual" },
@@ -186,6 +187,7 @@ requires-dist = [
     { name = "bibtexparser", specifier = ">=2.0.0b9" },
     { name = "click", specifier = ">=8.3.1" },
     { name = "habanero", specifier = ">=2.3.0" },
+    { name = "httpx", specifier = ">=0.27.2,<1.0" },
     { name = "packaging", specifier = ">=24.0" },
     { name = "pyalex", specifier = ">=0.21" },
     { name = "textual", specifier = ">=8.0.0" },
