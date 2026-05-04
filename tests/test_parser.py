@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+import bibtui.bib.parser as parser_mod
 from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import (
     bibtex_str_to_entry,
@@ -287,3 +288,129 @@ def test_save_appends_new_entry_without_touching_existing_text(tmp_path) -> None
 
     assert out.startswith(source)
     assert "@article{KeyC," in out
+
+
+def test_save_patches_only_changed_field(tmp_path) -> None:
+    """Changing one field on one entry must leave every other line untouched."""
+    source = """\
+@article{Alpha2001,
+  title = {Ice Cores},
+  author = {Smith, A},
+  year = {2001},
+}
+
+@article{Beta2002,
+  title = {Snow Dynamics},
+  author = {Jones, B},
+  year = {2002},
+  journal = {Nature},
+}
+"""
+    path = tmp_path / "patch_field.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    by_key = {e.key: e for e in entries}
+
+    # Change only the read_state on Alpha2001.
+    modified = by_key["Alpha2001"]
+    modified = BibEntry(
+        key=modified.key,
+        entry_type=modified.entry_type,
+        title=modified.title,
+        author=modified.author,
+        year=modified.year,
+        read_state="read",
+    )
+    save([modified, by_key["Beta2002"]], str(path))
+
+    result = path.read_text(encoding="utf-8")
+    result_lines = result.splitlines()
+    source_lines = source.splitlines()
+
+    # Beta2002 block must be byte-identical.
+    beta_src_lines = [
+        l
+        for l in source_lines
+        if "Beta2002" in l
+        or "Snow" in l
+        or "Jones" in l
+        or "2002" in l
+        or "Nature" in l
+    ]
+    for line in beta_src_lines:
+        assert line in result_lines, f"Beta2002 line lost: {line!r}"
+
+    # Alpha2001 must have a readstatus line.
+    assert any("readstatus" in l for l in result_lines), "readstatus not patched in"
+
+    # All Alpha2001 lines that were NOT added must be preserved verbatim.
+    alpha_src_lines = [
+        l
+        for l in source_lines
+        if "@article{Alpha2001" in l
+        or "Ice Cores" in l
+        or "Smith" in l
+        or "{2001}" in l
+    ]
+    for line in alpha_src_lines:
+        assert line in result_lines, f"Alpha2001 original line lost: {line!r}"
+
+
+def test_save_add_field_repairs_missing_separator_comma(tmp_path) -> None:
+    source = """\
+@article{Goelles2020,
+    title         = {Fault Detection},
+    author        = {Goelles, Thomas},
+    year          = {2020},
+    doi           = {10.3390/s20133662},
+    bdsk-url-1    = {https://doi.org/10.3390/s20133662}
+}
+"""
+    path = tmp_path / "comma_repair.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    entry = entries[0]
+    entry.read_state = "to-read"
+
+    save(entries, str(path))
+    out = path.read_text(encoding="utf-8")
+
+    assert "bdsk-url-1    = {https://doi.org/10.3390/s20133662}," in out
+    assert "readstatus = {to-read}" in out
+    assert "readstatus = {to-read},\n}" not in out
+
+    # Ensure the produced BibTeX stays parseable.
+    reparsed = load(str(path))
+    assert reparsed[0].read_state == "to-read"
+
+
+def test_save_validates_changed_entry_and_falls_back_on_invalid_patch(
+    tmp_path, monkeypatch
+) -> None:
+    source = """\
+@article{KeyA,
+  title = {Alpha},
+  year = {2020},
+}
+"""
+    path = tmp_path / "validate_changed_entry.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    entries[0].read_state = "read"
+
+    def _bad_patch(_block_text, _bp_entry, _desired):
+        return "@article{BROKEN\n"
+
+    monkeypatch.setattr(parser_mod, "_patch_entry_block", _bad_patch)
+
+    save(entries, str(path))
+    out = path.read_text(encoding="utf-8")
+
+    assert "BROKEN" not in out
+    assert "readstatus" in out
+    reparsed = load(str(path))
+    assert reparsed[0].key == "KeyA"
+    assert reparsed[0].read_state == "read"

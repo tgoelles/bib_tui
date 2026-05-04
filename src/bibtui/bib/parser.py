@@ -18,6 +18,7 @@ class _SourceBlock:
         self.text = text
         self.key = key
         self.parsed_entry = parsed_entry
+        self.bp_entry: bpmodel.Entry | None = None
 
 
 def _find_block_end(text: str, open_idx: int, open_char: str, close_char: str) -> int:
@@ -123,12 +124,115 @@ def _parse_source_blocks(
                 parsed_entry=parsed_entry,
             )
         )
+        blocks[-1].bp_entry = bp_entry
 
     # Trailing text after the last entry.
     if cursor < n:
         blocks.append(_SourceBlock(kind="text", text=text[cursor:]))
 
     return blocks
+
+
+def _detect_indent(block_text: str) -> str:
+    """Return the indentation string used for fields in *block_text*."""
+    for line in block_text.splitlines():
+        stripped = line.lstrip()
+        if stripped and not stripped.startswith("@") and "=" in stripped:
+            return line[: len(line) - len(line.lstrip())]
+    return "\t"
+
+
+def _patch_entry_block(
+    block_text: str, bp_entry: bpmodel.Entry, desired: BibEntry
+) -> str:
+    """Return *block_text* with only the changed/added/removed fields patched.
+
+    Uses bibtexparser ``Field.start_line`` (relative to the entry's own
+    ``start_line``) to locate each existing field line precisely.  All other
+    text — entry type, citekey, field casing, spacing, order — is left
+    byte-for-byte identical.  Falls back to full-entry serialization if
+    positional info is unusable.
+    """
+    entry_start_line = bp_entry.start_line
+    indent = _detect_indent(block_text)
+
+    existing: dict[str, bpmodel.Field] = {}
+    for f in bp_entry.fields:
+        existing[f.key.lower()] = f
+
+    desired_bp = _to_bp_entry(desired)
+    desired_fields: dict[str, str] = {}
+    for f in desired_bp.fields:
+        desired_fields[f.key.lower()] = str(f.value)
+
+    patched_lines = block_text.split("\n")
+    deletions: set[int] = set()
+    replacements: dict[int, str] = {}
+
+    for key_lower, field in existing.items():
+        rel_line = field.start_line - entry_start_line
+        if rel_line < 0 or rel_line >= len(patched_lines):
+            return _serialize_entry(desired)
+
+        original_line = patched_lines[rel_line]
+
+        if key_lower not in desired_fields:
+            deletions.add(rel_line)
+            continue
+
+        new_value = desired_fields[key_lower]
+        old_value = str(field.value)
+        if new_value == old_value:
+            continue
+
+        eq_idx = original_line.find("=")
+        if eq_idx == -1:
+            return _serialize_entry(desired)
+
+        key_part = original_line[:eq_idx].rstrip()
+        replacements[rel_line] = f"{key_part} = {{{new_value}}},"
+
+    result_lines = []
+    for i, line in enumerate(patched_lines):
+        if i in deletions:
+            continue
+        result_lines.append(replacements[i] if i in replacements else line)
+
+    added = {k: v for k, v in desired_fields.items() if k not in existing}
+    if added:
+        close_idx = None
+        for i in range(len(result_lines) - 1, -1, -1):
+            if result_lines[i].strip() in ("}", ")"):
+                close_idx = i
+                break
+        if close_idx is None:
+            return _serialize_entry(desired)
+
+        prev_idx = close_idx - 1
+        while prev_idx >= 0 and not result_lines[prev_idx].strip():
+            prev_idx -= 1
+
+        had_trailing_comma = True
+        if prev_idx >= 0:
+            prev_line = result_lines[prev_idx]
+            prev_trimmed = prev_line.rstrip()
+            if "=" in prev_trimmed:
+                had_trailing_comma = prev_trimmed.endswith(",")
+                if not had_trailing_comma:
+                    result_lines[prev_idx] = f"{prev_trimmed},"
+
+        added_items = list(added.items())
+        insert_lines = []
+        for idx, (k, v) in enumerate(added_items):
+            is_last = idx == len(added_items) - 1
+            suffix = "," if (had_trailing_comma or not is_last) else ""
+            insert_lines.append(f"{indent}{k} = {{{v}}}{suffix}")
+
+        result_lines = (
+            result_lines[:close_idx] + insert_lines + result_lines[close_idx:]
+        )
+
+    return "\n".join(result_lines)
 
 
 def _entry_signature(entry: BibEntry) -> tuple:
@@ -158,6 +262,18 @@ def _entry_signature(entry: BibEntry) -> tuple:
 def _serialize_entry(entry: BibEntry) -> str:
     text = entry_to_bibtex_str(entry)
     return text if text.endswith("\n") else text + "\n"
+
+
+def _validate_entry_text(entry_text: str, expected_key: str) -> bool:
+    """Return True if *entry_text* parses as exactly one entry with expected key."""
+    try:
+        text = entry_text if entry_text.endswith("\n") else entry_text + "\n"
+        lib = bibtexparser.parse_string(text)
+    except Exception:
+        return False
+    if len(lib.entries) != 1:
+        return False
+    return lib.entries[0].key == expected_key
 
 
 def _full_rewrite(entries: list[BibEntry], path: str) -> None:
@@ -366,7 +482,20 @@ def save(entries: list[BibEntry], path: str) -> None:
         ) == _entry_signature(block.parsed_entry):
             output.append(block.text)
         else:
-            output.append(_serialize_entry(current))
+            if block.bp_entry is not None:
+                candidate = _patch_entry_block(block.text, block.bp_entry, current)
+            else:
+                candidate = _serialize_entry(current)
+
+            # Validate changed blocks before writing to avoid emitting broken BibTeX.
+            if not _validate_entry_text(candidate, current.key):
+                fallback = _serialize_entry(current)
+                if not _validate_entry_text(fallback, current.key):
+                    _full_rewrite(entries, path)
+                    return
+                candidate = fallback
+
+            output.append(candidate)
 
     new_entries = [entry for entry in entries if entry.key not in used_keys]
     if new_entries:
