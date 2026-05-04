@@ -3,7 +3,9 @@
 from pathlib import Path
 
 import pytest
+import bibtexparser as bibtexparser_lib
 
+import bibtui.bib.parser as parser_mod
 from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import (
     bibtex_str_to_entry,
@@ -194,3 +196,358 @@ def test_save_load_preserves_all_fields(tmp_path) -> None:
     assert recovered.priority == original.priority
     assert recovered.file == original.file
     assert recovered.keywords_list == original.keywords_list
+
+
+def test_save_noop_preserves_mycollection_bytes(tmp_path) -> None:
+    dst = tmp_path / "mycollection_copy.bib"
+    original_text = MY_COLLECTION.read_text(encoding="utf-8")
+    dst.write_text(original_text, encoding="utf-8")
+
+    entries = load(str(dst))
+    save(entries, str(dst))
+
+    assert dst.read_text(encoding="utf-8") == original_text
+
+
+def test_save_noop_preserves_ex1_bytes(tmp_path) -> None:
+    src = EX1_BIB
+    dst = tmp_path / "ex1_copy.bib"
+    original_text = src.read_text(encoding="utf-8")
+    dst.write_text(original_text, encoding="utf-8")
+
+    entries = load(str(dst))
+    save(entries, str(dst))
+
+    assert dst.read_text(encoding="utf-8") == original_text
+
+
+def test_save_rewrites_only_changed_entry_block(tmp_path) -> None:
+    source = """% keep this header exactly
+@ARTICLE{KeyA,
+    AUTHOR = {Doe, Jane},
+    TITLE = {Old Title},
+    YEAR = {2020},
+}
+
+% keep this separator exactly
+@ARTICLE{KeyB,
+    AUTHOR = {Roe, John},
+    TITLE = {Second Title},
+    YEAR = {2021},
+}
+"""
+    path = tmp_path / "minimal_patch.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    for e in entries:
+        if e.key == "KeyA":
+            e.title = "New Title"
+
+    save(entries, str(path))
+    out = path.read_text(encoding="utf-8")
+
+    # Header and untouched second entry remain byte-identical.
+    assert "% keep this header exactly\n" in out
+    untouched_block = """@ARTICLE{KeyB,
+    AUTHOR = {Roe, John},
+    TITLE = {Second Title},
+    YEAR = {2021},
+}
+"""
+    assert untouched_block in out
+
+    # Changed entry gets rewritten with new content.
+    assert "New Title" in out
+    assert "Old Title" not in out
+
+
+def test_save_appends_new_entry_without_touching_existing_text(tmp_path) -> None:
+    source = """% preserve this whole prefix
+@ARTICLE{KeyA,
+  AUTHOR = {Doe, Jane},
+  TITLE = {Only Title},
+  YEAR = {2020},
+}
+"""
+    path = tmp_path / "append_only.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    entries.append(
+        BibEntry(
+            key="KeyC",
+            entry_type="article",
+            title="Appended",
+            author="New, Author",
+            year="2022",
+        )
+    )
+
+    save(entries, str(path))
+    out = path.read_text(encoding="utf-8")
+
+    assert out.startswith(source)
+    assert "@article{KeyC," in out
+
+
+def test_save_patches_only_changed_field(tmp_path) -> None:
+    """Changing one field on one entry must leave every other line untouched."""
+    source = """\
+@article{Alpha2001,
+  title = {Ice Cores},
+  author = {Smith, A},
+  year = {2001},
+}
+
+@article{Beta2002,
+  title = {Snow Dynamics},
+  author = {Jones, B},
+  year = {2002},
+  journal = {Nature},
+}
+"""
+    path = tmp_path / "patch_field.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    by_key = {e.key: e for e in entries}
+
+    # Change only the read_state on Alpha2001.
+    modified = by_key["Alpha2001"]
+    modified = BibEntry(
+        key=modified.key,
+        entry_type=modified.entry_type,
+        title=modified.title,
+        author=modified.author,
+        year=modified.year,
+        read_state="read",
+    )
+    save([modified, by_key["Beta2002"]], str(path))
+
+    result = path.read_text(encoding="utf-8")
+    result_lines = result.splitlines()
+    source_lines = source.splitlines()
+
+    # Beta2002 block must be byte-identical.
+    beta_src_lines = [
+        l
+        for l in source_lines
+        if "Beta2002" in l
+        or "Snow" in l
+        or "Jones" in l
+        or "2002" in l
+        or "Nature" in l
+    ]
+    for line in beta_src_lines:
+        assert line in result_lines, f"Beta2002 line lost: {line!r}"
+
+    # Alpha2001 must have a readstatus line.
+    assert any("readstatus" in l for l in result_lines), "readstatus not patched in"
+
+    # All Alpha2001 lines that were NOT added must be preserved verbatim.
+    alpha_src_lines = [
+        l
+        for l in source_lines
+        if "@article{Alpha2001" in l
+        or "Ice Cores" in l
+        or "Smith" in l
+        or "{2001}" in l
+    ]
+    for line in alpha_src_lines:
+        assert line in result_lines, f"Alpha2001 original line lost: {line!r}"
+
+
+def test_save_add_field_repairs_missing_separator_comma(tmp_path) -> None:
+    source = """\
+@article{Goelles2020,
+    title         = {Fault Detection},
+    author        = {Goelles, Thomas},
+    year          = {2020},
+    doi           = {10.3390/s20133662},
+    bdsk-url-1    = {https://doi.org/10.3390/s20133662}
+}
+"""
+    path = tmp_path / "comma_repair.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    entry = entries[0]
+    entry.read_state = "to-read"
+
+    save(entries, str(path))
+    out = path.read_text(encoding="utf-8")
+
+    assert "bdsk-url-1    = {https://doi.org/10.3390/s20133662}," in out
+    assert "readstatus = {to-read}" in out
+    assert "readstatus = {to-read},\n}" not in out
+
+    # Ensure the produced BibTeX stays parseable.
+    reparsed = load(str(path))
+    assert reparsed[0].read_state == "to-read"
+
+
+def test_save_validates_changed_entry_and_falls_back_on_invalid_patch(
+    tmp_path, monkeypatch
+) -> None:
+    source = """\
+@article{KeyA,
+  title = {Alpha},
+  year = {2020},
+}
+"""
+    path = tmp_path / "validate_changed_entry.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    entries[0].read_state = "read"
+
+    def _bad_patch(_block_text, _bp_entry, _desired):
+        return "@article{BROKEN\n"
+
+    monkeypatch.setattr(parser_mod, "_patch_entry_block", _bad_patch)
+
+    save(entries, str(path))
+    out = path.read_text(encoding="utf-8")
+
+    assert "BROKEN" not in out
+    assert "readstatus" in out
+    reparsed = load(str(path))
+    assert reparsed[0].key == "KeyA"
+    assert reparsed[0].read_state == "read"
+
+
+def test_save_noop_preserves_entry_with_custom_raw_fields(tmp_path) -> None:
+    """A no-op save on an entry with custom/unknown fields must be byte-identical."""
+    source = """\
+@article{Custom2023,
+  title         = {Ice Dynamics},
+  author        = {Smith, A},
+  year          = {2023},
+  my-custom-key = {some custom value},
+  another-field = {42},
+}
+"""
+    path = tmp_path / "custom_noop.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    save(entries, str(path))
+
+    assert path.read_text(encoding="utf-8") == source
+
+
+def test_save_custom_raw_field_not_lost_when_other_field_changes(tmp_path) -> None:
+    """Changing one known field must not drop custom raw_fields from the same entry."""
+    source = """\
+@article{Custom2023,
+  title         = {Ice Dynamics},
+  author        = {Smith, A},
+  year          = {2023},
+  my-custom-key = {some custom value},
+}
+"""
+    path = tmp_path / "custom_keep.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    entries[0].read_state = "read"
+    save(entries, str(path))
+
+    out = path.read_text(encoding="utf-8")
+
+    # Custom field must still be present verbatim.
+    assert "my-custom-key = {some custom value}" in out
+    # The new field must have been added.
+    assert "readstatus" in out
+    # The result must be parseable and round-trippable.
+    reparsed = load(str(path))
+    assert reparsed[0].read_state == "read"
+    assert reparsed[0].raw_fields.get("my-custom-key") == "some custom value"
+
+
+def test_save_noop_preserves_multiline_field_bytes(tmp_path) -> None:
+    """No-op save on an entry with a multi-line field value must be byte-identical."""
+    source = """\
+@article{MultiLine2023,
+  title    = {Normal title},
+  abstract = {First line of abstract
+    and the second continuation line},
+  year     = {2023},
+}
+"""
+    path = tmp_path / "multiline_noop.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    save(entries, str(path))
+
+    assert path.read_text(encoding="utf-8") == source
+
+
+def test_save_changing_field_on_entry_with_multiline_field_stays_valid(
+    tmp_path,
+) -> None:
+    """Changing a single-line field when the entry also has a multi-line field
+    must produce valid, parseable BibTeX (fallback to full serialization is fine)."""
+    source = """\
+@article{MultiLine2023,
+  title    = {Normal title},
+  abstract = {First line of abstract
+    and the second continuation line},
+  year     = {2023},
+}
+"""
+    path = tmp_path / "multiline_change.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    entries[0].read_state = "read"
+    save(entries, str(path))
+
+    out = path.read_text(encoding="utf-8")
+
+    # Must still be parseable and contain the multi-line abstract verbatim or
+    # as a single-line re-serialization — both are acceptable.
+    reparsed = load(str(path))
+    assert reparsed[0].key == "MultiLine2023"
+    assert reparsed[0].read_state == "read"
+    assert "First line of abstract" in out or "First line" in out
+    assert "Normal title" in out
+
+
+def test_bibtexparser_field_start_line_is_absolute() -> None:
+    """Assert that bibtexparser Field.start_line is an *absolute* file-line index.
+
+    _patch_entry_block relies on: rel_line = field.start_line - entry.start_line
+    If Field.start_line were relative-to-entry this subtraction would yield
+    negative values and trigger fallback serialization for every patched entry.
+    This test pins the semantics so a bibtexparser upgrade that changes the
+    contract is caught immediately.
+    """
+    # Two entries so that the second entry's start_line is non-zero.
+    src = "@article{A,\n  title = {T},\n}\n\n@article{B,\n  year = {2023},\n  author = {Me},\n}\n"
+    lib = bibtexparser_lib.parse_string(src)
+    entries = {e.key: e for e in lib.entries}
+
+    a = entries["A"]
+    b = entries["B"]
+
+    # Entry A starts at line 0 (first line of the string).
+    assert a.start_line == 0
+
+    # Entry B starts at line 4 (blank line separates them).
+    assert b.start_line == 4
+
+    # Field.start_line values are absolute, not relative to their entry.
+    a_title = next(f for f in a.fields if f.key == "title")
+    assert a_title.start_line == 1  # absolute line 1 (second line overall)
+
+    b_year = next(f for f in b.fields if f.key == "year")
+    b_author = next(f for f in b.fields if f.key == "author")
+    assert b_year.start_line == 5    # absolute line 5
+    assert b_author.start_line == 6  # absolute line 6
+
+    # Confirm relative offset calculation used by _patch_entry_block is correct.
+    assert b_year.start_line - b.start_line == 1    # first field line in block
+    assert b_author.start_line - b.start_line == 2  # second field line in block

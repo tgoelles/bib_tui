@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BibTeX save strategy** — saving now preserves untouched source text and applies minimal diffs instead of rewriting the whole file.
+- **Entry update granularity** — changed entries are now patched at field level so unchanged fields in the same entry stay byte-identical whenever possible.
+- **Change detection** — entry change detection now uses bibtexparser-derived field maps instead of a hard-coded field tuple; custom / unknown fields in `raw_fields` are handled uniformly without any special-casing.
+
 ### Fixed
 
 - **From DOI import compatibility** — pinned `httpx` to `<1.0` to avoid runtime breakage with `habanero` when pre-release `httpx 1.0` variants are installed (`get() got an unexpected keyword argument 'params'`).
+- **Field insertion comma handling** — adding a new field now repairs a missing separator comma on the previous field line and preserves no-trailing-comma style where applicable.
+- **Changed-entry save safety** — each modified entry block is validated with bibtexparser before write; invalid patched output now falls back to safe serialization and then full rewrite if needed.
 
 ## [0.12.0] - 2027-05-02
 

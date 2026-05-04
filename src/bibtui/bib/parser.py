@@ -1,7 +1,288 @@
+from pathlib import Path
+
 import bibtexparser
 from bibtexparser import model as bpmodel
 
 from .models import READ_STATES, BibEntry
+
+
+class _SourceBlock:
+    def __init__(
+        self,
+        kind: str,
+        text: str,
+        key: str | None = None,
+        parsed_entry: BibEntry | None = None,
+    ) -> None:
+        self.kind = kind
+        self.text = text
+        self.key = key
+        self.parsed_entry = parsed_entry
+        self.bp_entry: bpmodel.Entry | None = None
+
+
+def _find_block_end(text: str, open_idx: int, open_char: str, close_char: str) -> int:
+    """Find the closing delimiter of a BibTeX block, tracking brace/paren depth.
+
+    In BibTeX syntax every ``{`` and ``}`` is structural regardless of a
+    preceding backslash, so no escape-skipping is performed here.
+    """
+    depth = 0
+    for i in range(open_idx, len(text)):
+        ch = text[i]
+        if ch == open_char:
+            depth += 1
+        elif ch == close_char:
+            depth -= 1
+            if depth == 0:
+                return i + 1
+    return -1
+
+
+def _build_line_offsets(text: str) -> list[int]:
+    """Return a list where index *i* is the byte offset of line *i* (0-indexed)."""
+    offsets: list[int] = []
+    pos = 0
+    for line in text.split("\n"):
+        offsets.append(pos)
+        pos += len(line) + 1  # +1 for the '\n'
+    return offsets
+
+
+def _parse_source_blocks(
+    text: str, src_lib: bpmodel.Library | None = None
+) -> list[_SourceBlock]:
+    """Decompose *text* into _SourceBlock objects.
+
+    Entry positions are anchored via bibtexparser's ``start_line`` attribute
+    so that every ``@TYPE{...}`` block is located accurately even when field
+    values contain ``@`` characters, unbalanced LaTeX constructs, or unusual
+    whitespace.  Non-entry content (comments, whitespace, preambles, strings)
+    between entries is preserved verbatim as ``kind='text'`` blocks.
+    """
+    if src_lib is None:
+        try:
+            src_lib = bibtexparser.parse_string(text)
+        except Exception:
+            return []
+
+    if not src_lib.entries:
+        return []
+
+    line_offsets = _build_line_offsets(text)
+    n = len(text)
+
+    # Only Entry blocks have byte-accurate start_line; sort by position.
+    sorted_entries = sorted(src_lib.entries, key=lambda e: e.start_line)
+
+    blocks: list[_SourceBlock] = []
+    cursor = 0
+
+    for bp_entry in sorted_entries:
+        start = line_offsets[bp_entry.start_line]
+
+        # Emit text (comments, whitespace, etc.) before this entry.
+        if start > cursor:
+            blocks.append(_SourceBlock(kind="text", text=text[cursor:start]))
+
+        # Locate the opening delimiter of the entry body (skip @TYPE_NAME).
+        j = start + 1  # skip '@'
+        while j < n and text[j].isalpha():
+            j += 1
+        while j < n and text[j].isspace():
+            j += 1
+
+        if j >= n or text[j] not in "{(":
+            # Unexpected format — emit remainder as text and stop.
+            blocks.append(_SourceBlock(kind="text", text=text[start:]))
+            cursor = n
+            break
+
+        open_char = text[j]
+        close_char = "}" if open_char == "{" else ")"
+        end = _find_block_end(text, j, open_char, close_char)
+
+        if end < 0:
+            blocks.append(_SourceBlock(kind="text", text=text[start:]))
+            cursor = n
+            break
+
+        block_text = text[start:end]
+        cursor = end
+
+        parsed_entry: BibEntry | None = None
+        try:
+            parsed_entry = _to_bib_entry(bp_entry)
+        except Exception:
+            parsed_entry = None
+
+        blocks.append(
+            _SourceBlock(
+                kind="entry",
+                text=block_text,
+                key=bp_entry.key,
+                parsed_entry=parsed_entry,
+            )
+        )
+        blocks[-1].bp_entry = bp_entry
+
+    # Trailing text after the last entry.
+    if cursor < n:
+        blocks.append(_SourceBlock(kind="text", text=text[cursor:]))
+
+    return blocks
+
+
+def _detect_indent(block_text: str) -> str:
+    """Return the indentation string used for fields in *block_text*."""
+    for line in block_text.splitlines():
+        stripped = line.lstrip()
+        if stripped and not stripped.startswith("@") and "=" in stripped:
+            return line[: len(line) - len(line.lstrip())]
+    return "\t"
+
+
+def _patch_entry_block(
+    block_text: str, bp_entry: bpmodel.Entry, desired: BibEntry
+) -> str:
+    """Return *block_text* with only the changed/added/removed fields patched.
+
+    Uses bibtexparser ``Field.start_line`` (absolute file line, 0-indexed)
+    minus ``Entry.start_line`` to get the field's line offset within
+    *block_text*.  All other
+    text — entry type, citekey, field casing, spacing, order — is left
+    byte-for-byte identical.  Falls back to full-entry serialization if
+    positional info is unusable.
+    """
+    entry_start_line = bp_entry.start_line
+    indent = _detect_indent(block_text)
+
+    existing: dict[str, bpmodel.Field] = {}
+    for f in bp_entry.fields:
+        existing[f.key.lower()] = f
+
+    desired_bp = _to_bp_entry(desired)
+    desired_fields: dict[str, str] = {}
+    for f in desired_bp.fields:
+        desired_fields[f.key.lower()] = str(f.value)
+
+    patched_lines = block_text.split("\n")
+    deletions: set[int] = set()
+    replacements: dict[int, str] = {}
+
+    for key_lower, field in existing.items():
+        rel_line = field.start_line - entry_start_line
+        if rel_line < 0 or rel_line >= len(patched_lines):
+            return _serialize_entry(desired)
+
+        original_line = patched_lines[rel_line]
+
+        if key_lower not in desired_fields:
+            deletions.add(rel_line)
+            continue
+
+        new_value = desired_fields[key_lower]
+        old_value = str(field.value)
+        if new_value == old_value:
+            continue
+
+        eq_idx = original_line.find("=")
+        if eq_idx == -1:
+            return _serialize_entry(desired)
+
+        key_part = original_line[:eq_idx].rstrip()
+        replacements[rel_line] = f"{key_part} = {{{new_value}}},"
+
+    result_lines = []
+    for i, line in enumerate(patched_lines):
+        if i in deletions:
+            continue
+        result_lines.append(replacements[i] if i in replacements else line)
+
+    added = {k: v for k, v in desired_fields.items() if k not in existing}
+    if added:
+        close_idx = None
+        for i in range(len(result_lines) - 1, -1, -1):
+            if result_lines[i].strip() in ("}", ")"):
+                close_idx = i
+                break
+        if close_idx is None:
+            return _serialize_entry(desired)
+
+        prev_idx = close_idx - 1
+        while prev_idx >= 0 and not result_lines[prev_idx].strip():
+            prev_idx -= 1
+
+        had_trailing_comma = True
+        if prev_idx >= 0:
+            prev_line = result_lines[prev_idx]
+            prev_trimmed = prev_line.rstrip()
+            if "=" in prev_trimmed:
+                had_trailing_comma = prev_trimmed.endswith(",")
+                if not had_trailing_comma:
+                    result_lines[prev_idx] = f"{prev_trimmed},"
+
+        added_items = list(added.items())
+        insert_lines = []
+        for idx, (k, v) in enumerate(added_items):
+            is_last = idx == len(added_items) - 1
+            suffix = "," if (had_trailing_comma or not is_last) else ""
+            insert_lines.append(f"{indent}{k} = {{{v}}}{suffix}")
+
+        result_lines = (
+            result_lines[:close_idx] + insert_lines + result_lines[close_idx:]
+        )
+
+    return "\n".join(result_lines)
+
+
+def _bp_field_map(bp_entry: bpmodel.Entry) -> dict[str, str]:
+    """Return a normalised ``{key_lower: value_str}`` map for all fields."""
+    return {f.key.lower(): str(f.value) for f in bp_entry.fields}
+
+
+def _entry_unchanged(block: "_SourceBlock", desired: BibEntry) -> bool:
+    """Return True when *desired* is semantically identical to the original block.
+
+    Both sides are normalised through the ``BibEntry -> bpmodel.Entry`` round-trip
+    so the comparison is driven by bibtexparser field data with no hard-coded field
+    list.  Custom / unknown fields stored in ``raw_fields`` are handled uniformly.
+    """
+    if block.parsed_entry is None or block.bp_entry is None:
+        return False
+    if block.bp_entry.key != desired.key:
+        return False
+    if block.bp_entry.entry_type.lower() != desired.entry_type.lower():
+        return False
+    # Normalise both sides through the same pipeline so brace-wrapping differences
+    # and field-casing quirks cancel out on both sides.
+    current_map = _bp_field_map(_to_bp_entry(block.parsed_entry))
+    desired_map = _bp_field_map(_to_bp_entry(desired))
+    return current_map == desired_map
+
+
+def _serialize_entry(entry: BibEntry) -> str:
+    text = entry_to_bibtex_str(entry)
+    return text if text.endswith("\n") else text + "\n"
+
+
+def _validate_entry_text(entry_text: str, expected_key: str) -> bool:
+    """Return True if *entry_text* parses as exactly one entry with expected key."""
+    try:
+        text = entry_text if entry_text.endswith("\n") else entry_text + "\n"
+        lib = bibtexparser.parse_string(text)
+    except Exception:
+        return False
+    if len(lib.entries) != 1:
+        return False
+    return lib.entries[0].key == expected_key
+
+
+def _full_rewrite(entries: list[BibEntry], path: str) -> None:
+    lib = bibtexparser.Library()
+    for entry in entries:
+        lib.add(_to_bp_entry(entry))
+    bibtexparser.write_file(path, lib)
 
 
 def _field_str(entry: bpmodel.Entry, key: str) -> str:
@@ -153,7 +434,81 @@ def load(path: str) -> list[BibEntry]:
 
 
 def save(entries: list[BibEntry], path: str) -> None:
-    lib = bibtexparser.Library()
+    path_obj = Path(path)
+    try:
+        original_text = path_obj.read_text(encoding="utf-8")
+    except OSError:
+        _full_rewrite(entries, path)
+        return
+
+    try:
+        source_lib = bibtexparser.parse_string(original_text)
+    except Exception:
+        _full_rewrite(entries, path)
+        return
+
+    source_keys = [e.key for e in source_lib.entries]
+    if len(source_keys) != len(set(source_keys)):
+        # Duplicate keys: cannot safely patch incrementally.
+        _full_rewrite(entries, path)
+        return
+
+    blocks = _parse_source_blocks(original_text, src_lib=source_lib)
+    if not any(block.kind == "entry" for block in blocks):
+        _full_rewrite(entries, path)
+        return
+
+    current_by_key: dict[str, BibEntry] = {}
     for entry in entries:
-        lib.add(_to_bp_entry(entry))
-    bibtexparser.write_file(path, lib)
+        if entry.key in current_by_key:
+            _full_rewrite(entries, path)
+            return
+        current_by_key[entry.key] = entry
+
+    output: list[str] = []
+    used_keys: set[str] = set()
+
+    for block in blocks:
+        if block.kind != "entry" or block.key is None:
+            output.append(block.text)
+            continue
+
+        current = current_by_key.get(block.key)
+        if current is None:
+            # Entry was deleted: drop just this block, keep surrounding text untouched.
+            continue
+
+        used_keys.add(block.key)
+        if _entry_unchanged(block, current):
+            output.append(block.text)
+        else:
+            if block.bp_entry is not None:
+                candidate = _patch_entry_block(block.text, block.bp_entry, current)
+            else:
+                candidate = _serialize_entry(current)
+
+            # Validate changed blocks before writing to avoid emitting broken BibTeX.
+            if not _validate_entry_text(candidate, current.key):
+                fallback = _serialize_entry(current)
+                if not _validate_entry_text(fallback, current.key):
+                    _full_rewrite(entries, path)
+                    return
+                candidate = fallback
+
+            output.append(candidate)
+
+    new_entries = [entry for entry in entries if entry.key not in used_keys]
+    if new_entries:
+        existing = "".join(output)
+        if existing and not existing.endswith("\n"):
+            output.append("\n")
+        if existing and not existing.endswith("\n\n"):
+            output.append("\n")
+        output.append(
+            "\n\n".join(_serialize_entry(e).rstrip("\n") for e in new_entries)
+        )
+        output.append("\n")
+
+    rewritten = "".join(output)
+    if rewritten != original_text:
+        path_obj.write_text(rewritten, encoding="utf-8")
