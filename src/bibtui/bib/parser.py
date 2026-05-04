@@ -50,7 +50,7 @@ def _build_line_offsets(text: str) -> list[int]:
 
 
 def _parse_source_blocks(
-    text: str, src_lib: bpmodel.Library | None = None
+    text: str, src_lib: object | None = None
 ) -> list[_SourceBlock]:
     """Decompose *text* into _SourceBlock objects.
 
