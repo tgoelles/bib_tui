@@ -147,8 +147,9 @@ def _patch_entry_block(
 ) -> str:
     """Return *block_text* with only the changed/added/removed fields patched.
 
-    Uses bibtexparser ``Field.start_line`` (relative to the entry's own
-    ``start_line``) to locate each existing field line precisely.  All other
+    Uses bibtexparser ``Field.start_line`` (absolute file line, 0-indexed)
+    minus ``Entry.start_line`` to get the field's line offset within
+    *block_text*.  All other
     text — entry type, citekey, field casing, spacing, order — is left
     byte-for-byte identical.  Falls back to full-entry serialization if
     positional info is unusable.
