@@ -1340,9 +1340,9 @@ class BatchFetchPDFModal(ModalScreen["dict | None"]):
                 f"[{index}/{total}] {entry.key}",
             )
 
-            if not entry.doi and not entry.url:
+            if not entry.doi and not entry.url and not entry.title:
                 skipped += 1
-                failures.append(f"{entry.key}: no DOI or URL")
+                failures.append(f"{entry.key}: no DOI, URL, or title")
                 continue
 
             try:

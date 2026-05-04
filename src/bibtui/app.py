@@ -518,9 +518,9 @@ class BibTuiApp(App):
         if entry is None:
             self.notify("No entry selected.", severity="warning")
             return
-        if not entry.doi and not entry.url:
+        if not entry.doi and not entry.url and not entry.title:
             self.notify(
-                "Entry has no DOI or URL — cannot fetch PDF.",
+                "Entry has no DOI, URL, or title — cannot fetch PDF.",
                 severity="warning",
             )
             return
