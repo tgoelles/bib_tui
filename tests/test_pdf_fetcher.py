@@ -17,10 +17,12 @@ from bibtui.bib.models import BibEntry
 from bibtui.pdf import fetcher as pdf_fetcher
 from bibtui.pdf.fetcher import (
     FetchError,
+    FetchResult,
     _arxiv_id,
     _copernicus_pdf_url,
     _try_copernicus,
     _try_direct_url,
+    _try_openalex,
     _try_unpaywall,
     fetch_pdf,
     pdf_filename,
@@ -39,6 +41,15 @@ def unpaywall_email() -> str:
     if not email:
         pytest.skip("No unpaywall_email set in ~/.config/bib_tui/config.toml")
     return email
+
+
+@pytest.fixture(scope="session")
+def openalex_api_key() -> str:
+    """Load the OpenAlex API key from the real config file."""
+    api_key = load_config().openalex_api_key
+    if not api_key:
+        pytest.skip("No openalex_api_key set in ~/.config/bib_tui/config.toml")
+    return api_key
 
 
 @pytest.fixture()
@@ -197,6 +208,7 @@ def test_try_copernicus_no_doi(tmp_path) -> None:
 def test_try_copernicus_non_copernicus_doi(tmp_path) -> None:
     e = BibEntry(key="x", entry_type="article", doi="10.1038/s41586-020-1")
     reason = _try_copernicus(e, str(tmp_path / "x.pdf"))
+    assert reason is not None
     assert "not a recognised Copernicus DOI" in reason
 
 
@@ -243,6 +255,302 @@ def test_try_direct_url_rejects_non_pdf_content_type(monkeypatch, tmp_path):
     reason = _try_direct_url(entry, dest)
     assert reason is not None
     assert "does not serve a PDF" in reason
+
+
+def test_try_openalex_requires_doi(tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article")
+    reason = _try_openalex(e, str(tmp_path / "x.pdf"), api_key="abc")
+    assert reason == "entry has no DOI or title"
+
+
+def test_try_openalex_requires_api_key(tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article", doi="10.5194/tc-18-3807-2024")
+    reason = _try_openalex(e, str(tmp_path / "x.pdf"), api_key="")
+    assert reason == "no API key configured in Settings"
+
+
+def test_try_openalex_uses_best_pdf_url(monkeypatch, tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article", doi="10.5194/tc-18-3807-2024")
+    dest = str(tmp_path / "x.pdf")
+    called: list[tuple[bytes, str]] = []
+
+    class FakePDF:
+        def get(self):
+            return b"%PDF-1.4 fake"
+
+    class FakeWorks:
+        def __init__(self) -> None:
+            self.filtered = None
+
+        def filter(self, **kwargs):
+            self.filtered = kwargs
+            return self
+
+        def get(self, per_page=None):
+            return [
+                {
+                    "id": "https://openalex.org/W123",
+                    "best_oa_location": {"pdf_url": "https://example.org/best.pdf"},
+                    "open_access": {"oa_url": "https://example.org/oa.pdf"},
+                    "locations": [{"pdf_url": "https://example.org/loc.pdf"}],
+                }
+            ]
+
+        def __getitem__(self, work_id):
+            assert work_id == "W123"
+            return type("FakeWork", (), {"pdf": FakePDF()})()
+
+    fake_works = FakeWorks()
+
+    def fake_write_pdf_bytes(pdf_bytes: bytes, dest_path: str) -> None:
+        called.append((pdf_bytes, dest_path))
+
+    monkeypatch.setattr(pdf_fetcher.pyalex, "Works", lambda: fake_works)
+    monkeypatch.setattr(pdf_fetcher, "_write_pdf_bytes", fake_write_pdf_bytes)
+
+    reason = _try_openalex(e, dest, api_key="test-key")
+    assert reason is None
+    assert fake_works.filtered == {"doi": "https://doi.org/10.5194/tc-18-3807-2024"}
+    assert called == [(b"%PDF-1.4 fake", dest)]
+
+
+def test_try_openalex_uses_title_search_when_no_doi(monkeypatch, tmp_path) -> None:
+    e = BibEntry(
+        key="Ritz2001",
+        entry_type="article",
+        title=(
+            "Modeling the evolution of Antarctic ice sheet over the last "
+            "420,000 years: Implications for altitude changes in the Vostok region"
+        ),
+    )
+    dest = str(tmp_path / "Ritz2001.pdf")
+    calls: list[tuple[str, str]] = []
+
+    class FakePDF:
+        def get(self):
+            return b"%PDF-1.4 title-search"
+
+    class FakeWorks:
+        def filter(self, **kwargs):
+            calls.append(("filter", str(kwargs)))
+            return self
+
+        def search(self, query):
+            calls.append(("search", query))
+            return self
+
+        def get(self, per_page=None):
+            return [{"id": "https://openalex.org/W2046172844"}]
+
+        def __getitem__(self, work_id):
+            assert work_id == "W2046172844"
+            return type("FakeWork", (), {"pdf": FakePDF()})()
+
+    monkeypatch.setattr(pdf_fetcher.pyalex, "Works", lambda: FakeWorks())
+
+    reason = _try_openalex(e, dest, api_key="test-key")
+    assert reason is None
+    # No DOI present, so it should use title fallback query.
+    assert any(c[0] == "search" for c in calls)
+
+
+def test_try_openalex_prefers_doi_before_title(monkeypatch, tmp_path) -> None:
+    e = BibEntry(
+        key="x",
+        entry_type="article",
+        doi="10.5194/tc-18-3807-2024",
+        title="Some title",
+    )
+    dest = str(tmp_path / "x.pdf")
+    calls: list[tuple[str, str]] = []
+
+    class FakePDF:
+        def get(self):
+            return b"%PDF-1.4 doi-first"
+
+    class FakeWorks:
+        def filter(self, **kwargs):
+            calls.append(("filter", str(kwargs)))
+            return self
+
+        def search(self, query):
+            calls.append(("search", query))
+            return self
+
+        def get(self, per_page=None):
+            return [{"id": "https://openalex.org/W123"}]
+
+        def __getitem__(self, work_id):
+            assert work_id == "W123"
+            return type("FakeWork", (), {"pdf": FakePDF()})()
+
+    monkeypatch.setattr(pdf_fetcher.pyalex, "Works", lambda: FakeWorks())
+
+    reason = _try_openalex(e, dest, api_key="test-key")
+    assert reason is None
+    assert calls[0][0] == "filter"
+    assert all(c[0] != "search" for c in calls)
+
+
+def test_try_openalex_uses_content_pdf_for_joughin2008(monkeypatch, tmp_path) -> None:
+    e = BibEntry(
+        key="Joughin2008",
+        entry_type="article",
+        title=(
+            "Ice-front variation and tidewater behavior on Helheim and "
+            "Kangerdlugssuaq Glaciers, Greenland"
+        ),
+        doi="10.1029/2007JF000837",
+    )
+    dest = str(tmp_path / "Joughin2008.pdf")
+    called: list[tuple[bytes, str]] = []
+
+    class FakePDF:
+        def get(self):
+            return b"%PDF-1.7 openalex"
+
+    class FakeWorks:
+        def filter(self, **_kwargs):
+            return self
+
+        def get(self, per_page=None):
+            return [
+                {
+                    "id": "https://openalex.org/W2012092742",
+                    "content_urls": {
+                        "pdf": "https://content.openalex.org/works/W2012092742.pdf"
+                    },
+                    "best_oa_location": {
+                        "pdf_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1029/2007JF000837"
+                    },
+                    "open_access": {
+                        "oa_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1029/2007JF000837"
+                    },
+                    "locations": [
+                        {
+                            "pdf_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1029/2007JF000837"
+                        }
+                    ],
+                }
+            ]
+
+        def __getitem__(self, work_id):
+            assert work_id == "W2012092742"
+            return type("FakeWork", (), {"pdf": FakePDF()})()
+
+    def fake_write_pdf_bytes(pdf_bytes: bytes, dest_path: str) -> None:
+        called.append((pdf_bytes, dest_path))
+
+    monkeypatch.setattr(pdf_fetcher.pyalex, "Works", lambda: FakeWorks())
+    monkeypatch.setattr(pdf_fetcher, "_write_pdf_bytes", fake_write_pdf_bytes)
+
+    reason = _try_openalex(e, dest, api_key="test-key")
+    assert reason is None
+    assert called == [(b"%PDF-1.7 openalex", dest)]
+
+
+def test_try_openalex_falls_back_from_blocked_publisher_pdf_to_content_pdf(
+    monkeypatch, tmp_path
+) -> None:
+    e = BibEntry(key="Joughin2008", entry_type="article", doi="10.1029/2007JF000837")
+    dest = str(tmp_path / "Joughin2008.pdf")
+    called: list[str] = []
+
+    class FakeWorks:
+        def filter(self, **_kwargs):
+            return self
+
+        def get(self, per_page=None):
+            return [
+                {
+                    "id": "https://openalex.org/W2012092742",
+                    "best_oa_location": {
+                        "pdf_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1029/2007JF000837"
+                    },
+                    "content_urls": {
+                        "pdf": "https://content.openalex.org/works/W2012092742.pdf"
+                    },
+                }
+            ]
+
+        def __getitem__(self, work_id):
+            assert work_id == "W2012092742"
+            raise RuntimeError("pdf api unavailable")
+
+    def fake_download(url: str, dest_path: str, timeout: int = 30) -> None:
+        called.append(url)
+        if "wiley.com" in url:
+            raise FetchError("URL did not return a PDF")
+
+    monkeypatch.setattr(pdf_fetcher.pyalex, "Works", lambda: FakeWorks())
+    monkeypatch.setattr(pdf_fetcher, "_download", fake_download)
+
+    reason = _try_openalex(e, dest, api_key="test-key")
+    assert reason is None
+    assert called == ["https://content.openalex.org/works/W2012092742.pdf"]
+
+
+def test_fetch_pdf_uses_openalex_before_unpaywall(monkeypatch, tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article", doi="10.5194/tc-18-3807-2024")
+    order: list[str] = []
+
+    monkeypatch.setattr(pdf_fetcher, "_try_arxiv", lambda *_args, **_kwargs: "miss")
+    monkeypatch.setattr(
+        pdf_fetcher, "_try_copernicus", lambda *_args, **_kwargs: "miss"
+    )
+
+    def fake_openalex(*_args, **_kwargs):
+        order.append("openalex")
+        return None
+
+    def fake_unpaywall(*_args, **_kwargs):
+        order.append("unpaywall")
+        return "miss"
+
+    monkeypatch.setattr(pdf_fetcher, "_try_openalex", fake_openalex)
+    monkeypatch.setattr(pdf_fetcher, "_try_unpaywall", fake_unpaywall)
+
+    result = fetch_pdf(
+        e,
+        dest_dir=str(tmp_path),
+        unpaywall_email="me@example.com",
+        openalex_api_key="openalex-key",
+        overwrite=True,
+    )
+    assert isinstance(result, FetchResult)
+    assert result.path.endswith("x.pdf")
+    assert result.provider == "OpenAlex"
+    assert order == ["openalex"]
+
+
+def test_fetch_pdf_skips_openalex_without_api_key(monkeypatch, tmp_path) -> None:
+    e = BibEntry(key="x", entry_type="article")
+    monkeypatch.setattr(pdf_fetcher, "_try_arxiv", lambda *_args, **_kwargs: "miss")
+    monkeypatch.setattr(
+        pdf_fetcher, "_try_copernicus", lambda *_args, **_kwargs: "miss"
+    )
+    monkeypatch.setattr(
+        pdf_fetcher,
+        "_try_openalex",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("OpenAlex should be skipped when key is empty")
+        ),
+    )
+    monkeypatch.setattr(pdf_fetcher, "_try_unpaywall", lambda *_args, **_kwargs: "miss")
+    monkeypatch.setattr(
+        pdf_fetcher, "_try_direct_url", lambda *_args, **_kwargs: "miss"
+    )
+
+    with pytest.raises(FetchError) as exc_info:
+        fetch_pdf(
+            e,
+            dest_dir=str(tmp_path),
+            unpaywall_email="me@example.com",
+            openalex_api_key="",
+            overwrite=True,
+        )
+
+    assert "OpenAlex" not in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +605,51 @@ def test_try_unpaywall_downloads_pdf(tc_entry, unpaywall_email, tmp_path):
 
 
 @pytest.mark.network
+def test_try_openalex_downloads_pdf_for_joughin2008(openalex_api_key, tmp_path):
+    entry = BibEntry(
+        key="Joughin2008",
+        entry_type="article",
+        title=(
+            "Ice-front variation and tidewater behavior on Helheim and "
+            "Kangerdlugssuaq Glaciers, Greenland"
+        ),
+        doi="10.1029/2007JF000837",
+    )
+    dest = str(tmp_path / "Joughin2008.pdf")
+    reason = _try_openalex(entry, dest, openalex_api_key)
+    assert reason is None, f"Expected OpenAlex PDF success but got: {reason}"
+
+    import os
+
+    assert os.path.exists(dest)
+    assert os.path.getsize(dest) > 10_000
+    with open(dest, "rb") as f:
+        assert f.read(4) == b"%PDF"
+
+
+@pytest.mark.network
+def test_try_openalex_downloads_pdf_by_title_without_doi(openalex_api_key, tmp_path):
+    entry = BibEntry(
+        key="Ritz2001",
+        entry_type="article",
+        title=(
+            "Modeling the evolution of Antarctic ice sheet over the last "
+            "420,000 years: Implications for altitude changes in the Vostok region"
+        ),
+    )
+    dest = str(tmp_path / "Ritz2001.pdf")
+    reason = _try_openalex(entry, dest, openalex_api_key)
+    assert reason is None, f"Expected OpenAlex title PDF success but got: {reason}"
+
+    import os
+
+    assert os.path.exists(dest)
+    assert os.path.getsize(dest) > 10_000
+    with open(dest, "rb") as f:
+        assert f.read(4) == b"%PDF"
+
+
+@pytest.mark.network
 def test_try_unpaywall_reports_landing_page_only(
     zeitz2021_entry, unpaywall_email, tmp_path
 ):
@@ -317,6 +670,7 @@ def test_try_copernicus_downloads_preprint(tmp_path) -> None:
     reason = _try_copernicus(e, dest)
     assert reason is None, f"Expected success but got: {reason}"
     import os
+
     assert os.path.getsize(dest) > 10_000
     with open(dest, "rb") as f:
         assert f.read(4) == b"%PDF"
@@ -330,6 +684,7 @@ def test_try_copernicus_downloads_egusphere(tmp_path) -> None:
     reason = _try_copernicus(e, dest)
     assert reason is None, f"Expected success but got: {reason}"
     import os
+
     assert os.path.getsize(dest) > 10_000
     with open(dest, "rb") as f:
         assert f.read(4) == b"%PDF"
@@ -337,12 +692,19 @@ def test_try_copernicus_downloads_egusphere(tmp_path) -> None:
 
 @pytest.mark.network
 def test_fetch_pdf_full_pipeline(tc_entry, unpaywall_email, tmp_path):
-    saved = fetch_pdf(tc_entry, str(tmp_path), unpaywall_email=unpaywall_email)
+    result = fetch_pdf(tc_entry, str(tmp_path), unpaywall_email=unpaywall_email)
     import os
 
-    assert os.path.exists(saved)
+    assert os.path.exists(result.path)
     expected_name = pdf_filename(tc_entry)
-    assert os.path.basename(saved) == expected_name
-    assert os.path.getsize(saved) > 10_000
-    with open(saved, "rb") as f:
+    assert os.path.basename(result.path) == expected_name
+    assert result.provider in {
+        "arXiv",
+        "Copernicus",
+        "OpenAlex",
+        "Unpaywall",
+        "Direct URL",
+    }
+    assert os.path.getsize(result.path) > 10_000
+    with open(result.path, "rb") as f:
         assert f.read(4) == b"%PDF"

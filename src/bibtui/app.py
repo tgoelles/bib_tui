@@ -152,6 +152,14 @@ class BibTuiApp(App):
         Binding("5", "set_rating('5')", "★★★★★", show=False),
         # Copy
         Binding("ctrl+c", "copy_key", "Copy key", show=False, priority=True),
+        Binding(
+            "ctrl+shift+c",
+            "copy_entry",
+            "Copy BibTeX",
+            show=False,
+            priority=True,
+        ),
+        Binding("ctrl+y", "copy_entry", "Copy BibTeX", show=False, priority=True),
         # Delete
         Binding("delete", "delete_entry", "Delete", show=False),
         Binding("backspace", "delete_entry", "Delete", show=False),
@@ -510,9 +518,9 @@ class BibTuiApp(App):
         if entry is None:
             self.notify("No entry selected.", severity="warning")
             return
-        if not entry.doi and not entry.url:
+        if not entry.doi and not entry.url and not entry.title:
             self.notify(
-                "Entry has no DOI or URL — cannot fetch PDF.",
+                "Entry has no DOI, URL, or title — cannot fetch PDF.",
                 severity="warning",
             )
             return
@@ -550,18 +558,24 @@ class BibTuiApp(App):
                 entry,
                 self._config.pdf_base_dir,
                 self._config.unpaywall_email,
+                self._config.openalex_api_key,
                 overwrite=True,
             ),
             self._on_fetch_pdf_done,
         )
 
-    def _on_fetch_pdf_done(self, result: str | None) -> None:
+    def _on_fetch_pdf_done(self, result: tuple[str, str] | None) -> None:
         if result is None:
             return
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        self._link_pdf_to_entry(entry, result, f"PDF saved and linked: {entry.key}")
+        path, provider = result
+        self._link_pdf_to_entry(
+            entry,
+            path,
+            f"PDF saved and linked via {provider}: {entry.key}",
+        )
 
     def action_add_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -743,6 +757,7 @@ class BibTuiApp(App):
                 candidates,
                 self._config.pdf_base_dir,
                 self._config.unpaywall_email,
+                self._config.openalex_api_key,
                 overwrite_broken_links=overwrite_broken_links,
             ),
             self._on_batch_fetch_missing_pdfs_done,
@@ -997,6 +1012,14 @@ class BibTuiApp(App):
             return
         self.copy_to_clipboard(entry.key)
         self.notify(f"Copied: {entry.key}", timeout=2)
+
+    def action_copy_entry(self) -> None:
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            self.notify("No entry selected.", severity="warning")
+            return
+        self.copy_to_clipboard(parser.entry_to_bibtex_str(entry))
+        self.notify(f"Copied BibTeX: {entry.key}", timeout=2)
 
     def action_edit_keywords(self) -> None:
         entry = self.query_one(EntryList).selected_entry

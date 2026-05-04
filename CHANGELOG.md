@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **File browser startup mode** — start bibtui without an initial file, using Textual's native file tree to browse and open library files. Includes quick access to recently opened files
 - **Icon** -- I made a simple pixel based icon. So you can install it as a TUI with an icon.
+- **Optional OpenAlex PDF lookup** — add an OpenAlex API key in Settings to enable an additional PDF fetch source (used before Unpaywall).
+- **OpenAlex fetch strategy** — OpenAlex now prefers DOI lookup first and falls back to title search when DOI is missing or unresolved.
+- **BibTeX copy shortcut** — added `Ctrl+Shift+C` to copy the currently selected full BibTeX entry, plus `Ctrl+Y` as a terminal-safe fallback.
+
+### Changed
+
+- **PDF fetch success feedback** — success messages now show which provider supplied the PDF (for example OpenAlex, arXiv, Copernicus, Unpaywall, or Direct URL).
 
 ### Fixed
 

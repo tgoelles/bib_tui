@@ -9,6 +9,7 @@ CONFIG_PATH = Path.home() / ".config" / "bibtui" / "config.toml"
 class Config:
     pdf_base_dir: str = ""
     unpaywall_email: str = ""
+    openalex_api_key: str = ""
     pdf_download_dir: str = ""
     auto_fetch_pdf: bool = True
     update_last_check_utc: str = ""
@@ -59,6 +60,7 @@ def load_config() -> Config:
     except (OSError, tomllib.TOMLDecodeError):
         return default_config()
     pdf = data.get("pdf", {})
+    api_keys = data.get("api_keys", {})
     updates = data.get("updates", {})
     files_section = data.get("files", {})
     ui_section = data.get("ui", {})
@@ -67,6 +69,7 @@ def load_config() -> Config:
     return Config(
         pdf_base_dir=pdf.get("base_dir", ""),
         unpaywall_email=pdf.get("unpaywall_email", ""),
+        openalex_api_key=api_keys.get("openalex_api_key", ""),
         pdf_download_dir=pdf.get("download_dir", ""),
         auto_fetch_pdf=pdf.get("auto_fetch_pdf", True),
         update_last_check_utc=updates.get("last_check_utc", ""),
@@ -96,6 +99,9 @@ def save_config(config: Config) -> None:
         f'unpaywall_email = "{_toml_escape(config.unpaywall_email)}"',
         f'download_dir = "{_toml_escape(config.pdf_download_dir)}"',
         f"auto_fetch_pdf = {'true' if config.auto_fetch_pdf else 'false'}",
+        "",
+        "[api_keys]",
+        f'openalex_api_key = "{_toml_escape(config.openalex_api_key)}"',
         "",
         "[updates]",
         f'last_check_utc = "{_toml_escape(config.update_last_check_utc)}"',

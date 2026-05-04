@@ -74,6 +74,7 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
     cfg = Config(
         pdf_base_dir="/papers",
         unpaywall_email="user@example.com",
+        openalex_api_key="openalex-secret",
         pdf_download_dir="/home/user/Downloads",
         update_last_check_utc="2026-02-26T10:00:00Z",
         update_last_notified_utc="2026-02-26T10:00:00Z",
@@ -86,6 +87,7 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
     loaded = load_config()
     assert loaded.pdf_base_dir == "/papers"
     assert loaded.unpaywall_email == "user@example.com"
+    assert loaded.openalex_api_key == "openalex-secret"
     assert loaded.pdf_download_dir == "/home/user/Downloads"
     assert loaded.update_last_check_utc == "2026-02-26T10:00:00Z"
     assert loaded.update_last_notified_utc == "2026-02-26T10:00:00Z"
@@ -125,6 +127,28 @@ def test_load_config_returns_defaults_when_toml_invalid(
     assert cfg.pdf_base_dir == str(home / "Documents" / "papers")
     assert cfg.unpaywall_email == ""
     assert cfg.pdf_download_dir == str(home / "Downloads")
+
+
+def test_load_config_without_api_keys_section_defaults_openalex_key_empty(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_file = tmp_path / "config.toml"
+    config_file.write_text(
+        """
+[pdf]
+base_dir = "/papers"
+unpaywall_email = "user@example.com"
+download_dir = "/downloads"
+auto_fetch_pdf = true
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+
+    cfg = load_config()
+    assert cfg.pdf_base_dir == "/papers"
+    assert cfg.unpaywall_email == "user@example.com"
+    assert cfg.openalex_api_key == ""
 
 
 # ---------------------------------------------------------------------------
