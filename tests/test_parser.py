@@ -194,3 +194,96 @@ def test_save_load_preserves_all_fields(tmp_path) -> None:
     assert recovered.priority == original.priority
     assert recovered.file == original.file
     assert recovered.keywords_list == original.keywords_list
+
+
+def test_save_noop_preserves_mycollection_bytes(tmp_path) -> None:
+    dst = tmp_path / "mycollection_copy.bib"
+    original_text = MY_COLLECTION.read_text(encoding="utf-8")
+    dst.write_text(original_text, encoding="utf-8")
+
+    entries = load(str(dst))
+    save(entries, str(dst))
+
+    assert dst.read_text(encoding="utf-8") == original_text
+
+
+def test_save_noop_preserves_ex1_bytes(tmp_path) -> None:
+    src = EX1_BIB
+    dst = tmp_path / "ex1_copy.bib"
+    original_text = src.read_text(encoding="utf-8")
+    dst.write_text(original_text, encoding="utf-8")
+
+    entries = load(str(dst))
+    save(entries, str(dst))
+
+    assert dst.read_text(encoding="utf-8") == original_text
+
+
+def test_save_rewrites_only_changed_entry_block(tmp_path) -> None:
+    source = """% keep this header exactly
+@ARTICLE{KeyA,
+    AUTHOR = {Doe, Jane},
+    TITLE = {Old Title},
+    YEAR = {2020},
+}
+
+% keep this separator exactly
+@ARTICLE{KeyB,
+    AUTHOR = {Roe, John},
+    TITLE = {Second Title},
+    YEAR = {2021},
+}
+"""
+    path = tmp_path / "minimal_patch.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    for e in entries:
+        if e.key == "KeyA":
+            e.title = "New Title"
+
+    save(entries, str(path))
+    out = path.read_text(encoding="utf-8")
+
+    # Header and untouched second entry remain byte-identical.
+    assert "% keep this header exactly\n" in out
+    untouched_block = """@ARTICLE{KeyB,
+    AUTHOR = {Roe, John},
+    TITLE = {Second Title},
+    YEAR = {2021},
+}
+"""
+    assert untouched_block in out
+
+    # Changed entry gets rewritten with new content.
+    assert "New Title" in out
+    assert "Old Title" not in out
+
+
+def test_save_appends_new_entry_without_touching_existing_text(tmp_path) -> None:
+    source = """% preserve this whole prefix
+@ARTICLE{KeyA,
+  AUTHOR = {Doe, Jane},
+  TITLE = {Only Title},
+  YEAR = {2020},
+}
+"""
+    path = tmp_path / "append_only.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = load(str(path))
+    entries.append(
+        BibEntry(
+            key="KeyC",
+            entry_type="article",
+            title="Appended",
+            author="New, Author",
+            year="2022",
+        )
+    )
+
+    save(entries, str(path))
+    out = path.read_text(encoding="utf-8")
+
+    assert out.startswith(source)
+    assert "@article{KeyC," in out
