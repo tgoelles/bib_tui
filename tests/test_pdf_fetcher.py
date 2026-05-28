@@ -392,6 +392,42 @@ def test_try_openalex_prefers_doi_before_title(monkeypatch, tmp_path) -> None:
     assert all(c[0] != "search" for c in calls)
 
 
+def test_try_openalex_does_not_fallback_to_title_when_doi_misses(
+    monkeypatch, tmp_path
+) -> None:
+    e = BibEntry(
+        key="Tabernig2025b",
+        entry_type="inproceedings",
+        title=(
+            "Towards in-situ near real-time 3D environmental monitoring and "
+            "geospatial point cloud analysis with open-source software"
+        ),
+        doi="10.25598/agit/2025-48",
+        url="https://doi.org/10.25598/agit/2025-48",
+    )
+    dest = str(tmp_path / "Tabernig2025b.pdf")
+    calls: list[tuple[str, str]] = []
+
+    class FakeWorks:
+        def filter(self, **kwargs):
+            calls.append(("filter", str(kwargs)))
+            return self
+
+        def search(self, query):
+            calls.append(("search", query))
+            return self
+
+        def get(self, per_page=None):
+            return []
+
+    monkeypatch.setattr(pdf_fetcher.pyalex, "Works", lambda: FakeWorks())
+
+    reason = _try_openalex(e, dest, api_key="test-key")
+    assert reason == "no OpenAlex work found for DOI"
+    assert calls[0][0] == "filter"
+    assert all(c[0] != "search" for c in calls)
+
+
 def test_try_openalex_uses_content_pdf_for_joughin2008(monkeypatch, tmp_path) -> None:
     e = BibEntry(
         key="Joughin2008",

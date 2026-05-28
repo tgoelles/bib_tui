@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **bibtexparser import crash on startup** — removed a runtime type annotation reference to `bibtexparser.model.Library` in the BibTeX parser, preventing `AttributeError: module 'bibtexparser.model' has no attribute 'Library'` on environments where that symbol is absent.
+- **Safer OpenAlex DOI fetching** — when a DOI is present but OpenAlex finds no DOI match, PDF fetching no longer falls back to title search, preventing false-positive downloads of wrong PDFs (regression covered with an `inproceedings` DOI case).
 
 ## [0.12.3] - 2027-05-04
 
