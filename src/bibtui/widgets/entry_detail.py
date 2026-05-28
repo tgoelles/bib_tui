@@ -333,7 +333,7 @@ class EntryDetail(Widget):
             pdf_copy_path_btn.disabled = True
             pdf_delete_btn.disabled = True
         elif icon == "■":
-            pdf_status_label.update("[bold]Status:[/bold] Local PDF linked")
+            pdf_status_label.update("[bold]Status:[/bold] ■ Local PDF linked")
             pdf_fetch_btn.disabled = True
             pdf_add_btn.disabled = True
             pdf_open_btn.disabled = False
@@ -342,7 +342,7 @@ class EntryDetail(Widget):
             pdf_delete_btn.disabled = False
         else:
             pdf_status_label.update(
-                "[bold]Status:[/bold] [dim]Linked file not found. Use Fetch/Add or Delete.[/dim]"
+                "[bold]Status:[/bold] [dim]□ Linked file not found. Use Fetch/Add or Delete.[/dim]"
             )
             pdf_fetch_btn.disabled = False
             pdf_add_btn.disabled = False
