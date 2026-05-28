@@ -70,7 +70,9 @@ def test_on_pdf_action_selected_copy_file(monkeypatch, tmp_path) -> None:
     assert notes and "Copied PDF file to clipboard" in notes[-1]
 
 
-def test_copy_pdf_file_to_clipboard_uses_wl_copy_on_linux(monkeypatch, tmp_path) -> None:
+def test_copy_pdf_file_to_clipboard_uses_wl_copy_on_linux(
+    monkeypatch, tmp_path
+) -> None:
     app = BibTuiApp("tests/bib_examples/MyCollection.bib")
     pdf_path = tmp_path / "paper.pdf"
     pdf_path.write_bytes(b"%PDF-1.4 fake")
@@ -99,7 +101,9 @@ def test_copy_pdf_file_to_clipboard_uses_wl_copy_on_linux(monkeypatch, tmp_path)
     ]
 
 
-def test_copy_pdf_file_to_clipboard_requires_tool_on_linux(monkeypatch, tmp_path) -> None:
+def test_copy_pdf_file_to_clipboard_requires_tool_on_linux(
+    monkeypatch, tmp_path
+) -> None:
     app = BibTuiApp("tests/bib_examples/MyCollection.bib")
     pdf_path = tmp_path / "paper.pdf"
     pdf_path.write_bytes(b"%PDF-1.4 fake")
