@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from bibtui.app import BibTuiApp
 from bibtui.bib.models import BibEntry
 from bibtui.utils.config import Config
@@ -51,6 +49,69 @@ def test_on_pdf_action_selected_copy_path(monkeypatch, tmp_path) -> None:
 
     assert copied == [path]
     assert notes and "Copied PDF path" in notes[-1]
+
+
+def test_on_pdf_action_selected_copy_file(monkeypatch, tmp_path) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    copied_files: list[str] = []
+    notes: list[str] = []
+
+    monkeypatch.setattr(
+        app,
+        "_copy_pdf_file_to_clipboard",
+        lambda value: copied_files.append(value),
+    )
+    monkeypatch.setattr(app, "notify", lambda message, **kwargs: notes.append(message))
+
+    path = str(tmp_path / "paper.pdf")
+    app._on_pdf_action_selected("k1", path, "copy-file")
+
+    assert copied_files == [path]
+    assert notes and "Copied PDF file to clipboard" in notes[-1]
+
+
+def test_copy_pdf_file_to_clipboard_uses_wl_copy_on_linux(monkeypatch, tmp_path) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    pdf_path = tmp_path / "paper.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    calls: list[tuple[list[str], bytes | None, bool]] = []
+
+    monkeypatch.setattr("bibtui.app.platform.system", lambda: "Linux")
+    monkeypatch.setattr(
+        "bibtui.app.shutil.which",
+        lambda name: "/usr/bin/wl-copy" if name == "wl-copy" else None,
+    )
+
+    def fake_run(args, input=None, check=False, **kwargs):
+        calls.append((list(args), input, check))
+
+    monkeypatch.setattr("bibtui.app.subprocess.run", fake_run)
+
+    app._copy_pdf_file_to_clipboard(str(pdf_path))
+
+    expected_uri = pdf_path.resolve().as_uri()
+    assert calls == [
+        (
+            ["/usr/bin/wl-copy", "--type", "text/uri-list"],
+            f"{expected_uri}\n".encode("utf-8"),
+            True,
+        )
+    ]
+
+
+def test_copy_pdf_file_to_clipboard_requires_tool_on_linux(monkeypatch, tmp_path) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    pdf_path = tmp_path / "paper.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+    monkeypatch.setattr("bibtui.app.platform.system", lambda: "Linux")
+    monkeypatch.setattr("bibtui.app.shutil.which", lambda _name: None)
+
+    try:
+        app._copy_pdf_file_to_clipboard(str(pdf_path))
+        assert False, "Expected RuntimeError"
+    except RuntimeError as exc:
+        assert "wl-copy" in str(exc) or "xclip" in str(exc)
 
 
 def test_do_delete_pdf_removes_file_and_unlinks_entry(tmp_path, monkeypatch) -> None:

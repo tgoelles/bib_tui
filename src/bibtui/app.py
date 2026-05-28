@@ -1,8 +1,10 @@
 import os
 import platform
 import re
+import shutil
 import subprocess
 import webbrowser
+from pathlib import Path
 from typing import cast
 from urllib.parse import quote_plus, urlparse
 
@@ -651,17 +653,15 @@ class BibTuiApp(App):
             lambda result: self._on_pdf_action_selected(entry.key, path, result),
         )
 
-    def action_pdf_show_folder(self) -> None:
+    def action_pdf_copy_file(self) -> None:
         _entry, path = self._selected_entry_pdf_path()
         if path is None:
             return
         try:
-            self._show_in_file_browser(path)
-            self.notify("Opened file browser.", timeout=3)
+            self._copy_pdf_file_to_clipboard(path)
+            self.notify("Copied PDF file to clipboard.", timeout=3)
         except Exception as e:
-            self.notify(
-                f"Could not open file browser: {e}", severity="error", timeout=5
-            )
+            self.notify(f"Could not copy PDF file: {e}", severity="error", timeout=5)
 
     def action_pdf_copy_path(self) -> None:
         _entry, path = self._selected_entry_pdf_path()
@@ -700,9 +700,14 @@ class BibTuiApp(App):
     ) -> None:
         if result is None:
             return
-        if result == "show-folder":
-            self._show_in_file_browser(path)
-            self.notify("Opened file browser.", timeout=3)
+        if result == "copy-file":
+            try:
+                self._copy_pdf_file_to_clipboard(path)
+                self.notify("Copied PDF file to clipboard.", timeout=3)
+            except Exception as e:
+                self.notify(
+                    f"Could not copy PDF file: {e}", severity="error", timeout=5
+                )
             return
         if result == "copy-path":
             self.copy_to_clipboard(path)
@@ -719,16 +724,58 @@ class BibTuiApp(App):
                 ),
             )
 
-    def _show_in_file_browser(self, path: str) -> None:
-        folder = path if os.path.isdir(path) else os.path.dirname(path)
-        if not folder or not os.path.isdir(folder):
-            raise FileNotFoundError(f"Directory not found: {folder}")
-        if platform.system() == "Darwin":
-            subprocess.Popen(["open", folder])
-        elif platform.system() == "Windows":
-            os.startfile(folder)  # type: ignore[attr-defined]
-        else:
-            subprocess.Popen(["xdg-open", folder])
+    def _copy_pdf_file_to_clipboard(self, path: str) -> None:
+        pdf_path = Path(path).expanduser().resolve()
+        if not pdf_path.exists():
+            raise FileNotFoundError(f"PDF not found: {pdf_path}")
+
+        system = platform.system()
+        if system == "Linux":
+            uri = pdf_path.as_uri()
+            wl_copy = shutil.which("wl-copy")
+            if wl_copy:
+                # Use the generic file clipboard format most Linux file managers support.
+                subprocess.run(
+                    [wl_copy, "--type", "text/uri-list"],
+                    input=f"{uri}\n".encode("utf-8"),
+                    check=True,
+                )
+                return
+
+            xclip = shutil.which("xclip")
+            if xclip:
+                subprocess.run(
+                    [xclip, "-selection", "clipboard", "-t", "text/uri-list"],
+                    input=f"{uri}\n".encode("utf-8"),
+                    check=True,
+                )
+                return
+
+            raise RuntimeError("Install 'wl-copy' or 'xclip' for PDF clipboard copy")
+
+        if system == "Darwin":
+            script = (
+                'set the clipboard to (POSIX file "'
+                + str(pdf_path).replace('"', '\\"')
+                + '")'
+            )
+            subprocess.run(["osascript", "-e", script], check=True)
+            return
+
+        if system == "Windows":
+            ps_path = str(pdf_path).replace("'", "''")
+            subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    f"Set-Clipboard -Path '{ps_path}'",
+                ],
+                check=True,
+            )
+            return
+
+        raise RuntimeError("PDF clipboard copy is not supported on this platform")
 
     def _do_delete_pdf(self, entry_key: str, path: str) -> None:
         removed = False

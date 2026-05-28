@@ -217,7 +217,7 @@ class EntryDetail(Widget):
                     yield Button("Fetch", id="detail-pdf-fetch")
                     yield Button("Add", id="detail-pdf-add")
                 with Horizontal(id="detail-pdf-actions-extra"):
-                    yield Button("Show folder", id="detail-pdf-show-folder")
+                    yield Button("Copy PDF", id="detail-pdf-copy-file")
                     yield Button("Copy path", id="detail-pdf-copy-path")
                     yield Button("Delete", id="detail-pdf-delete", variant="error")
         yield Static("Select an entry to view details.", id="detail-content")
@@ -231,8 +231,8 @@ class EntryDetail(Widget):
             app.action_fetch_pdf()
         elif event.button.id == "detail-pdf-add":
             app.action_add_pdf()
-        elif event.button.id == "detail-pdf-show-folder":
-            app.action_pdf_show_folder()
+        elif event.button.id == "detail-pdf-copy-file":
+            getattr(app, "action_pdf_copy_file")()
         elif event.button.id == "detail-pdf-copy-path":
             app.action_pdf_copy_path()
         elif event.button.id == "detail-pdf-delete":
@@ -285,7 +285,7 @@ class EntryDetail(Widget):
         pdf_open_btn = self.query_one("#detail-pdf-open", Button)
         pdf_add_btn = self.query_one("#detail-pdf-add", Button)
         pdf_fetch_btn = self.query_one("#detail-pdf-fetch", Button)
-        pdf_show_folder_btn = self.query_one("#detail-pdf-show-folder", Button)
+        pdf_copy_file_btn = self.query_one("#detail-pdf-copy-file", Button)
         pdf_copy_path_btn = self.query_one("#detail-pdf-copy-path", Button)
         pdf_delete_btn = self.query_one("#detail-pdf-delete", Button)
         url_label = self.query_one("#detail-url", Label)
@@ -329,7 +329,7 @@ class EntryDetail(Widget):
             pdf_fetch_btn.disabled = False
             pdf_add_btn.disabled = False
             pdf_open_btn.disabled = True
-            pdf_show_folder_btn.disabled = True
+            pdf_copy_file_btn.disabled = True
             pdf_copy_path_btn.disabled = True
             pdf_delete_btn.disabled = True
         elif icon == "■":
@@ -337,7 +337,7 @@ class EntryDetail(Widget):
             pdf_fetch_btn.disabled = True
             pdf_add_btn.disabled = True
             pdf_open_btn.disabled = False
-            pdf_show_folder_btn.disabled = False
+            pdf_copy_file_btn.disabled = False
             pdf_copy_path_btn.disabled = False
             pdf_delete_btn.disabled = False
         else:
@@ -347,7 +347,7 @@ class EntryDetail(Widget):
             pdf_fetch_btn.disabled = False
             pdf_add_btn.disabled = False
             pdf_open_btn.disabled = True
-            pdf_show_folder_btn.disabled = True
+            pdf_copy_file_btn.disabled = True
             pdf_copy_path_btn.disabled = True
             pdf_delete_btn.disabled = False
 

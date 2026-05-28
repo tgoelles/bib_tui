@@ -114,15 +114,15 @@ class PDFActionsModal(ModalScreen["str | None"]):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label(f"[bold]PDF Actions[/bold]  [dim]{self._entry_key}[/dim]")
-            yield Button("Show in file browser", id="btn-show-folder")
+            yield Button("Copy PDF to clipboard", id="btn-copy-file")
             yield Button("Copy path to clipboard", id="btn-copy-path")
             yield Button("Delete PDF", id="btn-delete", variant="error")
             with Horizontal(classes="modal-buttons"):
                 yield Button("Close", id="btn-close")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-show-folder":
-            self.dismiss("show-folder")
+        if event.button.id == "btn-copy-file":
+            self.dismiss("copy-file")
         elif event.button.id == "btn-copy-path":
             self.dismiss("copy-path")
         elif event.button.id == "btn-delete":
