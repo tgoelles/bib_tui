@@ -14,16 +14,16 @@ from textual.widgets import (
     ListItem,
     ListView,
     LoadingIndicator,
-    SelectionList,
     Select,
+    SelectionList,
     Static,
     Switch,
     TextArea,
 )
 from textual.widgets._selection_list import Selection
 
-from bibtui.bib.models import BibEntry
 from bibtui.bib.citation_preview import available_csl_styles, default_csl_style_key
+from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bibtui.utils.config import Config
 
