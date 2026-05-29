@@ -11,11 +11,24 @@ from citeproc import (  # type: ignore[import-untyped]
     formatter,
 )
 from citeproc.source.json import CiteProcJSON  # type: ignore[import-untyped]
+from bibtexparser.middlewares import LatexDecodingMiddleware
 
 from bibtui.bib.models import BibEntry
 from bibtui.utils.config import csl_dir, ensure_csl_styles
 
 _DEFAULT_STYLE = "copernicus-publications"
+
+
+_LATEX_DECODER = LatexDecodingMiddleware(allow_inplace_modification=False)
+
+
+def _decode_latex(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        return _LATEX_DECODER._decoder.latex_to_text(value)
+    except Exception:
+        return value
 
 
 def _configured_csl_dir() -> Path:
@@ -98,10 +111,10 @@ def _entry_to_csl_item(entry: BibEntry) -> dict:
     }
 
     if entry.title:
-        item["title"] = entry.title
+        item["title"] = _decode_latex(entry.title)
 
     if entry.author:
-        authors = _split_authors(entry.author)
+        authors = _split_authors(_decode_latex(entry.author))
         if authors:
             item["author"] = authors
 
@@ -109,7 +122,7 @@ def _entry_to_csl_item(entry: BibEntry) -> dict:
     if issued:
         item["issued"] = issued
 
-    container = entry.journal or entry.raw_fields.get("booktitle", "")
+    container = _decode_latex(entry.journal or entry.raw_fields.get("booktitle", ""))
     if container:
         item["container-title"] = container
 
@@ -120,13 +133,13 @@ def _entry_to_csl_item(entry: BibEntry) -> dict:
 
     # Optional common fields from raw metadata.
     if entry.raw_fields.get("volume"):
-        item["volume"] = entry.raw_fields["volume"]
+        item["volume"] = _decode_latex(entry.raw_fields["volume"])
     if entry.raw_fields.get("number"):
-        item["issue"] = entry.raw_fields["number"]
+        item["issue"] = _decode_latex(entry.raw_fields["number"])
     if entry.raw_fields.get("pages"):
-        item["page"] = entry.raw_fields["pages"]
+        item["page"] = _decode_latex(entry.raw_fields["pages"])
     if entry.raw_fields.get("publisher"):
-        item["publisher"] = entry.raw_fields["publisher"]
+        item["publisher"] = _decode_latex(entry.raw_fields["publisher"])
 
     return item
 

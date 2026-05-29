@@ -1,4 +1,5 @@
 from pathlib import Path
+import unicodedata
 
 import pytest
 
@@ -59,3 +60,21 @@ def test_render_citation_preview_for_article() -> None:
 def test_render_citation_preview_unknown_style_returns_empty() -> None:
     entry = BibEntry(key="x", entry_type="article", title="X")
     assert render_citation_preview(entry, "style-that-does-not-exist") == ""
+
+
+def test_render_citation_preview_decodes_latex_escapes() -> None:
+    entry = BibEntry(
+        key="Oerlemans1991",
+        entry_type="article",
+        title="A model for the surface balance of ice masses",
+        author="Oerlemans, J.",
+        year="1991",
+        journal='Zeitschrift f{\\"{u}}r Gletscherkunde und Glacialgeologie',
+        raw_fields={"pages": "63--83"},
+    )
+
+    rendered = render_citation_preview(entry, "copernicus-publications")
+    rendered_norm = unicodedata.normalize("NFC", rendered)
+
+    assert "für" in rendered_norm
+    assert '\\"{u}' not in rendered_norm
