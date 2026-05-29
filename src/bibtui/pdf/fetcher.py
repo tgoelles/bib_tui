@@ -331,14 +331,18 @@ def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
                 .get(per_page=1),
             )
 
-        # Fallback for older references with missing DOI.
-        if not works and entry.title:
+        # Fallback for older references only when DOI is missing.
+        # If a DOI is present but unresolved, do not title-match because that can
+        # return a different work and fetch the wrong PDF.
+        if not works and not entry.doi and entry.title:
             works = cast(
                 list[dict[str, Any]],
                 pyalex.Works().search(entry.title).get(per_page=1),
             )
 
         if not works:
+            if entry.doi:
+                return "no OpenAlex work found for DOI"
             return "no OpenAlex work found"
 
         work = works[0]

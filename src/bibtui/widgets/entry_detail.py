@@ -1,14 +1,19 @@
 import os
+from typing import TYPE_CHECKING, cast
 
 from rich.syntax import Syntax
+from textual import events
 from textual.app import ComposeResult
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
-from textual.widgets import Label, Static, TextArea
+from textual.widgets import Button, Collapsible, Label, Static, TextArea
 
 from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import entry_to_bibtex_str
 from bibtui.pdf.paths import parse_jabref_path
+
+if TYPE_CHECKING:
+    from bibtui.app import BibTuiApp
 
 
 def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
@@ -30,19 +35,6 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
     )
     lines.append("")
 
-    # Keywords as badges
-    if entry.keywords_list:
-        kw_str = " ".join(
-            f"[{c['tag_fg']} on {c['tag_bg']}] {k} [/]" for k in entry.keywords_list
-        )
-        lines.append(f"[bold]Keywords:[/bold]  {kw_str}")
-    else:
-        lines.append("[bold]Keywords:[/bold]  [dim](none)[/dim]")
-
-    lines.append("")
-    lines.append("─" * 50)
-    lines.append("")
-
     # Key fields
     def field_line(label: str, value: str) -> str:
         if value:
@@ -55,11 +47,23 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
         ("Year", "year"),
         ("Journal", "journal"),
         ("DOI", "doi"),
-        ("URL", "url"),
     ]
 
     for label, key in standard_fields:
         lines.append(field_line(label, entry.get_field(key)))
+
+    lines.append("")
+    lines.append("─" * 50)
+    lines.append("")
+
+    # Keywords as badges
+    if entry.keywords_list:
+        kw_str = " ".join(
+            f"[{c['tag_fg']} on {c['tag_bg']}] {k} [/]" for k in entry.keywords_list
+        )
+        lines.append(f"[bold]Keywords:[/bold]  {kw_str}")
+    else:
+        lines.append("[bold]Keywords:[/bold]  [dim](none)[/dim]")
 
     # Raw extra fields
     if entry.raw_fields:
@@ -104,26 +108,69 @@ class EntryDetail(Widget):
     #detail-meta {
         height: auto;
         layout: horizontal;
-        margin-bottom: 1;
+        margin-bottom: 0;
     }
     #detail-read-state {
         width: auto;
-        margin-right: 3;
+        margin-right: 2;
     }
     #detail-rating {
         width: auto;
-        margin-right: 3;
+        margin-right: 2;
     }
     #detail-priority {
         width: auto;
-        margin-right: 3;
-    }
-    #detail-file {
-        width: auto;
+        margin-right: 2;
     }
     #detail-url {
-        width: auto;
-        margin-left: 3;
+        width: 1fr;
+        margin-left: 2;
+        color: $text-muted;
+    }
+    #detail-pdf-collapsible {
+        margin: 1 0;
+    }
+    #detail-pdf-panel {
+        padding: 0 1;
+        height: auto;
+    }
+    #detail-pdf-title {
+        margin: 1 0 0 0;
+    }
+    #detail-pdf-status {
+        color: $text-muted;
+        margin: 0 0 1 0;
+    }
+    #detail-pdf-actions-main {
+        height: auto;
+        layout: horizontal;
+        margin-bottom: 0;
+    }
+    #detail-pdf-actions-extra {
+        height: auto;
+        layout: horizontal;
+        margin-bottom: 1;
+    }
+    #detail-pdf-actions-main Button,
+    #detail-pdf-actions-extra Button {
+        min-width: 12;
+        margin-right: 1;
+    }
+    #detail-pdf-actions-main Button {
+        width: 1fr;
+    }
+    #detail-pdf-actions-extra Button {
+        width: 1fr;
+    }
+    EntryDetail.narrow #detail-pdf-actions-main,
+    EntryDetail.narrow #detail-pdf-actions-extra {
+        layout: vertical;
+    }
+    EntryDetail.narrow #detail-pdf-actions-main Button,
+    EntryDetail.narrow #detail-pdf-actions-extra Button {
+        width: 1fr;
+        margin-right: 0;
+        margin-bottom: 1;
     }
     #detail-content {
         height: auto;
@@ -148,6 +195,10 @@ class EntryDetail(Widget):
         if self._entry is not None:
             self._refresh_content()
 
+    def on_resize(self, event: events.Resize) -> None:
+        # Keep button rows usable on narrow terminal panes.
+        self.set_class(event.size.width < 90, "narrow")
+
     def set_pdf_base_dir(self, base_dir: str) -> None:
         self._pdf_base_dir = base_dir
 
@@ -156,10 +207,36 @@ class EntryDetail(Widget):
             yield Label("", id="detail-read-state")
             yield Label("", id="detail-priority")
             yield Label("", id="detail-rating")
-            yield Label("", id="detail-file")
             yield Label("", id="detail-url")
+        with Collapsible(collapsed=True, title="PDF", id="detail-pdf-collapsible"):
+            with Vertical(id="detail-pdf-panel"):
+                yield Label("[bold]PDF Actions[/bold]", id="detail-pdf-title")
+                yield Label("", id="detail-pdf-status")
+                with Horizontal(id="detail-pdf-actions-main"):
+                    yield Button("Open", id="detail-pdf-open")
+                    yield Button("Fetch", id="detail-pdf-fetch")
+                    yield Button("Add", id="detail-pdf-add")
+                with Horizontal(id="detail-pdf-actions-extra"):
+                    yield Button("Copy PDF", id="detail-pdf-copy-file")
+                    yield Button("Copy path", id="detail-pdf-copy-path")
+                    yield Button("Delete", id="detail-pdf-delete", variant="error")
         yield Static("Select an entry to view details.", id="detail-content")
         yield TextArea("", id="detail-raw", read_only=True)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        app = cast("BibTuiApp", self.app)
+        if event.button.id == "detail-pdf-open":
+            app.action_open_pdf()
+        elif event.button.id == "detail-pdf-fetch":
+            app.action_fetch_pdf()
+        elif event.button.id == "detail-pdf-add":
+            app.action_add_pdf()
+        elif event.button.id == "detail-pdf-copy-file":
+            getattr(app, "action_pdf_copy_file")()
+        elif event.button.id == "detail-pdf-copy-path":
+            app.action_pdf_copy_path()
+        elif event.button.id == "detail-pdf-delete":
+            app.action_pdf_delete()
 
     def show_entry(self, entry: BibEntry | None) -> None:
         self._entry = entry
@@ -203,7 +280,14 @@ class EntryDetail(Widget):
         read_label = self.query_one("#detail-read-state", Label)
         priority_label = self.query_one("#detail-priority", Label)
         rating_label = self.query_one("#detail-rating", Label)
-        file_label = self.query_one("#detail-file", Label)
+        pdf_collapsible = self.query_one("#detail-pdf-collapsible", Collapsible)
+        pdf_status_label = self.query_one("#detail-pdf-status", Label)
+        pdf_open_btn = self.query_one("#detail-pdf-open", Button)
+        pdf_add_btn = self.query_one("#detail-pdf-add", Button)
+        pdf_fetch_btn = self.query_one("#detail-pdf-fetch", Button)
+        pdf_copy_file_btn = self.query_one("#detail-pdf-copy-file", Button)
+        pdf_copy_path_btn = self.query_one("#detail-pdf-copy-path", Button)
+        pdf_delete_btn = self.query_one("#detail-pdf-delete", Button)
         url_label = self.query_one("#detail-url", Label)
         content = self.query_one("#detail-content", Static)
 
@@ -211,7 +295,8 @@ class EntryDetail(Widget):
             read_label.update("")
             priority_label.update("")
             rating_label.update("")
-            file_label.update("")
+            pdf_collapsible.display = False
+            pdf_status_label.update("")
             url_label.update("")
             content.update("Select an entry to view details.")
             self.query_one("#detail-raw", TextArea).display = False
@@ -234,16 +319,40 @@ class EntryDetail(Widget):
         stars = e.rating_stars or "[dim]unrated[/dim]"
         rating_label.update(f"[bold]Rating:[/bold] [{colors['warning']}]{stars}[/]")
 
+        pdf_collapsible.display = True
+
         icon = self._file_icon(e)
         if not e.file:
-            file_label.update("[dim]PDF: —[/dim]")
+            pdf_status_label.update(
+                "[bold]Status:[/bold] [dim]No linked PDF. Use Fetch or Add.[/dim]"
+            )
+            pdf_fetch_btn.disabled = False
+            pdf_add_btn.disabled = False
+            pdf_open_btn.disabled = True
+            pdf_copy_file_btn.disabled = True
+            pdf_copy_path_btn.disabled = True
+            pdf_delete_btn.disabled = True
         elif icon == "■":
-            file_label.update("[bold]PDF:[/bold] ■")
+            pdf_status_label.update("[bold]Status:[/bold] ■ Local PDF linked")
+            pdf_fetch_btn.disabled = True
+            pdf_add_btn.disabled = True
+            pdf_open_btn.disabled = False
+            pdf_copy_file_btn.disabled = False
+            pdf_copy_path_btn.disabled = False
+            pdf_delete_btn.disabled = False
         else:
-            file_label.update("[bold]PDF:[/bold] [dim]□ not found[/dim]")
+            pdf_status_label.update(
+                "[bold]Status:[/bold] [dim]□ Linked file not found. Use Fetch/Add or Delete.[/dim]"
+            )
+            pdf_fetch_btn.disabled = False
+            pdf_add_btn.disabled = False
+            pdf_open_btn.disabled = True
+            pdf_copy_file_btn.disabled = True
+            pdf_copy_path_btn.disabled = True
+            pdf_delete_btn.disabled = False
 
         if e.url:
-            short = e.url if len(e.url) <= 40 else e.url[:37] + "…"
+            short = e.url if len(e.url) <= 34 else e.url[:31] + "…"
             url_label.update(f"[bold]🔗 URL:[/bold] {short}")
         else:
             url_label.update("[dim]🔗 URL: —[/dim]")

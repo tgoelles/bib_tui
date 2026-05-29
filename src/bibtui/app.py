@@ -1,8 +1,10 @@
 import os
 import platform
 import re
+import shutil
 import subprocess
 import webbrowser
+from pathlib import Path
 from typing import cast
 from urllib.parse import quote_plus, urlparse
 
@@ -47,6 +49,7 @@ from bibtui.widgets.modals import (
     KeywordsModal,
     LibraryFetchConfirmModal,
     PasteModal,
+    PDFActionsModal,
     RawEditModal,
     SettingsModal,
 )
@@ -97,6 +100,11 @@ class LibraryProvider(Provider):
             app.action_unify_citekeys,
             help="Unify citekeys to AuthorYear format",
         )
+        yield DiscoveryHit(
+            "Entry: PDF actions",
+            app.action_pdf_actions,
+            help="Show PDF actions for the selected entry",
+        )
 
     async def search(self, query: str) -> Hits:
         app = cast("BibTuiApp", self.app)
@@ -111,6 +119,11 @@ class LibraryProvider(Provider):
                 "Library: Unify citekeys (AuthorYear)",
                 app.action_unify_citekeys,
                 "Unify citekeys to AuthorYear format",
+            ),
+            (
+                "Entry: PDF actions",
+                app.action_pdf_actions,
+                "Show PDF actions for the selected entry",
             ),
         ):
             score = matcher.match(label)
@@ -629,6 +642,164 @@ class BibTuiApp(App):
                 subprocess.Popen(["xdg-open", path])
         except Exception as e:
             self.notify(f"Could not open PDF: {e}", severity="error", timeout=5)
+
+    def action_pdf_actions(self) -> None:
+        # Keep command-palette compatibility: this opens the same action flow.
+        entry, path = self._selected_entry_pdf_path()
+        if entry is None or path is None:
+            return
+        self.push_screen(
+            PDFActionsModal(entry.key, path),
+            lambda result: self._on_pdf_action_selected(entry.key, path, result),
+        )
+
+    def action_pdf_copy_file(self) -> None:
+        _entry, path = self._selected_entry_pdf_path()
+        if path is None:
+            return
+        try:
+            self._copy_pdf_file_to_clipboard(path)
+            self.notify("Copied PDF file to clipboard.", timeout=3)
+        except Exception as e:
+            self.notify(f"Could not copy PDF file: {e}", severity="error", timeout=5)
+
+    def action_pdf_copy_path(self) -> None:
+        _entry, path = self._selected_entry_pdf_path()
+        if path is None:
+            return
+        self.copy_to_clipboard(path)
+        self.notify("Copied PDF path.", timeout=3)
+
+    def action_pdf_delete(self) -> None:
+        entry, path = self._selected_entry_pdf_path()
+        if entry is None or path is None:
+            return
+        self.push_screen(
+            ConfirmModal(
+                f"Delete PDF for [bold]{entry.key}[/bold]?\n"
+                "This deletes the file from disk and removes the link."
+            ),
+            lambda confirmed: (
+                self._do_delete_pdf(entry.key, path) if confirmed else None
+            ),
+        )
+
+    def _selected_entry_pdf_path(self) -> tuple[BibEntry | None, str | None]:
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            self.notify("No entry selected.", severity="warning")
+            return None, None
+        path = find_pdf_for_entry(entry.file, entry.key, self._config.pdf_base_dir)
+        if not path:
+            self.notify("No local PDF found for this entry.", severity="warning")
+            return entry, None
+        return entry, path
+
+    def _on_pdf_action_selected(
+        self, entry_key: str, path: str, result: str | None
+    ) -> None:
+        if result is None:
+            return
+        if result == "copy-file":
+            try:
+                self._copy_pdf_file_to_clipboard(path)
+                self.notify("Copied PDF file to clipboard.", timeout=3)
+            except Exception as e:
+                self.notify(
+                    f"Could not copy PDF file: {e}", severity="error", timeout=5
+                )
+            return
+        if result == "copy-path":
+            self.copy_to_clipboard(path)
+            self.notify("Copied PDF path.", timeout=3)
+            return
+        if result == "delete":
+            self.push_screen(
+                ConfirmModal(
+                    f"Delete PDF for [bold]{entry_key}[/bold]?\n"
+                    "This deletes the file from disk and removes the link."
+                ),
+                lambda confirmed: (
+                    self._do_delete_pdf(entry_key, path) if confirmed else None
+                ),
+            )
+
+    def _copy_pdf_file_to_clipboard(self, path: str) -> None:
+        pdf_path = Path(path).expanduser().resolve()
+        if not pdf_path.exists():
+            raise FileNotFoundError(f"PDF not found: {pdf_path}")
+
+        system = platform.system()
+        if system == "Linux":
+            uri = pdf_path.as_uri()
+            wl_copy = shutil.which("wl-copy")
+            if wl_copy:
+                # Use the generic file clipboard format most Linux file managers support.
+                subprocess.run(
+                    [wl_copy, "--type", "text/uri-list"],
+                    input=f"{uri}\n".encode("utf-8"),
+                    check=True,
+                )
+                return
+
+            xclip = shutil.which("xclip")
+            if xclip:
+                subprocess.run(
+                    [xclip, "-selection", "clipboard", "-t", "text/uri-list"],
+                    input=f"{uri}\n".encode("utf-8"),
+                    check=True,
+                )
+                return
+
+            raise RuntimeError("Install 'wl-copy' or 'xclip' for PDF clipboard copy")
+
+        if system == "Darwin":
+            script = (
+                'set the clipboard to (POSIX file "'
+                + str(pdf_path).replace('"', '\\"')
+                + '")'
+            )
+            subprocess.run(["osascript", "-e", script], check=True)
+            return
+
+        if system == "Windows":
+            ps_path = str(pdf_path).replace("'", "''")
+            subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    f"Set-Clipboard -Path '{ps_path}'",
+                ],
+                check=True,
+            )
+            return
+
+        raise RuntimeError("PDF clipboard copy is not supported on this platform")
+
+    def _do_delete_pdf(self, entry_key: str, path: str) -> None:
+        removed = False
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+                removed = True
+            except Exception as e:
+                self.notify(f"Could not delete PDF: {e}", severity="error", timeout=5)
+                return
+
+        entry = next((e for e in self._entries if e.key == entry_key), None)
+        if entry is not None:
+            entry.file = ""
+            self._dirty = True
+            self.query_one(EntryList).refresh_row(entry)
+            self.query_one(EntryDetail).show_entry(
+                self.query_one(EntryList).selected_entry
+            )
+
+        if removed:
+            self.notify(f"Deleted PDF and unlinked: {entry_key}", timeout=4)
+        else:
+            self.notify(f"PDF already missing; link removed: {entry_key}", timeout=4)
 
     def action_set_rating(self, value: str) -> None:
         entry = self.query_one(EntryList).selected_entry
