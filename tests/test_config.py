@@ -5,6 +5,8 @@ from pathlib import Path
 from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
 from bibtui.utils.config import (
     Config,
+    csl_dir,
+    ensure_csl_styles,
     load_config,
     save_config,
 )
@@ -76,6 +78,7 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
         unpaywall_email="user@example.com",
         openalex_api_key="openalex-secret",
         pdf_download_dir="/home/user/Downloads",
+        default_citation_style="ieee",
         update_last_check_utc="2026-02-26T10:00:00Z",
         update_last_notified_utc="2026-02-26T10:00:00Z",
         update_latest_version="0.10.0",
@@ -89,6 +92,7 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
     assert loaded.unpaywall_email == "user@example.com"
     assert loaded.openalex_api_key == "openalex-secret"
     assert loaded.pdf_download_dir == "/home/user/Downloads"
+    assert loaded.default_citation_style == "ieee"
     assert loaded.update_last_check_utc == "2026-02-26T10:00:00Z"
     assert loaded.update_last_notified_utc == "2026-02-26T10:00:00Z"
     assert loaded.update_latest_version == "0.10.0"
@@ -112,6 +116,50 @@ def test_save_config_creates_parent_dirs(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
     save_config(Config())
     assert config_file.exists()
+
+
+def test_ensure_csl_styles_seeds_defaults(tmp_path: Path, monkeypatch) -> None:
+    config_file = tmp_path / "cfg" / "config.toml"
+    bundled_dir = tmp_path / "bundled-csl"
+    bundled_dir.mkdir(parents=True)
+    (bundled_dir / "copernicus-publications.csl").write_text("cop", encoding="utf-8")
+    (bundled_dir / "apa.csl").write_text("apa", encoding="utf-8")
+
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    monkeypatch.setattr("bibtui.utils.config._BUNDLED_CSL_DIR", bundled_dir)
+    monkeypatch.setattr(
+        "bibtui.utils.config._DEFAULT_CSL_FILES",
+        ("copernicus-publications.csl", "apa.csl"),
+    )
+
+    ensure_csl_styles()
+
+    style_dir = csl_dir()
+    assert (style_dir / "copernicus-publications.csl").read_text(
+        encoding="utf-8"
+    ) == "cop"
+    assert (style_dir / "apa.csl").read_text(encoding="utf-8") == "apa"
+
+
+def test_ensure_csl_styles_does_not_overwrite_existing_files(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_file = tmp_path / "cfg" / "config.toml"
+    bundled_dir = tmp_path / "bundled-csl"
+    bundled_dir.mkdir(parents=True)
+    (bundled_dir / "apa.csl").write_text("bundled", encoding="utf-8")
+
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    monkeypatch.setattr("bibtui.utils.config._BUNDLED_CSL_DIR", bundled_dir)
+    monkeypatch.setattr("bibtui.utils.config._DEFAULT_CSL_FILES", ("apa.csl",))
+
+    user_style_dir = csl_dir()
+    user_style_dir.mkdir(parents=True, exist_ok=True)
+    (user_style_dir / "apa.csl").write_text("custom", encoding="utf-8")
+
+    ensure_csl_styles()
+
+    assert (user_style_dir / "apa.csl").read_text(encoding="utf-8") == "custom"
 
 
 def test_load_config_returns_defaults_when_toml_invalid(
@@ -149,6 +197,7 @@ auto_fetch_pdf = true
     assert cfg.pdf_base_dir == "/papers"
     assert cfg.unpaywall_email == "user@example.com"
     assert cfg.openalex_api_key == ""
+    assert cfg.default_citation_style == "copernicus-publications"
 
 
 # ---------------------------------------------------------------------------

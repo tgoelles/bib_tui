@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Citation preview in entry detail** — added citeproc-py based formatted citation preview with a CSL style selector (currently bundled with `copernicus-publications.csl`).
+- **Copy citation shortcut** — added `Shift+C` to copy the currently rendered citation preview while keeping `Ctrl+C` as citekey/default copy behavior.
+- **Config-based CSL styles directory** — citation styles now live in `~/.config/bibtui/csl`; on first run bibtui seeds common defaults: Copernicus, APA, IEEE, Vancouver, Chicago (author-date), and Harvard (Cite Them Right).
+- **Import citekey conflict handling** — DOI/paste imports now handle existing keys by rejecting same-title duplicates and otherwise assigning the next free lowercase suffix (`a` … `z`, e.g. `Goelles2025a`).
+
 ## [0.13.0] - 2026-05-29
 
 ### Added

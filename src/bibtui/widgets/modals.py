@@ -14,6 +14,7 @@ from textual.widgets import (
     ListItem,
     ListView,
     LoadingIndicator,
+    Select,
     SelectionList,
     Static,
     Switch,
@@ -21,6 +22,7 @@ from textual.widgets import (
 )
 from textual.widgets._selection_list import Selection
 
+from bibtui.bib.citation_preview import available_csl_styles, default_csl_style_key
 from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bibtui.utils.config import Config
@@ -83,55 +85,6 @@ class ConfirmModal(ModalScreen[bool]):
 
     def action_cancel(self) -> None:
         self.dismiss(False)
-
-
-class PDFActionsModal(ModalScreen["str | None"]):
-    """Modal with low-frequency PDF management actions for one entry."""
-
-    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
-
-    DEFAULT_CSS = """
-    PDFActionsModal {
-        align: center middle;
-    }
-    PDFActionsModal > Vertical {
-        width: 64;
-        height: auto;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
-    }
-    PDFActionsModal Button {
-        margin-bottom: 1;
-    }
-    """
-
-    def __init__(self, entry_key: str, pdf_path: str, **kwargs):
-        super().__init__(**kwargs)
-        self._entry_key = entry_key
-        self._pdf_path = pdf_path
-
-    def compose(self) -> ComposeResult:
-        with Vertical():
-            yield Label(f"[bold]PDF Actions[/bold]  [dim]{self._entry_key}[/dim]")
-            yield Button("Copy PDF to clipboard", id="btn-copy-file")
-            yield Button("Copy path to clipboard", id="btn-copy-path")
-            yield Button("Delete PDF", id="btn-delete", variant="error")
-            with Horizontal(classes="modal-buttons"):
-                yield Button("Close", id="btn-close")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-copy-file":
-            self.dismiss("copy-file")
-        elif event.button.id == "btn-copy-path":
-            self.dismiss("copy-path")
-        elif event.button.id == "btn-delete":
-            self.dismiss("delete")
-        else:
-            self.dismiss(None)
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
 
 
 class LibraryFetchConfirmModal(ModalScreen[tuple[bool, bool] | None]):
@@ -574,6 +527,18 @@ class SettingsModal(ModalScreen["Config | None"]):
     def __init__(self, config: Config, **kwargs):
         super().__init__(**kwargs)
         self._config = config
+        self._citation_styles = available_csl_styles()
+        configured = (self._config.default_citation_style or "").strip()
+        style_keys = {key for _label, key in self._citation_styles}
+        fallback = default_csl_style_key()
+        if configured and configured in style_keys:
+            self._selected_style = configured
+        elif fallback in style_keys:
+            self._selected_style = fallback
+        elif self._citation_styles:
+            self._selected_style = self._citation_styles[0][1]
+        else:
+            self._selected_style = fallback
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -639,6 +604,18 @@ class SettingsModal(ModalScreen["Config | None"]):
                     value=self._config.check_for_updates, id="check-for-updates"
                 )
 
+            yield Static("")
+            yield Label("Default citation style")
+            yield Static(
+                "[dim]Used as the default selection in the citation preview dropdown.[/dim]"
+            )
+            yield Select(
+                self._citation_styles,
+                allow_blank=False,
+                value=self._selected_style,
+                id="default-citation-style",
+            )
+
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
@@ -661,6 +638,9 @@ class SettingsModal(ModalScreen["Config | None"]):
         self._config.check_for_updates = self.query_one(
             "#check-for-updates", Switch
         ).value
+        selected_style = self.query_one("#default-citation-style", Select).value
+        if isinstance(selected_style, str):
+            self._config.default_citation_style = selected_style
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
@@ -767,9 +747,14 @@ class HelpModal(ModalScreen[None]):
   [bold]0[/bold]         Mark unrated
 
 [bold]── Other ─────────────────────────────[/bold]
-    [bold]ctrl+c[/bold]    Copy selected text (or cite key if none focused)
+        [bold]ctrl+c[/bold]    Copy selected text (or cite key if none focused)
+    [dim]            Default copy variant for entries: cite key[/dim]
+        [bold]Shift+c[/bold]   Copy formatted citation (current citation style)
+    [dim]            Alternative copy variant: rendered citation text[/dim]
     [bold]ctrl+shift+c[/bold] Copy current BibTeX entry
     [bold]ctrl+y[/bold]    Copy current BibTeX entry (terminal-safe fallback)
+    [dim]  Citation styles are loaded from ~/.config/bibtui/csl[/dim]
+    [dim]  Add more styles: https://github.com/citation-style-language/styles[/dim]
   [bold]?[/bold]         Show this help
     [bold]ctrl+p[/bold]    Command palette (Settings + Library actions)
         [bold]maximize[/bold]  (palette) maximize focused pane
