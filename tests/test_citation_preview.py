@@ -1,3 +1,7 @@
+from pathlib import Path
+
+import pytest
+
 from bibtui.bib.citation_preview import (
     available_csl_styles,
     csl_style_path,
@@ -7,10 +11,27 @@ from bibtui.bib.citation_preview import (
 from bibtui.bib.models import BibEntry
 
 
+@pytest.fixture(autouse=True)
+def _use_temp_config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", tmp_path / "config.toml")
+
+
 def test_copernicus_style_is_available() -> None:
     keys = [key for _label, key in available_csl_styles()]
     assert "copernicus-publications" in keys
     assert csl_style_path("copernicus-publications").exists()
+
+
+def test_requested_default_styles_are_available() -> None:
+    keys = {key for _label, key in available_csl_styles()}
+    assert {
+        "copernicus-publications",
+        "apa",
+        "ieee",
+        "vancouver",
+        "chicago-author-date",
+        "harvard-cite-them-right",
+    }.issubset(keys)
 
 
 def test_default_style_is_resolved() -> None:

@@ -773,6 +773,8 @@ class HelpModal(ModalScreen[None]):
     [dim]            Alternative copy variant: rendered citation text[/dim]
     [bold]ctrl+shift+c[/bold] Copy current BibTeX entry
     [bold]ctrl+y[/bold]    Copy current BibTeX entry (terminal-safe fallback)
+    [dim]  Citation styles are loaded from ~/.config/bibtui/csl[/dim]
+    [dim]  Add more styles: https://github.com/citation-style-language/styles[/dim]
   [bold]?[/bold]         Show this help
     [bold]ctrl+p[/bold]    Command palette (Settings + Library actions)
         [bold]maximize[/bold]  (palette) maximize focused pane

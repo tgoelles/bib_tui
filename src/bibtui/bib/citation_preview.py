@@ -13,17 +13,23 @@ from citeproc import (  # type: ignore[import-untyped]
 from citeproc.source.json import CiteProcJSON  # type: ignore[import-untyped]
 
 from bibtui.bib.models import BibEntry
+from bibtui.utils.config import csl_dir, ensure_csl_styles
 
-_CSL_DIR = Path(__file__).resolve().parents[1] / "csl"
 _DEFAULT_STYLE = "copernicus-publications"
+
+
+def _configured_csl_dir() -> Path:
+    ensure_csl_styles()
+    return csl_dir()
 
 
 def available_csl_styles() -> list[tuple[str, str]]:
     """Return available local CSL styles as (label, key) tuples."""
-    if not _CSL_DIR.exists():
+    style_dir = _configured_csl_dir()
+    if not style_dir.exists():
         return []
     styles: list[tuple[str, str]] = []
-    for p in sorted(_CSL_DIR.glob("*.csl")):
+    for p in sorted(style_dir.glob("*.csl")):
         key = p.stem
         label = key.replace("-", " ").title()
         styles.append((label, key))
@@ -40,7 +46,7 @@ def default_csl_style_key() -> str:
 
 def csl_style_path(style_key: str) -> Path:
     """Resolve style key to local CSL path."""
-    return _CSL_DIR / f"{style_key}.csl"
+    return _configured_csl_dir() / f"{style_key}.csl"
 
 
 def _split_authors(author_field: str) -> list[dict[str, str]]:

@@ -1,8 +1,18 @@
+import shutil
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
 CONFIG_PATH = Path.home() / ".config" / "bibtui" / "config.toml"
+_BUNDLED_CSL_DIR = Path(__file__).resolve().parents[1] / "csl"
+_DEFAULT_CSL_FILES = (
+    "copernicus-publications.csl",
+    "apa.csl",
+    "ieee.csl",
+    "vancouver.csl",
+    "chicago-author-date.csl",
+    "harvard-cite-them-right.csl",
+)
 
 
 @dataclass
@@ -18,6 +28,30 @@ class Config:
     check_for_updates: bool = True
     recent_files: list[str] = field(default_factory=list)
     theme: str = ""  # empty means auto-detect from OS/Omarchy
+
+
+def csl_dir() -> Path:
+    """Return the user CSL directory next to config.toml."""
+    return CONFIG_PATH.parent / "csl"
+
+
+def ensure_csl_styles() -> None:
+    """Seed the user CSL directory with bundled default styles if missing."""
+    target_dir = csl_dir()
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return
+
+    for filename in _DEFAULT_CSL_FILES:
+        src = _BUNDLED_CSL_DIR / filename
+        dst = target_dir / filename
+        if dst.exists() or not src.exists():
+            continue
+        try:
+            shutil.copy2(src, dst)
+        except OSError:
+            continue
 
 
 def is_first_run() -> bool:
@@ -52,6 +86,7 @@ def default_config() -> Config:
 
 
 def load_config() -> Config:
+    ensure_csl_styles()
     if not CONFIG_PATH.exists():
         return default_config()
     try:
@@ -117,3 +152,4 @@ def save_config(config: Config) -> None:
         "",
     ]
     CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")
+    ensure_csl_styles()

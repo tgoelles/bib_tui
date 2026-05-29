@@ -153,6 +153,27 @@ defaults for your PDF directory, Downloads folder, and Unpaywall email
 - `Shift+C` — alternative copy variant: copies the formatted citation preview using the currently selected citation style.
 - `Ctrl+Shift+C` / `Ctrl+Y` — copies the full BibTeX entry.
 
+### Citation styles (CSL)
+
+bibtui loads citation styles from your config directory at:
+
+- `~/.config/bibtui/csl/`
+
+On first run, bibtui seeds this folder with common defaults:
+
+- `copernicus-publications` (Copernicus journals)
+- `apa` (psychology, social sciences, education)
+- `ieee` (engineering, computer science)
+- `vancouver` (medicine/biomedical)
+- `chicago-author-date` (humanities)
+- `harvard-cite-them-right` (common across Europe and Australia)
+
+To add more citation styles, download `.csl` files from:
+
+- https://github.com/citation-style-language/styles
+
+and place them into `~/.config/bibtui/csl/`.
+
 ---
 
 ## PDF workflow
