@@ -87,55 +87,6 @@ class ConfirmModal(ModalScreen[bool]):
         self.dismiss(False)
 
 
-class PDFActionsModal(ModalScreen["str | None"]):
-    """Modal with low-frequency PDF management actions for one entry."""
-
-    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
-
-    DEFAULT_CSS = """
-    PDFActionsModal {
-        align: center middle;
-    }
-    PDFActionsModal > Vertical {
-        width: 64;
-        height: auto;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
-    }
-    PDFActionsModal Button {
-        margin-bottom: 1;
-    }
-    """
-
-    def __init__(self, entry_key: str, pdf_path: str, **kwargs):
-        super().__init__(**kwargs)
-        self._entry_key = entry_key
-        self._pdf_path = pdf_path
-
-    def compose(self) -> ComposeResult:
-        with Vertical():
-            yield Label(f"[bold]PDF Actions[/bold]  [dim]{self._entry_key}[/dim]")
-            yield Button("Copy PDF to clipboard", id="btn-copy-file")
-            yield Button("Copy path to clipboard", id="btn-copy-path")
-            yield Button("Delete PDF", id="btn-delete", variant="error")
-            with Horizontal(classes="modal-buttons"):
-                yield Button("Close", id="btn-close")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-copy-file":
-            self.dismiss("copy-file")
-        elif event.button.id == "btn-copy-path":
-            self.dismiss("copy-path")
-        elif event.button.id == "btn-delete":
-            self.dismiss("delete")
-        else:
-            self.dismiss(None)
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
-
-
 class LibraryFetchConfirmModal(ModalScreen[tuple[bool, bool] | None]):
     """Confirm library PDF fetch and choose whether broken links may be overwritten."""
 

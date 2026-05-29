@@ -49,7 +49,6 @@ from bibtui.widgets.modals import (
     KeywordsModal,
     LibraryFetchConfirmModal,
     PasteModal,
-    PDFActionsModal,
     RawEditModal,
     SettingsModal,
 )
@@ -100,11 +99,6 @@ class LibraryProvider(Provider):
             app.action_unify_citekeys,
             help="Unify citekeys to AuthorYear format",
         )
-        yield DiscoveryHit(
-            "Entry: PDF actions",
-            app.action_pdf_actions,
-            help="Show PDF actions for the selected entry",
-        )
 
     async def search(self, query: str) -> Hits:
         app = cast("BibTuiApp", self.app)
@@ -119,11 +113,6 @@ class LibraryProvider(Provider):
                 "Library: Unify citekeys (AuthorYear)",
                 app.action_unify_citekeys,
                 "Unify citekeys to AuthorYear format",
-            ),
-            (
-                "Entry: PDF actions",
-                app.action_pdf_actions,
-                "Show PDF actions for the selected entry",
             ),
         ):
             score = matcher.match(label)
@@ -649,16 +638,6 @@ class BibTuiApp(App):
         except Exception as e:
             self.notify(f"Could not open PDF: {e}", severity="error", timeout=5)
 
-    def action_pdf_actions(self) -> None:
-        # Keep command-palette compatibility: this opens the same action flow.
-        entry, path = self._selected_entry_pdf_path()
-        if entry is None or path is None:
-            return
-        self.push_screen(
-            PDFActionsModal(entry.key, path),
-            lambda result: self._on_pdf_action_selected(entry.key, path, result),
-        )
-
     def action_pdf_copy_file(self) -> None:
         _entry, path = self._selected_entry_pdf_path()
         if path is None:
@@ -700,35 +679,6 @@ class BibTuiApp(App):
             self.notify("No local PDF found for this entry.", severity="warning")
             return entry, None
         return entry, path
-
-    def _on_pdf_action_selected(
-        self, entry_key: str, path: str, result: str | None
-    ) -> None:
-        if result is None:
-            return
-        if result == "copy-file":
-            try:
-                self._copy_pdf_file_to_clipboard(path)
-                self.notify("Copied PDF file to clipboard.", timeout=3)
-            except Exception as e:
-                self.notify(
-                    f"Could not copy PDF file: {e}", severity="error", timeout=5
-                )
-            return
-        if result == "copy-path":
-            self.copy_to_clipboard(path)
-            self.notify("Copied PDF path.", timeout=3)
-            return
-        if result == "delete":
-            self.push_screen(
-                ConfirmModal(
-                    f"Delete PDF for [bold]{entry_key}[/bold]?\n"
-                    "This deletes the file from disk and removes the link."
-                ),
-                lambda confirmed: (
-                    self._do_delete_pdf(entry_key, path) if confirmed else None
-                ),
-            )
 
     def _copy_pdf_file_to_clipboard(self, path: str) -> None:
         pdf_path = Path(path).expanduser().resolve()
