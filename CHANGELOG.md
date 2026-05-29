@@ -5,25 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
-## [0.13.0] - 2026-05-28
+## [0.13.0] - 2026-05-29
 
 ### Added
 
-- **PDF actions UI cleanup** — moved entry-level PDF operations into a dedicated collapsible `PDF` section with state-aware disabled actions.
-- **Copy PDF action behavior** — copy now uses OS file clipboard formats (Linux `wl-copy`/`xclip` URI list, macOS `osascript`, Windows `Set-Clipboard -Path`).
+- **PDF actions UI added** - moved  PDF operations into a dedicated collapsible `PDF` section with state-aware disabled actions.
+- **Copy PDF action behavior** — copy uses OS file clipboard formats (Linux `wl-copy`/`xclip` URI list, macOS `osascript`, Windows `Set-Clipboard -Path`).
 
 ### Fixed
 
 - **Safer OpenAlex DOI fetching** — when a DOI is present but OpenAlex finds no DOI match, PDF fetching no longer falls back to title search, preventing false-positive downloads of wrong PDFs (regression covered with an `inproceedings` DOI case).
 
-
-## [0.12.4] - 2027-05-04
+## [0.12.4] - 2026-05-04
 
 ### Fixed
 
 - **bibtexparser import crash on startup** — removed a runtime type annotation reference to `bibtexparser.model.Library` in the BibTeX parser, preventing `AttributeError: module 'bibtexparser.model' has no attribute 'Library'` on environments where that symbol is absent.
--
 
 ## [0.12.3] - 2026-05-04
 
