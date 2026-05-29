@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import webbrowser
 from pathlib import Path
+from string import ascii_lowercase
 from typing import cast
 from urllib.parse import quote_plus, urlparse
 
@@ -406,21 +407,7 @@ class BibTuiApp(App):
     def _on_paste_done(self, result: BibEntry | None) -> None:
         if result is None:
             return
-        existing_keys = {e.key for e in self._entries}
-        if result.key in existing_keys:
-            self.notify(
-                f"BibTeX key '{result.key}' already exists, cannot proceed.",
-                severity="error",
-                timeout=5,
-            )
-            return
-        self._entries.append(result)
-        self._dirty = True
-        el = self.query_one(EntryList)
-        el.refresh_entries(self._entries)
-        self.call_after_refresh(self._jump_to_entry, result)
-        self.notify(f"Added: {result.key}", timeout=3)
-        self._maybe_auto_fetch(result)
+        self._finalize_imported_entry(result)
 
     def action_doi_import(self) -> None:
         self.push_screen(DOIModal(), self._on_doi_done)
@@ -448,21 +435,63 @@ class BibTuiApp(App):
     def _on_doi_done(self, result: BibEntry | None) -> None:
         if result is None:
             return
-        existing_keys = {e.key for e in self._entries}
-        if result.key in existing_keys:
-            self.notify(
-                f"BibTeX key '{result.key}' already exists, cannot proceed.",
-                severity="error",
-                timeout=5,
-            )
+        self._finalize_imported_entry(result)
+
+    @staticmethod
+    def _normalized_title(title: str) -> str:
+        return " ".join((title or "").casefold().split())
+
+    def _resolve_import_key(self, incoming: BibEntry) -> tuple[str | None, str | None]:
+        base_key = (incoming.key or "").strip()
+        if not base_key:
+            return None, "Imported entry has no BibTeX key."
+
+        key_collisions = [entry for entry in self._entries if entry.key == base_key]
+        if not key_collisions:
+            return base_key, None
+
+        incoming_title = self._normalized_title(incoming.title)
+        for existing in key_collisions:
+            if self._normalized_title(existing.title) == incoming_title:
+                return (
+                    None,
+                    f"BibTeX key '{base_key}' already exists for the same title.",
+                )
+
+        used_keys = {entry.key for entry in self._entries}
+        for suffix in ascii_lowercase:
+            candidate = f"{base_key}{suffix}"
+            if candidate not in used_keys:
+                return candidate, None
+
+        return (
+            None,
+            (f"BibTeX key '{base_key}' already exists and all suffixes a-z are used."),
+        )
+
+    def _finalize_imported_entry(self, entry: BibEntry) -> None:
+        old_key = entry.key
+        resolved_key, error = self._resolve_import_key(entry)
+        if error:
+            self.notify(error, severity="error", timeout=5)
             return
-        self._entries.append(result)
+
+        entry.key = resolved_key or entry.key
+        self._entries.append(entry)
         self._dirty = True
         el = self.query_one(EntryList)
         el.refresh_entries(self._entries)
-        self.call_after_refresh(self._jump_to_entry, result)
-        self.notify(f"Added: {result.key}", timeout=3)
-        self._maybe_auto_fetch(result)
+        self.call_after_refresh(self._jump_to_entry, entry)
+
+        if entry.key != old_key:
+            self.notify(
+                f"Added: {entry.key} (renamed from {old_key} due to key conflict)",
+                timeout=4,
+            )
+        else:
+            self.notify(f"Added: {entry.key}", timeout=3)
+
+        self._maybe_auto_fetch(entry)
 
     def _jump_to_entry(self, result: BibEntry) -> None:
         """Move cursor to the given entry after the table has been rendered."""

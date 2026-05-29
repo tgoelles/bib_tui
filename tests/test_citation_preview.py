@@ -1,5 +1,5 @@
-from pathlib import Path
 import unicodedata
+from pathlib import Path
 
 import pytest
 

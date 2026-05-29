@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from bibtexparser.middlewares import LatexDecodingMiddleware
 from citeproc import (  # type: ignore[import-untyped]
     Citation,
     CitationItem,
@@ -11,7 +12,6 @@ from citeproc import (  # type: ignore[import-untyped]
     formatter,
 )
 from citeproc.source.json import CiteProcJSON  # type: ignore[import-untyped]
-from bibtexparser.middlewares import LatexDecodingMiddleware
 
 from bibtui.bib.models import BibEntry
 from bibtui.utils.config import csl_dir, ensure_csl_styles
