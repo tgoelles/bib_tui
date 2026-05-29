@@ -6,8 +6,13 @@ from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
-from textual.widgets import Button, Collapsible, Label, Static, TextArea
+from textual.widgets import Button, Collapsible, Label, Select, Static, TextArea
 
+from bibtui.bib.citation_preview import (
+    available_csl_styles,
+    default_csl_style_key,
+    render_citation_preview,
+)
 from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import entry_to_bibtex_str
 from bibtui.pdf.paths import parse_jabref_path
@@ -73,20 +78,25 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
             if v:
                 lines.append(f"  [dim]{k:<12}[/dim] {v[:80]}")
 
-    # Abstract
-    if entry.abstract:
-        lines.append("")
-        lines.append("[bold]Abstract:[/bold]")
-        words = entry.abstract.split()
-        current = ""
-        for word in words:
-            if len(current) + len(word) + 1 > 70:
-                lines.append(f"  {current}")
-                current = word
-            else:
-                current = f"{current} {word}".strip()
-        if current:
+    return "\n".join(lines)
+
+
+def _render_abstract(entry: BibEntry) -> str:
+    """Render abstract block separately so citation controls can sit above it."""
+    if not entry.abstract:
+        return ""
+
+    lines: list[str] = ["[bold]Abstract:[/bold]"]
+    words = entry.abstract.split()
+    current = ""
+    for word in words:
+        if len(current) + len(word) + 1 > 70:
             lines.append(f"  {current}")
+            current = word
+        else:
+            current = f"{current} {word}".strip()
+    if current:
+        lines.append(f"  {current}")
 
     return "\n".join(lines)
 
@@ -129,6 +139,34 @@ class EntryDetail(Widget):
     }
     #detail-pdf-collapsible {
         margin: 1 0;
+    }
+    #detail-csl-row {
+        height: auto;
+        layout: horizontal;
+        align: left middle;
+        margin: 0 0 1 0;
+    }
+    #detail-citation-panel {
+        margin: 1 0;
+        padding: 0 0 1 0;
+        height: auto;
+    }
+    #detail-citation-title {
+        margin: 0 0 1 0;
+    }
+    #detail-csl-select {
+        width: 1fr;
+        max-width: 52;
+    }
+    #detail-citation-preview {
+        margin: 0 0 1 0;
+        color: $text;
+        height: auto;
+    }
+    #detail-abstract {
+        margin: 0 0 1 0;
+        color: $text;
+        height: auto;
     }
     #detail-pdf-panel {
         padding: 0 1;
@@ -187,6 +225,8 @@ class EntryDetail(Widget):
         self._entry: BibEntry | None = None
         self._raw_mode: bool = False
         self._pdf_base_dir: str = ""
+        self._csl_styles = available_csl_styles()
+        self._selected_csl_style = default_csl_style_key()
 
     def on_mount(self) -> None:
         self.app.theme_changed_signal.subscribe(self, self._on_theme_changed)
@@ -221,6 +261,18 @@ class EntryDetail(Widget):
                     yield Button("Copy path", id="detail-pdf-copy-path")
                     yield Button("Delete", id="detail-pdf-delete", variant="error")
         yield Static("Select an entry to view details.", id="detail-content")
+        with Vertical(id="detail-citation-panel"):
+            yield Label("[bold]Citation[/bold]", id="detail-citation-title")
+            with Horizontal(id="detail-csl-row"):
+                yield Select(
+                    self._csl_styles,
+                    allow_blank=False,
+                    value=self._selected_csl_style,
+                    compact=True,
+                    id="detail-csl-select",
+                )
+            yield Static("", id="detail-citation-preview")
+        yield Static("", id="detail-abstract")
         yield TextArea("", id="detail-raw", read_only=True)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -237,6 +289,15 @@ class EntryDetail(Widget):
             app.action_pdf_copy_path()
         elif event.button.id == "detail-pdf-delete":
             app.action_pdf_delete()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id != "detail-csl-select":
+            return
+        if not isinstance(event.value, str):
+            return
+        self._selected_csl_style = event.value
+        if self._entry is not None:
+            self._refresh_content()
 
     def show_entry(self, entry: BibEntry | None) -> None:
         self._entry = entry
@@ -289,6 +350,9 @@ class EntryDetail(Widget):
         pdf_copy_path_btn = self.query_one("#detail-pdf-copy-path", Button)
         pdf_delete_btn = self.query_one("#detail-pdf-delete", Button)
         url_label = self.query_one("#detail-url", Label)
+        citation_panel = self.query_one("#detail-citation-panel", Vertical)
+        citation_preview_widget = self.query_one("#detail-citation-preview", Static)
+        abstract_widget = self.query_one("#detail-abstract", Static)
         content = self.query_one("#detail-content", Static)
 
         if self._entry is None:
@@ -298,6 +362,10 @@ class EntryDetail(Widget):
             pdf_collapsible.display = False
             pdf_status_label.update("")
             url_label.update("")
+            citation_panel.display = False
+            citation_preview_widget.update("")
+            abstract_widget.display = False
+            abstract_widget.update("")
             content.update("Select an entry to view details.")
             self.query_one("#detail-raw", TextArea).display = False
             content.display = True
@@ -305,6 +373,20 @@ class EntryDetail(Widget):
 
         e = self._entry
         colors = self._theme_colors()
+        citation_preview = render_citation_preview(e, self._selected_csl_style)
+        citation_panel.display = True
+        if citation_preview:
+            citation_preview_widget.update(citation_preview)
+        else:
+            citation_preview_widget.update("[dim](unavailable)[/dim]")
+
+        abstract_text = _render_abstract(e)
+        if abstract_text:
+            abstract_widget.display = True
+            abstract_widget.update(abstract_text)
+        else:
+            abstract_widget.display = False
+            abstract_widget.update("")
 
         state_label = e.read_state if e.read_state else "unset"
         read_label.update(f"[bold]Read:[/bold] {e.read_state_icon} {state_label}")
@@ -360,9 +442,14 @@ class EntryDetail(Widget):
         raw = self.query_one("#detail-raw", TextArea)
         if self._raw_mode:
             content.display = False
+            citation_panel.display = False
+            abstract_widget.display = False
             raw.display = True
             raw.load_text(entry_to_bibtex_str(e))
         else:
             raw.display = False
             content.display = True
+            citation_panel.display = True
+            if abstract_text:
+                abstract_widget.display = True
             content.update(_render_entry(e, colors))
