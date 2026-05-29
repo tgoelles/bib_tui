@@ -28,6 +28,7 @@ class Config:
     check_for_updates: bool = True
     recent_files: list[str] = field(default_factory=list)
     theme: str = ""  # empty means auto-detect from OS/Omarchy
+    default_citation_style: str = "copernicus-publications"
 
 
 def csl_dir() -> Path:
@@ -113,6 +114,9 @@ def load_config() -> Config:
         check_for_updates=updates.get("check_for_updates", True),
         recent_files=recent_files,
         theme=ui_section.get("theme", ""),
+        default_citation_style=ui_section.get(
+            "default_citation_style", "copernicus-publications"
+        ),
     )
 
 
@@ -149,6 +153,7 @@ def save_config(config: Config) -> None:
         "",
         "[ui]",
         f'theme = "{_toml_escape(config.theme)}"',
+        f'default_citation_style = "{_toml_escape(config.default_citation_style)}"',
         "",
     ]
     CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")

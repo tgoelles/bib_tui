@@ -15,6 +15,7 @@ from textual.widgets import (
     ListView,
     LoadingIndicator,
     SelectionList,
+    Select,
     Static,
     Switch,
     TextArea,
@@ -22,6 +23,7 @@ from textual.widgets import (
 from textual.widgets._selection_list import Selection
 
 from bibtui.bib.models import BibEntry
+from bibtui.bib.citation_preview import available_csl_styles, default_csl_style_key
 from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bibtui.utils.config import Config
 
@@ -574,6 +576,18 @@ class SettingsModal(ModalScreen["Config | None"]):
     def __init__(self, config: Config, **kwargs):
         super().__init__(**kwargs)
         self._config = config
+        self._citation_styles = available_csl_styles()
+        configured = (self._config.default_citation_style or "").strip()
+        style_keys = {key for _label, key in self._citation_styles}
+        fallback = default_csl_style_key()
+        if configured and configured in style_keys:
+            self._selected_style = configured
+        elif fallback in style_keys:
+            self._selected_style = fallback
+        elif self._citation_styles:
+            self._selected_style = self._citation_styles[0][1]
+        else:
+            self._selected_style = fallback
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -639,6 +653,18 @@ class SettingsModal(ModalScreen["Config | None"]):
                     value=self._config.check_for_updates, id="check-for-updates"
                 )
 
+            yield Static("")
+            yield Label("Default citation style")
+            yield Static(
+                "[dim]Used as the default selection in the citation preview dropdown.[/dim]"
+            )
+            yield Select(
+                self._citation_styles,
+                allow_blank=False,
+                value=self._selected_style,
+                id="default-citation-style",
+            )
+
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
                 yield Button("Cancel", id="btn-cancel")
@@ -661,6 +687,9 @@ class SettingsModal(ModalScreen["Config | None"]):
         self._config.check_for_updates = self.query_one(
             "#check-for-updates", Switch
         ).value
+        selected_style = self.query_one("#default-citation-style", Select).value
+        if isinstance(selected_style, str):
+            self._config.default_citation_style = selected_style
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":

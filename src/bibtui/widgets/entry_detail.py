@@ -220,13 +220,22 @@ class EntryDetail(Widget):
     }
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, default_csl_style: str = "", **kwargs):
         super().__init__(**kwargs)
         self._entry: BibEntry | None = None
         self._raw_mode: bool = False
         self._pdf_base_dir: str = ""
         self._csl_styles = available_csl_styles()
-        self._selected_csl_style = default_csl_style_key()
+        self._selected_csl_style = self._resolve_csl_style(default_csl_style)
+
+    def _resolve_csl_style(self, preferred_style: str) -> str:
+        keys = [key for _label, key in self._csl_styles]
+        if preferred_style and preferred_style in keys:
+            return preferred_style
+        fallback = default_csl_style_key()
+        if fallback in keys:
+            return fallback
+        return keys[0] if keys else fallback
 
     def on_mount(self) -> None:
         self.app.theme_changed_signal.subscribe(self, self._on_theme_changed)
@@ -241,6 +250,14 @@ class EntryDetail(Widget):
 
     def set_pdf_base_dir(self, base_dir: str) -> None:
         self._pdf_base_dir = base_dir
+
+    def set_default_csl_style(self, style_key: str) -> None:
+        resolved = self._resolve_csl_style(style_key)
+        self._selected_csl_style = resolved
+        if self.is_mounted:
+            self.query_one("#detail-csl-select", Select).value = resolved
+        if self._entry is not None:
+            self._refresh_content()
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="detail-meta"):

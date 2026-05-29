@@ -78,6 +78,7 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
         unpaywall_email="user@example.com",
         openalex_api_key="openalex-secret",
         pdf_download_dir="/home/user/Downloads",
+        default_citation_style="ieee",
         update_last_check_utc="2026-02-26T10:00:00Z",
         update_last_notified_utc="2026-02-26T10:00:00Z",
         update_latest_version="0.10.0",
@@ -91,6 +92,7 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
     assert loaded.unpaywall_email == "user@example.com"
     assert loaded.openalex_api_key == "openalex-secret"
     assert loaded.pdf_download_dir == "/home/user/Downloads"
+    assert loaded.default_citation_style == "ieee"
     assert loaded.update_last_check_utc == "2026-02-26T10:00:00Z"
     assert loaded.update_last_notified_utc == "2026-02-26T10:00:00Z"
     assert loaded.update_latest_version == "0.10.0"
@@ -195,6 +197,7 @@ auto_fetch_pdf = true
     assert cfg.pdf_base_dir == "/papers"
     assert cfg.unpaywall_email == "user@example.com"
     assert cfg.openalex_api_key == ""
+    assert cfg.default_citation_style == "copernicus-publications"
 
 
 # ---------------------------------------------------------------------------

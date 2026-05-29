@@ -194,7 +194,10 @@ class BibTuiApp(App):
         yield Header()
         with Horizontal(id="main-content"):
             yield EntryList([], id="entry-list")
-            yield EntryDetail(id="entry-detail")
+            yield EntryDetail(
+                default_csl_style=self._config.default_citation_style,
+                id="entry-detail",
+            )
         yield Footer()
 
     def on_mount(self) -> None:
@@ -333,7 +336,9 @@ class BibTuiApp(App):
             self._entries = parser.load(self._bib_path)
             entry_list = self.query_one(EntryList)
             entry_list.set_pdf_base_dir(self._config.pdf_base_dir)
-            self.query_one(EntryDetail).set_pdf_base_dir(self._config.pdf_base_dir)
+            detail = self.query_one(EntryDetail)
+            detail.set_pdf_base_dir(self._config.pdf_base_dir)
+            detail.set_default_csl_style(self._config.default_citation_style)
             entry_list.refresh_entries(self._entries)
             self.notify(f"Loaded {len(self._entries)} entries.", timeout=3)
         except Exception as e:
@@ -1147,7 +1152,9 @@ class BibTuiApp(App):
         self._config = result
         save_config(result)
         self.query_one(EntryList).set_pdf_base_dir(result.pdf_base_dir)
-        self.query_one(EntryDetail).set_pdf_base_dir(result.pdf_base_dir)
+        detail = self.query_one(EntryDetail)
+        detail.set_pdf_base_dir(result.pdf_base_dir)
+        detail.set_default_csl_style(result.default_citation_style)
         self.query_one(EntryList).refresh_entries(self._entries)
         self.notify("Settings written.", timeout=2)
 
