@@ -767,7 +767,10 @@ class HelpModal(ModalScreen[None]):
   [bold]0[/bold]         Mark unrated
 
 [bold]── Other ─────────────────────────────[/bold]
-    [bold]ctrl+c[/bold]    Copy selected text (or cite key if none focused)
+        [bold]ctrl+c[/bold]    Copy selected text (or cite key if none focused)
+    [dim]            Default copy variant for entries: cite key[/dim]
+        [bold]Shift+c[/bold]   Copy formatted citation (current citation style)
+    [dim]            Alternative copy variant: rendered citation text[/dim]
     [bold]ctrl+shift+c[/bold] Copy current BibTeX entry
     [bold]ctrl+y[/bold]    Copy current BibTeX entry (terminal-safe fallback)
   [bold]?[/bold]         Show this help

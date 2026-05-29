@@ -303,6 +303,12 @@ class EntryDetail(Widget):
         self._entry = entry
         self._refresh_content()
 
+    def citation_preview_text(self) -> str:
+        """Return rendered citation preview for the selected CSL style."""
+        if self._entry is None:
+            return ""
+        return render_citation_preview(self._entry, self._selected_csl_style).strip()
+
     @property
     def raw_mode(self) -> bool:
         return self._raw_mode

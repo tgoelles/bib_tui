@@ -147,6 +147,12 @@ On first launch bibtui shows a short onboarding wizard that pre-fills sensible
 defaults for your PDF directory, Downloads folder, and Unpaywall email
 (no registration required — the email is only used for rate-limiting).
 
+### Copy shortcuts
+
+- `Ctrl+C` — default copy variant: copies selected text, or the entry citekey when no text widget is focused.
+- `Shift+C` — alternative copy variant: copies the formatted citation preview using the currently selected citation style.
+- `Ctrl+Shift+C` / `Ctrl+Y` — copies the full BibTeX entry.
+
 ---
 
 ## PDF workflow

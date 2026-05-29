@@ -166,3 +166,60 @@ def test_do_delete_pdf_removes_file_and_unlinks_entry(tmp_path, monkeypatch) -> 
     assert dummy_list.refreshed == [entry]
     assert dummy_detail.shown is entry
     assert notes and "Deleted PDF and unlinked" in notes[-1]
+
+
+def test_action_copy_citation_copies_rendered_preview(monkeypatch) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    entry = BibEntry(key="k1", entry_type="article")
+    copied: list[str] = []
+    notes: list[str] = []
+
+    class DummyList:
+        selected_entry = entry
+
+    class DummyDetail:
+        def citation_preview_text(self) -> str:
+            return "Doe, J.: Demo title, 2024."
+
+    def fake_query_one(selector):
+        if selector is EntryList:
+            return DummyList()
+        if selector is EntryDetail:
+            return DummyDetail()
+        raise AssertionError(f"Unexpected selector: {selector}")
+
+    monkeypatch.setattr(app, "query_one", fake_query_one)
+    monkeypatch.setattr(app, "copy_to_clipboard", lambda value: copied.append(value))
+    monkeypatch.setattr(app, "notify", lambda message, **kwargs: notes.append(message))
+
+    app.action_copy_citation()
+
+    assert copied == ["Doe, J.: Demo title, 2024."]
+    assert notes and "Copied citation: k1" in notes[-1]
+
+
+def test_action_copy_citation_warns_when_preview_unavailable(monkeypatch) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    entry = BibEntry(key="k1", entry_type="article")
+    notes: list[str] = []
+
+    class DummyList:
+        selected_entry = entry
+
+    class DummyDetail:
+        def citation_preview_text(self) -> str:
+            return ""
+
+    def fake_query_one(selector):
+        if selector is EntryList:
+            return DummyList()
+        if selector is EntryDetail:
+            return DummyDetail()
+        raise AssertionError(f"Unexpected selector: {selector}")
+
+    monkeypatch.setattr(app, "query_one", fake_query_one)
+    monkeypatch.setattr(app, "notify", lambda message, **kwargs: notes.append(message))
+
+    app.action_copy_citation()
+
+    assert notes and "Citation preview unavailable" in notes[-1]
