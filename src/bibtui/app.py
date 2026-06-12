@@ -68,6 +68,11 @@ class SettingsProvider(Provider):
             app.action_reset_theme,
             help="Clear saved theme and follow the OS/Omarchy theme",
         )
+        yield DiscoveryHit(
+            "Check for updates",
+            app.action_check_for_updates,
+            help="Check PyPI for a newer bibtui release now",
+        )
 
     async def search(self, query: str) -> Hits:
         app = cast("BibTuiApp", self.app)
@@ -78,6 +83,11 @@ class SettingsProvider(Provider):
                 "Theme: Reset to auto (Omarchy/OS)",
                 app.action_reset_theme,
                 "Clear saved theme and follow the OS/Omarchy theme",
+            ),
+            (
+                "Check for updates",
+                app.action_check_for_updates,
+                "Check PyPI for a newer bibtui release now",
             ),
         ):
             score = matcher.match(label)
@@ -237,12 +247,19 @@ class BibTuiApp(App):
             return
         self._check_for_updates()
 
+    def action_check_for_updates(self) -> None:
+        """Manually check PyPI for a newer release, regardless of throttle."""
+        self.notify("Checking for updates…", timeout=2)
+        self._check_for_updates(force=True)
+
     @work(thread=True)
-    def _check_for_updates(self) -> None:
+    def _check_for_updates(self, force: bool = False) -> None:
         now = update_check.utc_now()
         now_iso = update_check.to_utc_iso(now)
 
-        if not update_check.is_due(self._config.update_last_check_utc, now):
+        if not force and not update_check.is_due(
+            self._config.update_last_check_utc, now
+        ):
             cached = self._config.update_latest_version
             if (
                 cached
@@ -257,18 +274,21 @@ class BibTuiApp(App):
             return
 
         latest = update_check.fetch_latest_stable_version(timeout=3)
-        self.app.call_from_thread(self._on_update_check_done, latest, now_iso)
+        self.app.call_from_thread(self._on_update_check_done, latest, now_iso, force)
 
-    def _on_update_check_done(self, latest: str | None, checked_at_utc: str) -> None:
-        self._config.update_last_check_utc = checked_at_utc
-
+    def _on_update_check_done(
+        self, latest: str | None, checked_at_utc: str, force: bool = False
+    ) -> None:
         if latest:
+            self._config.update_last_check_utc = checked_at_utc
             self._config.update_latest_version = latest
 
-        should_notify = bool(
-            latest
-            and update_check.is_newer_version(__version__, latest)
-            and not update_check.notified_today(
+        update_available = bool(
+            latest and update_check.is_newer_version(__version__, latest)
+        )
+        should_notify = update_available and (
+            force
+            or not update_check.notified_today(
                 self._config.update_last_notified_utc,
                 update_check.parse_utc_iso(checked_at_utc) or update_check.utc_now(),
             )
@@ -280,6 +300,19 @@ class BibTuiApp(App):
 
         if should_notify and latest:
             self._show_update_notification(latest)
+        elif force:
+            # A manually triggered check always reports its result.
+            if latest is None:
+                self.notify(
+                    "Could not check for updates (network error).",
+                    severity="warning",
+                    timeout=5,
+                )
+            else:
+                self.notify(
+                    f"You're on the latest version ({__version__}).",
+                    timeout=5,
+                )
 
     def _on_cached_update_available(self, latest: str, notified_at_utc: str) -> None:
         self._config.update_last_notified_utc = notified_at_utc
