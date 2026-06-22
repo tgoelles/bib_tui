@@ -13,6 +13,14 @@ builds the entry for you.
 This is the quickest way to add a paper you found in a browser or a reference
 list — copy the DOI, press <kbd>d</kbd>, paste, done.
 
+!!! tip "PDFs are fetched automatically"
+
+    With **Auto-fetch PDF on import** enabled (the default), bibtui downloads the
+    open-access PDF right after import — so a DOI often becomes a fully-linked
+    entry, PDF and all, in one step. It needs a DOI or URL on the entry and a PDF
+    directory set. Turn it off in [settings](../configuration.md) if you'd rather
+    fetch manually with <kbd>f</kbd>.
+
 ## Paste raw BibTeX
 
 If you already have a BibTeX snippet (for example from a publisher's "cite this"

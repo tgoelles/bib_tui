@@ -103,7 +103,9 @@ an HPC cluster, or on a colleague's machine. It installs in under a second with
 
 === "Themes"
 
-    Full Textual theming, including automatic detection of your desktop theme.
+    Full Textual theming — Catppuccin, Nord, Dracula, Gruvbox and more. bibtui
+    also integrates with [Omarchy](https://omarchy.org): it picks up your active
+    desktop theme automatically and follows along live when you switch.
 
     ![A light theme](assets/img/theme-light.svg){ loading=lazy }
 

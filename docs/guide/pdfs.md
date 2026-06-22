@@ -29,6 +29,14 @@ entry's `file` field is updated in JabRef format, so the `◫` icon lights up an
     If every source fails, bibtui tells you why. Closed-access papers with no
     open-access copy simply aren't available — that's expected, not a bug.
 
+## On import (automatic)
+
+You usually don't even press <kbd>f</kbd>. With **Auto-fetch PDF on import**
+enabled (the default), bibtui fetches the PDF automatically right after you
+[import an entry](importing.md) by DOI or paste — provided the entry has a DOI or
+URL and you've set a PDF directory. Turn it off in
+[settings](../configuration.md) to always fetch manually.
+
 ## Fill in a whole library
 
 Open the command palette with <kbd>Ctrl</kbd>+<kbd>P</kbd> and choose
@@ -44,11 +52,16 @@ If you've downloaded a paper yourself, press <kbd>a</kbd> to attach it. bibtui
 shows the files in your Downloads folder with a live filter; pick one and it's
 copied into your PDF directory and linked to the entry.
 
-## Opening PDFs
+## Opening and managing PDFs
 
 Press <kbd>Space</kbd> on any entry with a linked PDF to open it in your system
 viewer. bibtui resolves the link relative to your PDF directory, and also falls
 back to matching by cite key, so links created by JabRef keep working.
+
+The **PDF** section in the detail pane gives you the rest of the actions for an
+entry's PDF: open it, copy the file to the clipboard (to paste into an email or
+chat), copy its path, or delete it. Actions that don't apply — for example copy
+when there's no PDF — are disabled.
 
 ## Where PDFs live
 
