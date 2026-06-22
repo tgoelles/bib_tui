@@ -41,7 +41,8 @@ all without leaving the terminal. No database, no sync daemon, no account.
 
     One keystroke fetches the open-access PDF from arXiv, Copernicus, OpenAlex
     or Unpaywall — and links it to the entry. Run it across your whole library
-    to fill in everything that's missing.
+    to fill in everything that's missing, then **copy a PDF to your clipboard**
+    to email it or hand it to an LLM.
 
     [:octicons-arrow-right-24: Fetching PDFs](guide/pdfs.md)
 

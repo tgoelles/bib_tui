@@ -58,10 +58,30 @@ Press <kbd>Space</kbd> on any entry with a linked PDF to open it in your system
 viewer. bibtui resolves the link relative to your PDF directory, and also falls
 back to matching by cite key, so links created by JabRef keep working.
 
-The **PDF** section in the detail pane gives you the rest of the actions for an
-entry's PDF: open it, copy the file to the clipboard (to paste into an email or
-chat), copy its path, or delete it. Actions that don't apply — for example copy
-when there's no PDF — are disabled.
+The **PDF** section in the detail pane collects every action for an entry's PDF —
+**Open**, **Fetch**, **Add**, **Copy PDF**, **Copy path** and **Delete**.
+Actions that don't apply (for example copying when there's no local PDF) are
+disabled.
+
+### Copy PDF — share a paper in two clicks
+
+**Copy PDF** puts the actual PDF *file* on your system clipboard, so you can
+paste it straight into wherever you're working:
+
+- **Email or chat** — paste the paper as an attachment into your mail client,
+  Slack, or Teams without hunting through folders.
+- **Feed it to an LLM** — paste the PDF into an AI assistant to summarise a
+  paper, ask questions about a method, or extract the key results.
+- **Drop it into a document** — attach it to your notes or a manuscript.
+
+**Copy path** instead copies the file's location as text — handy for pasting
+into a terminal, a script, or any tool that expects a file path.
+
+!!! info "Clipboard support"
+
+    Copying the file uses your platform's native file-clipboard mechanism
+    (`wl-copy`/`xclip` on Linux, `osascript` on macOS, `Set-Clipboard` on
+    Windows). If file copy isn't available, **Copy path** always works.
 
 ## Where PDFs live
 
