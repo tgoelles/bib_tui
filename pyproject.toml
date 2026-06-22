@@ -54,6 +54,9 @@ dev = [
     "ruff>=0.15.2",
     "textual-dev>=1.8.0",
 ]
+docs = [
+    "mkdocs-material>=9.5.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

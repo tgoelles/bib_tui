@@ -1,247 +1,73 @@
 # bibtui
 
-![bibtui logo](docs/pictures/logo2.png)
+![bibtui logo](https://raw.githubusercontent.com/tgoelles/bib_tui/main/docs/pictures/logo2.png)
 
 > A quiet, powerful home for your references.
 
 [![PyPI](https://img.shields.io/pypi/v/bibtui)](https://pypi.org/project/bibtui/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-bibtui-deeppurple)](https://tgoelles.github.io/bib_tui/)
 [![Publish](https://github.com/tgoelles/bib_tui/actions/workflows/publish.yml/badge.svg)](https://github.com/tgoelles/bib_tui/actions/workflows/publish.yml)
 [![CI](https://github.com/tgoelles/bib_tui/actions/workflows/ci.yml/badge.svg)](https://github.com/tgoelles/bib_tui/actions/workflows/ci.yml)
+
+**bibtui** is a fast, keyboard-driven terminal app for researchers who work with
+BibTeX. Open your `.bib` file, search thousands of references instantly, fetch
+open-access PDFs with a single keystroke, and track what you've read — without
+leaving the terminal. No database, no sync daemon, no account.
+
+📖 **[Read the full documentation →](https://tgoelles.github.io/bib_tui/)**
+
+![bibtui library view](https://raw.githubusercontent.com/tgoelles/bib_tui/main/docs/assets/img/library.png)
 
 ## Quick start
 
 ```bash
-# Run without installing (opens built-in file browser)
+# Run without installing — opens the built-in file browser
 uvx --prerelease=allow bibtui
 
-# Or open a specific .bib directly
+# Or open a specific library directly
 uvx --prerelease=allow bibtui myrefs.bib
 
 # Or install permanently
 uv tool install --prerelease=allow bibtui
 ```
 
-You can now start bibtui without passing a `.bib` file and select one via the built-in file browser.
-
-> **Why `--prerelease=allow`?** bibtui depends on `bibtexparser` v2, which is
-> still in beta on PyPI. This flag tells uv to use it. Once bibtexparser
-> publishes a stable v2 release this flag will no longer be needed.
-
----
-
-## PDF fetching
-
-
-BibTui can fetch PDFs automatically on import, for individual records, or for your entire library. It uses only free and legal sources: arXiv, [Unpaywall](https://unpaywall.org), and [OpenAlex](https://openalex.org). For best results, provide an email address for Unpaywall and a free API key for OpenAlex.
-
-
-
-## Screenshots
-
-<!-- screenshots -->
-
-| Light theme                            | Dark — Catppuccin Mocha                    |
-| -------------------------------------- | ------------------------------------------- |
-| ![light theme](docs/pictures/theme1.png) | ![catppuccin mocha](docs/pictures/theme2.png) |
-
-| Nord — keywords modal                              |  |
-| --------------------------------------------------- | - |
-| ![nord with keywords modal](docs/pictures/theme3.png) |  |
-
-<!-- recording -->
-
-<!-- ![demo](docs/demo.gif) -->
-
----
-
-**bibtui** is a beautiful, keyboard-driven terminal app for researchers who live
-in the terminal. Browse and edit your `.bib` file, fetch open-access PDFs with a
-single keystroke, track what you've read, and never leave the command line —
-no database, no sync daemon, no account required.
-
-> **Mouse users welcome.** bibtui works fully with the mouse — click, scroll, select.
-> You just need to launch it from a terminal: `uvx --prerelease=allow bibtui` (then pick your file in the built-in browser, or pass a path directly).
-
----
-
-## Why bibtui?
-
-|                                    | bibtui | JabRef | Zotero |
-| ---------------------------------- | ------ | ------ | ------ |
-| Runs in the terminal               | ✅     | ❌     | ❌     |
-| No database / sync daemon          | ✅     | ✅     | ❌     |
-| Git-friendly plain `.bib`        | ✅     | ✅     | ❌     |
-| Works over SSH                     | ✅     | ❌     | ❌     |
-| Full Textual theming               | ✅     | ❌     | ❌     |
-| Pure Python, installs less than 1s | ✅     | ❌     | ❌     |
-
-Well, I mostly built this for myself. I was trying many bibliography tools over the years and in the end stuck with JabRef. It worked directly on the bib file, had import from DOI, PDF fetching, ratings and PDF linking. What I did not like was the UI and the many features I don't need. Anyway, I kept using it, more or less frustrated.
-
-Then I switched to Linux on my MacBook M1 and suddenly couldn't install JabRef anymore, even after trying different approaches. That was it, I decided to make my own that does what I want, looks nice, and nothing more.
-
-I also wanted to try out Claude Code for a project from scratch, so yes, most of the code was AI-generated. Otherwise I would never have done it. It still took many hours of work and I used my experience from many Python projects. I reviewed everything and have tests for the non ui part.
-
----
-
-## Features
-
-- **Browse & search** — instant search across title, author, keywords, journals and cite key
-- **Import by DOI** — paste a DOI and metadata is fetched automatically
-- **Fetch PDFs automatically** — tries arXiv → Copernicus → OpenAlex (free tier by default; API key optional) → Unpaywall → direct URL
-- **Library-wide actions** — fetch all missing PDFs and unify citekeys to AuthorYear
-- **Add existing PDFs** — pick a file from your Downloads folder with a live filter
-- **Edit entries** — field-by-field form *or* raw BibTeX editor (toggle with `v`)
-- **Read states & priorities** — track what you've read and what matters most
-- **Star ratings** — rate entries 1–5
-- **Keywords editor** — manage tags inline
-- **JabRef-compatible** — file links use JabRef conventions; open the same `.bib` in both tools
-- **Git-friendly** — it's a plain text file (.bib); commit, diff, and collaborate normally
-- **Full Textual theme support** — including automatic detection of the [omarchy](https://omarchy.org) themes
-- **Works anywhere `uv` does** — SSH, HPC clusters, a colleague's laptop
-- **Built-in file browser** — start with or without pointing to a `.bib` file
-
----
-
-## Installation
-
-### Recommended — uv (fastest)
-
-```bash
-uv tool install --prerelease=allow bibtui
-```
-updating an existing installation:
-
-```bash
-uv tool upgrade bibtui
-```
-
-### pip
-
-```bash
-pip install --pre bibtui
-```
-
-### Try without installing
-
-```bash
-uvx --prerelease=allow bibtui references.bib
-```
-
-> **Note:** The `--prerelease=allow` / `--pre` flag is needed because bibtui depends on
-> `bibtexparser` v2, which is currently in beta on PyPI. Once it releases a stable v2
-> this flag will no longer be required.
-
-
-
----
-
-## Usage
-
-```
-bibtui MyCollection.bib
-```
-
-On first launch bibtui shows a short onboarding wizard that pre-fills sensible
-defaults for your PDF directory, Downloads folder, and Unpaywall email
-(no registration required — the email is only used for rate-limiting).
-
-### Copy shortcuts
-
-- `Ctrl+C` — default copy variant: copies selected text, or the entry citekey when no text widget is focused.
-- `Shift+C` — alternative copy variant: copies the formatted citation preview using the currently selected citation style.
-- `Ctrl+Shift+C` / `Ctrl+Y` — copies the full BibTeX entry.
-
-### Citation styles (CSL)
-
-bibtui loads citation styles from your config directory at:
-
-- `~/.config/bibtui/csl/`
-
-On first run, bibtui seeds this folder with common defaults:
-
-- `copernicus-publications` (Copernicus journals)
-- `apa` (psychology, social sciences, education)
-- `ieee` (engineering, computer science)
-- `vancouver` (medicine/biomedical)
-- `chicago-author-date` (humanities)
-- `harvard-cite-them-right` (common across Europe and Australia)
-
-To add more citation styles, download `.csl` files from:
-
-- https://github.com/citation-style-language/styles
-
-and place them into `~/.config/bibtui/csl/`.
-
----
-
-## PDF workflow
-
-`f` tries these sources in order:
-
-1. **arXiv** — for entries with a `10.48550/arXiv.*` DOI or an `arxiv.org` URL
-2. **Copernicus** — direct PDF URL construction for `10.5194/*` DOIs
-3. **OpenAlex** — open-access lookup by DOI/title using the free tier by default; add an API key in Settings for higher limits. If free-tier limits are hit (HTTP 429), bibtui tells you explicitly.
-4. **Unpaywall** — free open-access lookup by DOI (set your email in Settings; no account needed)
-5. **Direct URL** — if the entry's `url` field points directly to a PDF
-
-PDFs are saved to your configured base directory and the entry's `file` field is
-updated automatically in JabRef format.
-
----
-
-## Philosophy
-
-- Your `.bib` file is the source of truth
-- No hidden database
-- No setup, point and shoot possible
-- No lock-in
-- No accounts
-- keyboard and mouse support
-- nice looking
-- focused featurset. For cleanup use [bibtex-tidy](https://github.com/FlamingTempura/bibtex-tidy) or work directly on the bib file
-
-## Development
-
-```bash
-git clone https://github.com/tgoelles/bib_tui
-cd bib_tui
-uv sync
-uv run bibtui tests/bib_examples/MyCollection.bib
-```
-
-Run the tests:
-
-```bash
-uv run pytest -m "not network"
-```
-
-Live-reload during development:
-
-```bash
-uv run textual run --dev src/bibtui/main.py -- tests/bib_examples/MyCollection.bib
-```
-
----
-
-## Related tools
-
-- [JabRef](https://www.jabref.org/) — GUI reference manager, same `.bib` format
-- [cobib](https://github.com/mrossinek/cobib) — coBib is a powerful but complex reference manager with git integration, a plugin API, and import from DOI, arXiv, ISBN, and URL — at the cost of a steeper setup and a non-.bib YAML database.
-- [bibman](https://codeberg.org/KMIJPH/bibman) — bibman is a format-agnostic, pipeline-friendly CLI/TUI that organises references as individual files in folders rather than a single .bib
-- [bibiman](https://codeberg.org/lukeflo/bibiman) - A TUI for fast and simple interacting with your BibLaTeX database. Does not have pdf fetching and importing form doi for example.
-
----
-
-## FAQ
-
-**Does this modify my `.bib` formatting?**
-Yes. but we also write a backup file
-
-**Can I use it alongside JabRef or XYZ tool for .bib?**
-Yes. they both just read bib files and bibtui follows JabRef conventions.
-
-
-
-
+> **Why `--prerelease=allow`?** bibtui depends on `bibtexparser` v2, still in
+> beta on PyPI. Once it ships a stable v2, the flag is no longer needed.
+
+## What you can do
+
+- **Find anything, instantly** — search title, author, journal, keywords and
+  cite key as you type, with field prefixes like `a:`, `t:`, `k:`, `y:`.
+- **Download PDFs automatically** — one keystroke fetches the open-access PDF
+  from arXiv, Copernicus, OpenAlex or Unpaywall and links it to the entry.
+- **Import by DOI** — paste a DOI and the metadata is fetched for you.
+- **Organise** — keywords, read states, priorities and star ratings, all stored
+  in your `.bib` file.
+- **Collaborate with Git** — your library is plain text, so a research group can
+  share and review it like code.
+  [Learn how →](https://tgoelles.github.io/bib_tui/collaboration/)
+- **Run anywhere** — laptop, SSH, or an HPC cluster. Full Textual theming,
+  keyboard and mouse.
+
+## Documentation
+
+| Guide | |
+| ----- | - |
+| [Installation](https://tgoelles.github.io/bib_tui/installation/) | Get bibtui running |
+| [Getting started](https://tgoelles.github.io/bib_tui/getting-started/) | The everyday workflow |
+| [Searching your library](https://tgoelles.github.io/bib_tui/guide/search/) | Field prefixes and sorting |
+| [Fetching PDFs](https://tgoelles.github.io/bib_tui/guide/pdfs/) | Automatic open-access downloads |
+| [Working as a team](https://tgoelles.github.io/bib_tui/collaboration/) | Share a library with Git |
+| [Configuration](https://tgoelles.github.io/bib_tui/configuration/) | Settings, themes, CSL styles |
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome — see the
+[development guide](https://tgoelles.github.io/bib_tui/development/) and
+[open an issue](https://github.com/tgoelles/bib_tui/issues).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
