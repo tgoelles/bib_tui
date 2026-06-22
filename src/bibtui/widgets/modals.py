@@ -661,6 +661,156 @@ class SettingsModal(ModalScreen["Config | None"]):
         self.dismiss(None)
 
 
+# Layout constants for the keybindings reference. Keys are rendered in a
+# fixed-width gutter so every description starts at the same column regardless
+# of how long the key combo is.
+_HELP_KEY_WIDTH = 12
+_HELP_GAP = 1
+_HELP_DESC_INDENT = 2 + _HELP_KEY_WIDTH + _HELP_GAP
+_HELP_HEADER_WIDTH = 50
+
+# Each section is (title, items). An item is one of:
+#   (key, desc)      -> a key row (key rendered bold in the gutter)
+#   (None, note)     -> a dim note, aligned under the description column
+#   (line,)          -> a free-form line (markup allowed), indented 2 spaces
+_HELP_SECTIONS = [
+    (
+        "Core",
+        [
+            ("q", "Quit"),
+            ("w", "Write"),
+            ("s", "Search"),
+            ("e", "Edit entry (field form or raw BibTeX)"),
+            ("k", "Edit keywords"),
+            ("m", "Maximize/restore table pane"),
+            (None, "Press m again to restore split view."),
+            ("v", "Toggle raw / formatted view"),
+        ],
+    ),
+    (
+        "Add new entry",
+        [
+            ("d", "Import entry by DOI (fetches metadata online)"),
+            ("ctrl+v", "Paste a raw BibTeX entry from clipboard"),
+            (None, "Both methods reject duplicate cite keys."),
+        ],
+    ),
+    (
+        "Delete entry",
+        [
+            ("Del / ⌫", "Delete the selected entry (confirmation required)"),
+        ],
+    ),
+    (
+        "Keywords modal",
+        [
+            ("Enter", "Add typed keyword"),
+            ("Space", "Toggle selected keyword on/off"),
+            ("⌫", "Delete highlighted keyword from all entries"),
+            ("↓ / ↑", "Move between filter and list"),
+        ],
+    ),
+    (
+        "Entry state",
+        [
+            ("r", "Cycle read state"),
+            ("p", "Cycle priority"),
+            ("␣", "Show PDF"),
+            ("b", "Open URL in browser (validates http/https)"),
+            ("Shift+b", "Search OpenAlex (title first, then DOI)"),
+            ("f", "Fetch PDF and link it to the entry"),
+            ("a", "Add an existing PDF to the library and link it"),
+        ],
+    ),
+    (
+        "Fetch PDF",
+        [
+            ("Sources tried in order:",),
+            ("[bold]1.[/bold] arXiv      — arXiv DOI or arxiv.org URL",),
+            ("[bold]2.[/bold] Unpaywall  — OA by DOI (set email in Ctrl+P)",),
+            ("[bold]3.[/bold] Direct URL — entry URL pointing to a PDF",),
+            ("PDF saved to base directory from Settings.",),
+            ("[dim]Some publishers block automated downloads.[/dim]",),
+        ],
+    ),
+    (
+        "Library actions",
+        [
+            ("ctrl+p", "Open command palette"),
+            ("[bold]Library: Fetch missing PDFs[/bold]",),
+            (None, "Shows a toggle for: Overwrite broken links."),
+            ("[bold]Library: Unify citekeys (AuthorYear)[/bold]",),
+            (None, "Entries already matching AuthorYear are left unchanged."),
+            (None, "Changing citekeys may break existing LaTeX documents."),
+            ("[bold]Check for updates[/bold]",),
+            (None, "Checks PyPI for a newer bibtui release."),
+        ],
+    ),
+    (
+        "Rating",
+        [
+            ("1 – 5", "Set star rating"),
+            ("0", "Mark unrated"),
+        ],
+    ),
+    (
+        "Other",
+        [
+            ("ctrl+c", "Copy selected text (or cite key if none focused)"),
+            (None, "Default copy variant for entries: cite key"),
+            ("Shift+c", "Copy formatted citation (current citation style)"),
+            (None, "Alternative copy variant: rendered citation text"),
+            ("ctrl+shift+c", "Copy current BibTeX entry"),
+            ("ctrl+y", "Copy current BibTeX entry (terminal-safe fallback)"),
+            (None, "Citation styles are loaded from ~/.config/bibtui/csl"),
+            (None, "Add more styles: github.com/citation-style-language/styles"),
+            ("?", "Show this help"),
+            ("ctrl+p", "Command palette (Settings + Library actions)"),
+            ("maximize", "(palette) maximize focused pane"),
+            ("Esc", "Clear search / close modal"),
+            (None, "Clipboard uses OSC 52 — requires a modern terminal"),
+            (None, "In all modals: Ctrl+S = Write/Save, Esc = Cancel"),
+        ],
+    ),
+    (
+        "Sorting",
+        [
+            ("Click any column header to sort by that column.",),
+            ("Click the same header again to reverse the order.",),
+            (
+                "Active sort column is marked with "
+                "[bold]▲[/bold] (asc) or [bold]▼[/bold] (desc).",
+            ),
+            (
+                "Cols: [bold]◉[/bold] state  [bold]![/bold] prio  "
+                "[bold]◫[/bold] PDF  [bold]🔗[/bold] URL  Type  Year  "
+                "Author  Journal  Title  Added  [bold]★[/bold]",
+            ),
+        ],
+    ),
+]
+
+
+def _build_help_keys() -> str:
+    """Render the keybindings reference with a consistent key/description column."""
+    lines: list[str] = []
+    for index, (title, items) in enumerate(_HELP_SECTIONS):
+        if index:
+            lines.append("")
+        dashes = "─" * max(3, _HELP_HEADER_WIDTH - len(title) - 4)
+        lines.append(f"[bold]── {title} {dashes}[/bold]")
+        for item in items:
+            if len(item) == 1:
+                lines.append("  " + item[0])
+            elif item[0] is None:
+                lines.append(" " * _HELP_DESC_INDENT + f"[dim]{item[1]}[/dim]")
+            else:
+                key, desc = item
+                pad = _HELP_KEY_WIDTH + _HELP_GAP - len(key)
+                lines.append("  " + f"[bold]{key}[/bold]" + " " * pad + desc)
+    return "\n".join(lines)
+
+
 class HelpModal(ModalScreen[None]):
     """Keybinding reference overlay."""
 
@@ -671,7 +821,7 @@ class HelpModal(ModalScreen[None]):
     DEFAULT_CSS = """
     HelpModal { align: center middle; }
     HelpModal > Vertical {
-        width: 74; height: 80%;
+        width: 90; height: 80%;
         border: double $accent; background: $surface; padding: 1 2;
     }
     HelpModal VerticalScroll { height: 1fr; }
@@ -692,82 +842,6 @@ class HelpModal(ModalScreen[None]):
             "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui"
         )
 
-    _KEYS = """\
-[bold]── Core ──────────────────────────────[/bold]
-  [bold]q[/bold]         Quit
-  [bold]w[/bold]         Write
-  [bold]s[/bold]         Search
-  [bold]e[/bold]         Edit entry (field form or raw BibTeX)
-  [bold]k[/bold]         Edit keywords
-    [bold]m[/bold]         Maximize/restore table pane
-    [dim]Press m again to restore split view.[/dim]
-  [bold]v[/bold]         Toggle raw / formatted view
-
-[bold]── Add new entry ─────────────────────[/bold]
-  [bold]d[/bold]         Import entry by DOI (fetches metadata online)
-  [bold]ctrl+v[/bold]    Paste a raw BibTeX entry from clipboard
-  [dim]Both methods reject duplicate cite keys.[/dim]
-
-[bold]── Delete entry ──────────────────────[/bold]
-  [bold]Del / ⌫[/bold]   Delete the selected entry (confirmation required)
-
-[bold]── Keywords modal ────────────────────[/bold]
-  [bold]Enter[/bold]     Add typed keyword
-  [bold]Space[/bold]     Toggle selected keyword on/off
-  [bold]⌫[/bold]         Delete highlighted keyword from all entries
-  [bold]↓ / ↑[/bold]     Move between filter and list
-
-[bold]── Entry state ───────────────────────[/bold]
-  [bold]r[/bold]         Cycle read state
-  [bold]p[/bold]         Cycle priority
-  [bold]␣[/bold]         Show PDF
-  [bold]b[/bold]         Open URL in browser (validates http/https)
-    [bold]Shift+b[/bold]   Search OpenAlex (title first, then DOI)
-  [bold]f[/bold]         Fetch PDF and link it to the entry
-  [bold]a[/bold]         Add an existing PDF to the library and link it
-
-[bold]── Fetch PDF ─────────────────────────[/bold]
-  Sources tried in order:
-  [bold]1.[/bold] arXiv      — arXiv DOI or arxiv.org URL
-  [bold]2.[/bold] Unpaywall  — OA by DOI (set email in Ctrl+P)
-  [bold]3.[/bold] Direct URL — entry URL pointing to a PDF
-  PDF saved to base directory from Settings.
-  [dim]Some publishers block automated downloads.[/dim]
-
-[bold]── Library actions ───────────────────[/bold]
-    [bold]ctrl+p[/bold]    Open command palette
-    [bold]Library: Fetch missing PDFs[/bold]
-    [dim]Shows a toggle for: Overwrite broken links.[/dim]
-    [bold]Library: Unify citekeys (AuthorYear)[/bold]
-    [dim]Entries already matching AuthorYear are left unchanged.[/dim]
-    [dim]Changing citekeys may break existing LaTeX documents.[/dim]
-
-[bold]── Rating ────────────────────────────[/bold]
-  [bold]1 – 5[/bold]     Set star rating
-  [bold]0[/bold]         Mark unrated
-
-[bold]── Other ─────────────────────────────[/bold]
-        [bold]ctrl+c[/bold]    Copy selected text (or cite key if none focused)
-    [dim]            Default copy variant for entries: cite key[/dim]
-        [bold]Shift+c[/bold]   Copy formatted citation (current citation style)
-    [dim]            Alternative copy variant: rendered citation text[/dim]
-    [bold]ctrl+shift+c[/bold] Copy current BibTeX entry
-    [bold]ctrl+y[/bold]    Copy current BibTeX entry (terminal-safe fallback)
-    [dim]  Citation styles are loaded from ~/.config/bibtui/csl[/dim]
-    [dim]  Add more styles: https://github.com/citation-style-language/styles[/dim]
-  [bold]?[/bold]         Show this help
-    [bold]ctrl+p[/bold]    Command palette (Settings + Library actions)
-        [bold]maximize[/bold]  (palette) maximize focused pane
-  [bold]Esc[/bold]       Clear search / close modal
-  [dim]  Clipboard uses OSC 52 — requires a modern terminal[/dim]
-  [dim]  In all modals: Ctrl+S = Write/Save, Esc = Cancel[/dim]
-
-[bold]── Sorting ───────────────────────────[/bold]
-  Click any column header to sort by that column.
-  Click the same header again to reverse the order.
-  Active sort column is marked with [bold]▲[/bold] (asc) or [bold]▼[/bold] (desc).
-    Cols: [bold]◉[/bold] state  [bold]![/bold] prio  [bold]◫[/bold] PDF  [bold]🔗[/bold] URL  Type  Year  Author  Journal  Title  Added  [bold]★[/bold]
-"""
     _SEARCH = """\
 [bold]── Plain text ────────────────────────[/bold]
   Searches title, author, keywords, and key.
@@ -796,7 +870,7 @@ class HelpModal(ModalScreen[None]):
             with VerticalScroll():
                 yield Static(self._make_about(), id="help-about")
                 yield Label("[bold]Keybindings[/bold]", classes="modal-title")
-                yield Static(self._KEYS)
+                yield Static(_build_help_keys())
                 yield Label("[bold]Search syntax[/bold]", classes="modal-title")
                 yield Static(self._SEARCH)
             with Horizontal(classes="modal-buttons"):
