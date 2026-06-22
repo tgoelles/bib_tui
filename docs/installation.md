@@ -53,12 +53,6 @@ bibtui references.bib
 
 …or just run `bibtui` and pick a file from the built-in browser.
 
-!!! info "Mouse users welcome"
-
-    bibtui is keyboard-first but fully usable with the mouse — click rows,
-    scroll, select text, and click column headers to sort. You only need a
-    terminal to launch it.
-
 ## Staying up to date
 
 bibtui checks PyPI once a day and tells you when a newer version is available.

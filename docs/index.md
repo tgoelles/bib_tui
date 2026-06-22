@@ -19,9 +19,15 @@ all without leaving the terminal. No database, no sync daemon, no account.
 
 ![The bibtui library view](assets/img/library.svg){ loading=lazy }
 
+!!! tip "Mouse-friendly, keyboard-fast"
+
+    bibtui works just as well with the **mouse alone** — click rows, scroll,
+    select text, and click column headers to sort. Learn a few key bindings to
+    move through a large library faster.
+
 ---
 
-## Why researchers use bibtui
+## What bibtui does
 
 <div class="grid cards" markdown>
 
@@ -72,9 +78,13 @@ all without leaving the terminal. No database, no sync daemon, no account.
 ## Your `.bib` file stays the source of truth
 
 bibtui never hides your data in a proprietary database. It reads and writes the
-same plain-text `.bib` file you already use with LaTeX, and follows JabRef
-conventions for file links and metadata — so you can keep using your existing
-tools alongside it. Every save writes a backup first.
+same plain-text `.bib` file you already use with LaTeX or Typst, and follows
+JabRef conventions for file links and metadata — so you can keep using your
+existing tools alongside it. Every save writes a backup first.
+
+You don't even have to write LaTeX or Typst. bibtui is just as handy for keeping
+your PDFs organised and copying a ready-made citation in any style — straight
+onto the clipboard, ready to paste into a manuscript, an email, or a web form.
 
 That means bibtui works anywhere your terminal does: on your laptop, over SSH on
 an HPC cluster, or on a colleague's machine. It installs in under a second with
