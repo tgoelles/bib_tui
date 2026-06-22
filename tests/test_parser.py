@@ -545,9 +545,9 @@ def test_bibtexparser_field_start_line_is_absolute() -> None:
 
     b_year = next(f for f in b.fields if f.key == "year")
     b_author = next(f for f in b.fields if f.key == "author")
-    assert b_year.start_line == 5    # absolute line 5
+    assert b_year.start_line == 5  # absolute line 5
     assert b_author.start_line == 6  # absolute line 6
 
     # Confirm relative offset calculation used by _patch_entry_block is correct.
-    assert b_year.start_line - b.start_line == 1    # first field line in block
+    assert b_year.start_line - b.start_line == 1  # first field line in block
     assert b_author.start_line - b.start_line == 2  # second field line in block

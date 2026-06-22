@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Manual "Check for updates" command** — added a *Check for updates* entry to the command palette (`Ctrl+P`) that queries PyPI immediately for a newer bibtui release, bypassing the once-per-day automatic throttle, and reports the result.
+
+### Fixed
+
+- **Help menu alignment** — keybinding descriptions now line up in a consistent column across every section (the *Other* and *Library actions* sections were previously misaligned).
+- **Help menu out-of-date entries** — the help now reflects current commands, including the *Check for updates* library action that was missing.
+
+### Changed
+
+- **Help menu internals** — removed a duplicated, hand-maintained copy of the keybindings reference; the help screen is now rendered from a single source of truth, preventing the two copies from drifting apart.
+- **Modal styling** — all dialogs now share a common `_BaseModal` base class for their centered layout, border, background, and padding instead of each repeating the same CSS; individual modals only declare what differs (size, border color). No visual change.
+
 ## [0.14.0] - 2026-05-29
 
 ### Added

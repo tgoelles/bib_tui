@@ -1,5 +1,6 @@
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TypeVar
 
 from textual import events, on, work
 from textual.app import ComposeResult
@@ -27,6 +28,30 @@ from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bibtui.utils.config import Config
 
+_ModalResult = TypeVar("_ModalResult")
+
+
+class _BaseModal(ModalScreen[_ModalResult]):
+    """Shared base for all dialogs.
+
+    Holds the styling common to every modal — centered on screen, a double
+    accent border over the surface colour, and standard padding. Subclasses
+    only declare what differs (typically ``width``/``height`` on their
+    ``> Vertical`` container) and may override the border colour or padding.
+    """
+
+    DEFAULT_CSS = """
+    _BaseModal {
+        align: center middle;
+    }
+    _BaseModal > Vertical {
+        height: auto;
+        border: double $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    """
+
 
 def _format_age(mtime: float) -> str:
     """Human-readable age string for a file modification time."""
@@ -42,21 +67,15 @@ def _format_age(mtime: float) -> str:
     return f"{int(age / 86400)} days ago"
 
 
-class ConfirmModal(ModalScreen[bool]):
+class ConfirmModal(_BaseModal[bool]):
     """Generic yes/no confirmation dialog."""
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
 
     DEFAULT_CSS = """
-    ConfirmModal {
-        align: center middle;
-    }
     ConfirmModal > Vertical {
         width: 50;
-        height: auto;
         border: double $warning;
-        background: $surface;
-        padding: 1 2;
     }
     ConfirmModal #btn-yes {
         background: $error;
@@ -87,21 +106,14 @@ class ConfirmModal(ModalScreen[bool]):
         self.dismiss(False)
 
 
-class LibraryFetchConfirmModal(ModalScreen[tuple[bool, bool] | None]):
+class LibraryFetchConfirmModal(_BaseModal[tuple[bool, bool] | None]):
     """Confirm library PDF fetch and choose whether broken links may be overwritten."""
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
 
     DEFAULT_CSS = """
-    LibraryFetchConfirmModal {
-        align: center middle;
-    }
     LibraryFetchConfirmModal > Vertical {
         width: 50;
-        height: auto;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
     }
     LibraryFetchConfirmModal #overwrite-row {
         layout: horizontal;
@@ -143,7 +155,7 @@ class LibraryFetchConfirmModal(ModalScreen[tuple[bool, bool] | None]):
         self.dismiss(None)
 
 
-class DOIModal(ModalScreen[BibEntry | None]):
+class DOIModal(_BaseModal[BibEntry | None]):
     """Modal to fetch an entry by DOI."""
 
     BINDINGS = [
@@ -151,15 +163,8 @@ class DOIModal(ModalScreen[BibEntry | None]):
     ]
 
     DEFAULT_CSS = """
-    DOIModal {
-        align: center middle;
-    }
     DOIModal > Vertical {
         width: 70;
-        height: auto;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
     }
     #doi-status.fetching { color: $warning; }
     #doi-status.success  { color: $success; }
@@ -226,7 +231,7 @@ class DOIModal(ModalScreen[BibEntry | None]):
         self.dismiss(None)
 
 
-class EditModal(ModalScreen[BibEntry | None]):
+class EditModal(_BaseModal[BibEntry | None]):
     """Modal to edit key fields of an entry."""
 
     BINDINGS = [
@@ -235,16 +240,9 @@ class EditModal(ModalScreen[BibEntry | None]):
     ]
 
     DEFAULT_CSS = """
-    EditModal {
-        align: center middle;
-    }
     EditModal > Vertical {
         width: 80;
-        height: auto;
         max-height: 92%;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
     }
     EditModal #edit-fields {
         height: 22;
@@ -327,7 +325,7 @@ class EditModal(ModalScreen[BibEntry | None]):
         self.dismiss(None)
 
 
-class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
+class KeywordsModal(_BaseModal["tuple[str, set[str]] | None"]):
     """Keyword picker: select from all bib-wide keywords, add new ones."""
 
     BINDINGS = [
@@ -336,15 +334,9 @@ class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
     ]
 
     DEFAULT_CSS = """
-    KeywordsModal {
-        align: center middle;
-    }
     KeywordsModal > Vertical {
         width: 70;
         height: 80%;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
     }
     KeywordsModal #kw-filter {
         margin-bottom: 1;
@@ -492,7 +484,7 @@ class KeywordsModal(ModalScreen["tuple[str, set[str]] | None"]):
         self.dismiss(None)
 
 
-class SettingsModal(ModalScreen["Config | None"]):
+class SettingsModal(_BaseModal["Config | None"]):
     """Settings dialog — currently just the PDF base directory."""
 
     BINDINGS = [
@@ -501,15 +493,8 @@ class SettingsModal(ModalScreen["Config | None"]):
     ]
 
     DEFAULT_CSS = """
-    SettingsModal {
-        align: center middle;
-    }
     SettingsModal > Vertical {
         width: 70;
-        height: auto;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
     }
     SettingsModal Input {
         margin-bottom: 1;
@@ -811,7 +796,7 @@ def _build_help_keys() -> str:
     return "\n".join(lines)
 
 
-class HelpModal(ModalScreen[None]):
+class HelpModal(_BaseModal[None]):
     """Keybinding reference overlay."""
 
     BINDINGS = [
@@ -819,10 +804,8 @@ class HelpModal(ModalScreen[None]):
         Binding("?", "dismiss_help", "Close", show=False),
     ]
     DEFAULT_CSS = """
-    HelpModal { align: center middle; }
     HelpModal > Vertical {
         width: 90; height: 80%;
-        border: double $accent; background: $surface; padding: 1 2;
     }
     HelpModal VerticalScroll { height: 1fr; }
     HelpModal #help-about { margin-bottom: 1; color: $text-muted; }
@@ -883,7 +866,7 @@ class HelpModal(ModalScreen[None]):
         self.dismiss()
 
 
-class RawEditModal(ModalScreen[BibEntry | None]):
+class RawEditModal(_BaseModal[BibEntry | None]):
     """Edit a BibTeX entry as raw text."""
 
     BINDINGS = [
@@ -892,15 +875,9 @@ class RawEditModal(ModalScreen[BibEntry | None]):
     ]
 
     DEFAULT_CSS = """
-    RawEditModal {
-        align: center middle;
-    }
     RawEditModal > Vertical {
         width: 90;
         height: 40;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
     }
     RawEditModal TextArea {
         height: 1fr;
@@ -951,7 +928,7 @@ class RawEditModal(ModalScreen[BibEntry | None]):
         self.dismiss(None)
 
 
-class PasteModal(ModalScreen["BibEntry | None"]):
+class PasteModal(_BaseModal["BibEntry | None"]):
     """Modal to import a BibTeX entry from pasted clipboard text."""
 
     BINDINGS = [
@@ -960,15 +937,9 @@ class PasteModal(ModalScreen["BibEntry | None"]):
     ]
 
     DEFAULT_CSS = """
-    PasteModal {
-        align: center middle;
-    }
     PasteModal > Vertical {
         width: 90;
         height: 40;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
     }
     PasteModal TextArea {
         height: 1fr;
@@ -1020,7 +991,7 @@ class PasteModal(ModalScreen["BibEntry | None"]):
         self.dismiss(None)
 
 
-class AddPDFModal(ModalScreen["str | None"]):
+class AddPDFModal(_BaseModal["str | None"]):
     """Pick an existing PDF from the download directory, filter by name, and link it."""
 
     BINDINGS = [
@@ -1029,15 +1000,9 @@ class AddPDFModal(ModalScreen["str | None"]):
     ]
 
     DEFAULT_CSS = """
-    AddPDFModal {
-        align: center middle;
-    }
     AddPDFModal > Vertical {
         width: 80;
         height: 30;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
     }
     AddPDFModal Input {
         margin-bottom: 1;
@@ -1228,21 +1193,14 @@ class AddPDFModal(ModalScreen["str | None"]):
         self.dismiss(None)
 
 
-class FetchPDFModal(ModalScreen["tuple[str, str] | None"]):
+class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
     """Fetch a PDF for an entry in a background thread and show progress."""
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
 
     DEFAULT_CSS = """
-    FetchPDFModal {
-        align: center middle;
-    }
     FetchPDFModal > Vertical {
         width: 70;
-        height: auto;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
     }
     FetchPDFModal LoadingIndicator {
         height: 3;
@@ -1362,21 +1320,14 @@ class FetchPDFModal(ModalScreen["tuple[str, str] | None"]):
         self.dismiss(None)
 
 
-class BatchFetchPDFModal(ModalScreen["dict | None"]):
+class BatchFetchPDFModal(_BaseModal["dict | None"]):
     """Fetch PDFs for many entries in a background thread and show progress."""
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
 
     DEFAULT_CSS = """
-    BatchFetchPDFModal {
-        align: center middle;
-    }
     BatchFetchPDFModal > Vertical {
         width: 72;
-        height: auto;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
     }
     BatchFetchPDFModal LoadingIndicator {
         height: 3;
@@ -1529,16 +1480,14 @@ class BatchFetchPDFModal(ModalScreen["dict | None"]):
         self.query_one("#btn-cancel", Button).disabled = True
 
 
-class FirstRunModal(ModalScreen[bool]):
+class FirstRunModal(_BaseModal[bool]):
     """One-time welcome notice — shown only on the very first launch."""
 
     BINDINGS = [Binding("escape", "got_it", "Got it", show=False)]
 
     DEFAULT_CSS = """
-    FirstRunModal { align: center middle; }
     FirstRunModal > Vertical {
-        width: 70; height: auto;
-        border: double $accent; background: $surface; padding: 2 3;
+        width: 70; padding: 2 3;
     }
     FirstRunModal #welcome-title { text-align: center; margin-bottom: 1; }
     FirstRunModal #welcome-body  { margin-bottom: 1; }
@@ -1581,21 +1530,15 @@ class BibDirectoryTree(DirectoryTree):
         return [p for p in paths if p.is_dir() or p.suffix == ".bib"]
 
 
-class FilePickerModal(ModalScreen["str | None"]):
+class FilePickerModal(_BaseModal["str | None"]):
     """Browse the filesystem and select a .bib file, with recent-files shortcuts."""
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=True)]
 
     DEFAULT_CSS = """
-    FilePickerModal {
-        align: center middle;
-    }
     FilePickerModal > Vertical {
         width: 90;
         height: 82%;
-        border: double $accent;
-        background: $surface;
-        padding: 1 2;
     }
     FilePickerModal #fp-recent-label,
     FilePickerModal #fp-browse-label {

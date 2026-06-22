@@ -189,7 +189,9 @@ def _make_preprint_msg(**overrides) -> dict:
     base = {
         "type": "posted-content",
         "subtype": "preprint",
-        "title": ["Ice thickness and subglacial topography of Swedish reference glaciers"],
+        "title": [
+            "Ice thickness and subglacial topography of Swedish reference glaciers"
+        ],
         "author": [
             {"family": "Wang", "given": "Zhuo"},
             {"family": "Ross", "given": "Neil"},
@@ -268,7 +270,9 @@ def test_preprint_journal_copernicus() -> None:
 
 def test_preprint_journal_biorxiv() -> None:
     """Journal should come from the institution field for bioRxiv-style preprints."""
-    msg = _make_preprint_msg(institution=[{"name": "bioRxiv"}], **{"container-title": []})
+    msg = _make_preprint_msg(
+        institution=[{"name": "bioRxiv"}], **{"container-title": []}
+    )
     with patch("bibtui.bib.doi.Crossref", return_value=_mock_cr(msg)):
         e = fetch_by_doi("10.1101/2021.09.01.458592")
     assert e.journal == "bioRxiv"

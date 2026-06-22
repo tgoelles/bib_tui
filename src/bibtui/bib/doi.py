@@ -46,8 +46,9 @@ def _journal_for_preprint(msg: dict, doi: str, cr: Crossref) -> str:
         )
         parent_journal = ""
         for item in pub["message"]["items"]:
-            if (item.get("DOI", "").startswith(f"{prefix}/{abbrev}-")
-                    and item.get("container-title")):
+            if item.get("DOI", "").startswith(f"{prefix}/{abbrev}-") and item.get(
+                "container-title"
+            ):
                 parent_journal = item["container-title"][0]
                 break
         if not parent_journal:
