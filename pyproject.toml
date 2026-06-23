@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "bibtui"
-version = "0.15.0"
+version = "0.15.1"
 authors = [
   {name = "Thomas Gölles", email = "thomas.goelles@gmail.com"}
 ]
@@ -21,6 +21,7 @@ dependencies = [
     "packaging>=24.0",
     "pyalex>=0.21",
     "textual>=8.0.0",
+    "tomli-w>=1.0.0",
 ]
 license = {file = "LICENSE"}
 classifiers = [

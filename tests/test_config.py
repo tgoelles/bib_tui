@@ -177,6 +177,39 @@ def test_load_config_returns_defaults_when_toml_invalid(
     assert cfg.pdf_download_dir == str(home / "Downloads")
 
 
+def test_load_config_backs_up_corrupt_file(tmp_path: Path, monkeypatch) -> None:
+    config_file = tmp_path / "config.toml"
+    config_file.write_text('[pdf\nbase_dir = "/broken"\n', encoding="utf-8")
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    monkeypatch.setattr("bibtui.utils.config._git_email", lambda: "")
+
+    load_config()
+
+    backup = config_file.with_suffix(".toml.corrupt")
+    # Original is moved aside so a later save() cannot silently overwrite it.
+    assert not config_file.exists()
+    assert backup.exists()
+    assert backup.read_text(encoding="utf-8") == '[pdf\nbase_dir = "/broken"\n'
+
+
+def test_save_and_load_roundtrip_special_chars(tmp_path: Path, monkeypatch) -> None:
+    config_file = tmp_path / "config.toml"
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    # Values with backslashes, quotes, and a newline would break a naive
+    # string-built TOML writer; a real serializer round-trips them.
+    cfg = Config(
+        pdf_base_dir="C:\\Users\\me\\My \"Papers\"",
+        unpaywall_email="line1\nline2",
+        recent_files=["C:\\a\\b.bib", 'quote"d.bib'],
+    )
+    save_config(cfg)
+
+    loaded = load_config()
+    assert loaded.pdf_base_dir == "C:\\Users\\me\\My \"Papers\""
+    assert loaded.unpaywall_email == "line1\nline2"
+    assert loaded.recent_files == ["C:\\a\\b.bib", 'quote"d.bib']
+
+
 def test_load_config_without_api_keys_section_defaults_openalex_key_empty(
     tmp_path: Path, monkeypatch
 ) -> None:
