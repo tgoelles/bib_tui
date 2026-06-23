@@ -39,7 +39,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14"
 ]
 [project.urls]
-Homepage = "https://github.com/tgoelles/bib_tui"
+Homepage = "https://tgoelles.github.io/bib_tui/"
 Repository = "https://github.com/tgoelles/bib_tui"
 "Bug Tracker" = "https://github.com/tgoelles/bib_tui/issues"
 
