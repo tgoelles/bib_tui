@@ -14,8 +14,9 @@ stops at the first that works:
 
 1. **arXiv** — for entries with a `10.48550/arXiv.*` DOI or an `arxiv.org` URL.
 2. **Copernicus** — direct PDF construction for `10.5194/*` DOIs (EGU journals).
-3. **OpenAlex** — open-access lookup by DOI or title. The free tier works out of
-   the box; add an API key in [settings](../configuration.md) for higher limits.
+3. **OpenAlex** — open-access lookup by DOI or title. OpenAlex is always free and
+   works out of the box; registering for a free API key in
+   [settings](../configuration.md) raises your daily request limit.
 4. **Unpaywall** — open-access lookup by DOI. Set your email in settings (used
    only for rate-limiting; no account needed).
 5. **Direct URL** — if the entry's `url` field points straight at a PDF.

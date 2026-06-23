@@ -20,7 +20,7 @@ Open the command palette with <kbd>Ctrl</kbd>+<kbd>P</kbd> and choose
 | ----------------------------- | ---------------------------------------------------------------------- |
 | **PDF base directory**        | Where fetched and attached PDFs are stored, and where links resolve.   |
 | **Unpaywall email**           | Used only for rate-limiting Unpaywall requests — no account needed.    |
-| **OpenAlex API key**          | Optional. Raises your OpenAlex rate limits for PDF lookups.            |
+| **OpenAlex API key**          | Optional. OpenAlex is always free; a free API key raises your daily request limit. |
 | **PDF download directory**    | The folder bibtui browses when you attach an existing PDF (<kbd>a</kbd>). |
 | **Auto-fetch PDF on import**  | When on, bibtui automatically fetches the PDF after you import an entry by DOI or paste (if it has a DOI/URL and a PDF directory is set). |
 | **Check for updates on startup** | When on, bibtui checks PyPI once a day for a newer release.         |
