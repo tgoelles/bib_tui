@@ -39,7 +39,7 @@ SAMPLE_BIB = ROOT / "tests" / "bib_examples" / "MyCollection.bib"
 OUT_DIR = ROOT / "docs" / "assets" / "img"
 
 # A roomy terminal so the detail pane and all table columns are visible.
-TERM_SIZE = (200, 80)
+TERM_SIZE = (200, 60)
 
 # An action mutates the app before a screenshot; ``None`` means capture as-is.
 Action = Callable[["BibTuiApp", object], Awaitable[None]]
