@@ -183,7 +183,7 @@ wheels = [
 
 [[package]]
 name = "bibtui"
-version = "0.15.0"
+version = "0.15.2"
 source = { editable = "." }
 dependencies = [
     { name = "bibtexparser" },
