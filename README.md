@@ -1,6 +1,6 @@
 # bibtui
 
-![bibtui logo](https://raw.githubusercontent.com/tgoelles/bib_tui/main/docs/pictures/logo2.png)
+![bibtui logo](https://raw.githubusercontent.com/tgoelles/bib_tui/main/docs/logo/logo2.png)
 
 > A quiet, powerful home for your references.
 

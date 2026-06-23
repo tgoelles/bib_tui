@@ -49,6 +49,10 @@ docs:
 docs-build:
   uv run --group docs mkdocs build --strict
 
-# regenerate the documentation screenshots from the live app
+# regenerate the documentation screenshots from the live app (SVG only)
+# NOTE: this only writes SVGs for the docs site. The README hero image
+# docs/assets/img/library.png is NOT generated here — GitHub doesn't render
+# Textual SVGs reliably, so library.png must be updated by hand when the UI
+# changes (e.g. open library.svg in a browser/Inkscape and export to PNG).
 screenshots:
   uv run python scripts/generate_screenshots.py
