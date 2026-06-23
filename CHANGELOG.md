@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Manual "Check for updates" command** — added a *Check for updates* entry to the command palette (`Ctrl+P`) that queries PyPI immediately for a newer bibtui release, bypassing the once-per-day automatic throttle, and reports the result.
+- **Documentation site** — added a Material for MkDocs documentation site (user guide, PDF fetching, search, a dedicated team-collaboration guide for sharing a library via Git, configuration, and development), published to GitHub Pages by a new `docs` workflow. Screenshots are generated from the running app by `scripts/generate_screenshots.py` and regenerated on every deploy so they never go stale. The README is now a concise overview that links to the site.
 
 ### Fixed
 

@@ -16,3 +16,6 @@ htmlcov/
 
 docs/pictures/.comments/*
 .vscode/
+
+# MkDocs build output
+site/
