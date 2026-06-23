@@ -3,6 +3,8 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import tomli_w
+
 CONFIG_PATH = Path.home() / ".config" / "bibtui" / "config.toml"
 _BUNDLED_CSL_DIR = Path(__file__).resolve().parents[1] / "csl"
 _DEFAULT_CSL_FILES = (
@@ -86,6 +88,15 @@ def default_config() -> Config:
     )
 
 
+def _backup_corrupt_config() -> None:
+    """Move an unparseable config aside so it is never silently overwritten."""
+    backup = CONFIG_PATH.with_suffix(CONFIG_PATH.suffix + ".corrupt")
+    try:
+        shutil.move(str(CONFIG_PATH), str(backup))
+    except OSError:
+        pass
+
+
 def load_config() -> Config:
     ensure_csl_styles()
     if not CONFIG_PATH.exists():
@@ -93,7 +104,12 @@ def load_config() -> Config:
     try:
         with open(CONFIG_PATH, "rb") as f:
             data = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
+    except OSError:
+        return default_config()
+    except tomllib.TOMLDecodeError:
+        # The file exists but cannot be parsed. Preserve it before any later
+        # save() overwrites it with defaults, so the user can recover values.
+        _backup_corrupt_config()
         return default_config()
     pdf = data.get("pdf", {})
     api_keys = data.get("api_keys", {})
@@ -120,41 +136,32 @@ def load_config() -> Config:
     )
 
 
-def _toml_escape(value: str) -> str:
-    """Escape a string value for embedding in a TOML double-quoted string."""
-    return value.replace("\\", "\\\\").replace('"', '\\"')
-
-
-def _toml_str_list(items: list[str]) -> str:
-    escaped = ", ".join(f'"{_toml_escape(item)}"' for item in items)
-    return f"[{escaped}]"
-
-
 def save_config(config: Config) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    lines = [
-        "[pdf]",
-        f'base_dir = "{_toml_escape(config.pdf_base_dir)}"',
-        f'unpaywall_email = "{_toml_escape(config.unpaywall_email)}"',
-        f'download_dir = "{_toml_escape(config.pdf_download_dir)}"',
-        f"auto_fetch_pdf = {'true' if config.auto_fetch_pdf else 'false'}",
-        "",
-        "[api_keys]",
-        f'openalex_api_key = "{_toml_escape(config.openalex_api_key)}"',
-        "",
-        "[updates]",
-        f'last_check_utc = "{_toml_escape(config.update_last_check_utc)}"',
-        f'last_notified_utc = "{_toml_escape(config.update_last_notified_utc)}"',
-        f'latest_version = "{_toml_escape(config.update_latest_version)}"',
-        f"check_for_updates = {'true' if config.check_for_updates else 'false'}",
-        "",
-        "[files]",
-        f"recent = {_toml_str_list(config.recent_files[:8])}",
-        "",
-        "[ui]",
-        f'theme = "{_toml_escape(config.theme)}"',
-        f'default_citation_style = "{_toml_escape(config.default_citation_style)}"',
-        "",
-    ]
-    CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")
+    data = {
+        "pdf": {
+            "base_dir": config.pdf_base_dir,
+            "unpaywall_email": config.unpaywall_email,
+            "download_dir": config.pdf_download_dir,
+            "auto_fetch_pdf": config.auto_fetch_pdf,
+        },
+        "api_keys": {
+            "openalex_api_key": config.openalex_api_key,
+        },
+        "updates": {
+            "last_check_utc": config.update_last_check_utc,
+            "last_notified_utc": config.update_last_notified_utc,
+            "latest_version": config.update_latest_version,
+            "check_for_updates": config.check_for_updates,
+        },
+        "files": {
+            "recent": config.recent_files[:8],
+        },
+        "ui": {
+            "theme": config.theme,
+            "default_citation_style": config.default_citation_style,
+        },
+    }
+    with open(CONFIG_PATH, "wb") as f:
+        tomli_w.dump(data, f)
     ensure_csl_styles()
