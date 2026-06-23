@@ -1,114 +1,59 @@
 # Working as a team
 
-Most reference managers lock your library inside an account or a proprietary
-database, then bolt "sharing" on top. bibtui takes the opposite approach: your
-library is a **plain `.bib` text file**, so you can collaborate with the tools
-your research group already trusts — Git and GitHub (or GitLab, or any shared
-repository).
+A bibtui library is just two things: a **plain `.bib` text file** and a **folder
+of PDFs**. That simplicity is what makes it easy to share with a research group —
+the same library file works, unchanged, on everyone's machine.
 
-This makes a shared bibliography work exactly like shared code: every change is
-reviewable, every version is recoverable, and no one needs an account with a
-third-party service.
+## Why the same `.bib` file works for everyone
 
-## Why a plain `.bib` file is ideal for teams
+bibtui never stores an absolute path to a PDF. The `file` field of each entry
+holds only the **file name**, resolved at runtime against the **PDF base
+directory** each person sets in their own [settings](configuration.md).
 
-- **Reviewable** — every addition or edit shows up as a readable line-by-line
-  diff. You can see who added a reference and why.
-- **Mergeable** — two people can add references at the same time and Git merges
-  them, just like code.
-- **Recoverable** — the full history is in version control. Nothing is ever lost
-  to a bad sync.
-- **No lock-in, no accounts** — the data is yours, in an open format, forever.
+Two things follow from that:
 
-## Set up a shared library with Git
+- **The `.bib` file is portable.** Because the links are relative, the exact
+  same file works for every teammate — each just points bibtui at their own PDF
+  folder. Nothing in the file is specific to one computer.
+- **PDF naming is consistent.** bibtui names fetched PDFs deterministically from
+  the cite key and title, so the same reference produces the same file name on
+  everyone's machine. The links line up no matter who downloaded the PDF.
 
-A research group typically keeps one repository for the group bibliography.
+## Keep the library in version control
 
-=== "Create the shared repo"
+We recommend keeping the shared `.bib` file in a version-control repository
+(Git/GitHub, GitLab, or whatever your group already uses). You know how that
+works — the point worth making is that bibtui is built to cooperate with it:
 
-    ```bash
-    mkdir group-references && cd group-references
-    git init
-    cp /path/to/your.bib references.bib
-    git add references.bib
-    git commit -m "Initial group bibliography"
-    # push to GitHub / GitLab and add your collaborators
-    git remote add origin git@github.com:your-group/group-references.git
-    git push -u origin main
-    ```
+- Every change is a readable, line-by-line diff, so additions and edits are easy
+  to review.
+- bibtui writes **minimal diffs** — untouched entries stay byte-for-byte
+  identical — so a commit shows only what you actually changed, and concurrent
+  additions merge cleanly.
+- Every save writes a local backup first.
 
-=== "Join an existing repo"
+A typical rhythm: pull the latest library, work in bibtui ([add by
+DOI](guide/importing.md), [tag with keywords](guide/keywords.md), [fetch
+PDFs](guide/pdfs.md)), save with <kbd>w</kbd>, then commit. For a curated reading
+list, reviewing new references as pull requests lets the group discuss a paper
+before it lands.
 
-    ```bash
-    git clone git@github.com:your-group/group-references.git
-    cd group-references
-    bibtui references.bib
-    ```
+## Sharing the PDFs
 
-## The everyday workflow
+The PDFs themselves are best kept **out of version control** — binary files
+don't belong in a Git history. You have two good options:
 
-1. **Pull** the latest references before you start:
-
-    ```bash
-    git pull
-    ```
-
-2. **Work in bibtui** — add papers by [DOI](guide/importing.md), tag them with
-   [keywords](guide/keywords.md), fetch [PDFs](guide/pdfs.md). Save with
-   <kbd>w</kbd>.
-
-3. **Review and commit** your changes:
-
-    ```bash
-    git diff references.bib      # see exactly what changed
-    git add references.bib
-    git commit -m "Add three papers on subglacial hydrology"
-    git push
-    ```
-
-Because bibtui writes **minimal diffs** — untouched entries stay byte-for-byte
-identical — your commits show only what you actually changed, keeping reviews
-clean and merges painless.
-
-!!! tip "Use pull requests for curation"
-
-    For a closely-curated reading list, have contributors open a **pull request**
-    for new references. The group can discuss a paper's relevance right on the
-    diff before it's merged — turning your bibliography into a shared, reviewed
-    knowledge base.
-
-## Sharing the PDFs (optional)
-
-Your `.bib` file stores **relative file names**, not absolute paths, for linked
-PDFs. That means the same library works on every teammate's machine — as long as
-everyone points bibtui at a PDF directory that contains the files.
-
-You have two good options:
-
-- **A shared folder** — put the PDFs in a synced or networked directory
-  (a shared drive, Nextcloud, Dropbox, an HPC project folder…) and have each
-  person set that as their **PDF base directory** in
-  [settings](configuration.md). When one person fetches a PDF, everyone gets it.
-- **Fetch locally** — keep PDFs out of the shared store entirely and let each
-  teammate run **Library: Fetch missing PDFs** to download open-access copies on
-  their own machine. The links resolve identically because they're relative.
-
-!!! note "Keep PDFs out of Git"
-
-    Commit the `.bib` file, but **don't commit the PDFs** to the same Git
-    repository — binary files bloat history quickly. Add your PDF directory to
-    `.gitignore` and share the files through a folder instead, or let each
-    person fetch them. A simple `.gitignore`:
-
-    ```gitignore
-    *.pdf
-    pdfs/
-    *.bib.bak
-    ```
+- **A shared folder** — put the PDFs in a synced or networked directory (a shared
+  drive, Nextcloud, Dropbox, an HPC project folder…) and have each person set it
+  as their PDF base directory. When one person fetches a PDF, everyone has it.
+- **Fetch locally** — keep no shared PDF store at all, and let each teammate run
+  **Library: Fetch missing PDFs** to download open-access copies on their own
+  machine. Because the file names are deterministic, the links resolve identically
+  for everyone.
 
 ## Works the same over SSH and on clusters
 
-Because bibtui runs entirely in the terminal, the team workflow is identical
-whether you're on your laptop or SSH'd into a shared HPC login node. Clone the
-repo, run `bibtui references.bib`, and you have the full library — search, tags,
-PDF fetching and all — wherever your work happens.
+bibtui runs entirely in the terminal, so the team workflow is identical whether
+you're on your laptop or on a shared HPC login node over SSH. Open the same
+library file and you have everything — search, tags, and PDF fetching —
+wherever your work happens.
