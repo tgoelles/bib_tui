@@ -5,11 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.15.1] - 2026-06-23
+## [0.15.2] - 2026-06-23
 
 ### Fixed
 
 - **Config could reset to defaults after an upgrade** — the settings file (`~/.config/bibtui/config.toml`) is now written with a proper TOML serializer instead of hand-built strings, so values containing quotes, backslashes, or newlines can no longer produce an unparseable file. If a config still fails to parse, it is preserved as `config.toml.corrupt` before defaults load, so a subsequent save can never silently overwrite recoverable settings. (`uv tool upgrade` itself never touched the config; the reset was a parse-failure-then-overwrite.)
+
+## [0.15.2] - 2026-06-23
+
+error, never published
 
 ## [0.15.0] - 2026-06-23
 
