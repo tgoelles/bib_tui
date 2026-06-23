@@ -62,6 +62,27 @@ def test_render_citation_preview_unknown_style_returns_empty() -> None:
     assert render_citation_preview(entry, "style-that-does-not-exist") == ""
 
 
+def test_render_chicago_with_page_range() -> None:
+    # The Chicago CSL declares page-range-format="chicago-16", which citeproc-py
+    # mishandles and raises UnboundLocalError on any entry with a page range.
+    entry = BibEntry(
+        key="Gull2019",
+        entry_type="article",
+        title="Deep Learning for Ice",
+        author="Gull, Thomas and Mueller, Anna",
+        year="2019",
+        journal="The Cryosphere",
+        raw_fields={"volume": "13", "number": "2", "pages": "101--108"},
+    )
+
+    rendered = render_citation_preview(entry, "chicago-author-date")
+
+    assert rendered
+    assert "Deep Learning for Ice" in rendered
+    assert "101" in rendered
+    assert "108" in rendered
+
+
 def test_render_citation_preview_decodes_latex_escapes() -> None:
     entry = BibEntry(
         key="Oerlemans1991",

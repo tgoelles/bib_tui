@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.15.0] - 2026-06-23
 
 ### Added
 
@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Chicago citation preview** — the Chicago (author-date) style no longer shows *(unavailable)* for entries with a page range. The bundled CSL declares `page-range-format="chicago-16"`, which citeproc-py mishandled and raised an error on; unsupported page-range formats now fall back to an expanded range instead of failing the whole citation.
 - **Help menu alignment** — keybinding descriptions now line up in a consistent column across every section (the *Other* and *Library actions* sections were previously misaligned).
 - **Help menu out-of-date entries** — the help now reflects current commands, including the *Check for updates* library action that was missing.
 

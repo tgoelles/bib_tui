@@ -11,12 +11,31 @@ from citeproc import (  # type: ignore[import-untyped]
     CitationStylesStyle,
     formatter,
 )
+from citeproc.model import FormatNumber  # type: ignore[import-untyped]
 from citeproc.source.json import CiteProcJSON  # type: ignore[import-untyped]
 
 from bibtui.bib.models import BibEntry
 from bibtui.utils.config import csl_dir, ensure_csl_styles
 
 _DEFAULT_STYLE = "copernicus-publications"
+
+
+# citeproc-py's page-range collapsing only understands page-range-format="chicago".
+# Newer CSL styles (e.g. Chicago Manual of Style 18th ed.) declare "chicago-16" /
+# "chicago-15", which leaves `index` unassigned in FormatNumber._format_last_page and
+# raises UnboundLocalError for any entry with a page range. Fall back to the full last
+# page (expanded range) for unknown variants instead of failing the whole citation.
+_orig_format_last_page = FormatNumber._format_last_page
+
+
+def _safe_format_last_page(self, first, last):  # type: ignore[no-untyped-def]
+    try:
+        return _orig_format_last_page(self, first, last)
+    except UnboundLocalError:
+        return last
+
+
+FormatNumber._format_last_page = _safe_format_last_page
 
 
 _LATEX_DECODER = LatexDecodingMiddleware(allow_inplace_modification=False)
