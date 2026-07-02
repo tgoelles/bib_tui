@@ -13,7 +13,12 @@ and you switch between them with <kbd>v</kbd>:
 - **Raw BibTeX** — edit the entry's BibTeX source directly. Best for power users.
 
 Save with <kbd>Ctrl</kbd>+<kbd>S</kbd>, cancel with <kbd>Esc</kbd>. Remember that
-edits live in memory until you write the file with <kbd>w</kbd>.
+edits live in memory until you write the file with <kbd>w</kbd>. The field form
+runs the [same validation](importing.md#what-gets-checked-when-you-write) as
+adding a new entry — auto-fixing small issues, flagging others, and blocking on
+required fields you clear — except that a field which was *already* empty when
+you opened the entry is only flagged, so you can never be trapped editing a
+messy entry.
 
 !!! note "Keywords, rating and read state aren't in the form"
 

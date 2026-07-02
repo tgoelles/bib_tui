@@ -1,3 +1,4 @@
+import copy
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -27,11 +28,8 @@ from textual.widgets._selection_list import Selection
 from bibtui.bib.citation_preview import available_csl_styles, default_csl_style_key
 from bibtui.bib.citekeys import author_year_base
 from bibtui.bib.models import COMMON_FIELDS, ENTRY_TYPES, BibEntry
-from bibtui.bib.parser import (
-    bibtex_str_to_entry,
-    entry_to_bibtex_str,
-    is_serializable_entry,
-)
+from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
+from bibtui.bib.validate import validate_entry
 from bibtui.utils.config import Config
 from bibtui.utils.dates import DATE_ADDED_KEYS
 
@@ -356,10 +354,24 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
     _EntryFormModal #new-error {
         color: $error;
     }
+    _EntryFormModal #form-notice {
+        color: $text-muted;
+        height: auto;
+    }
+    _EntryFormModal .field-error {
+        border: tall $error;
+    }
+    _EntryFormModal .field-fixed {
+        border: tall $success;
+    }
     """
 
     # Only New auto-suggests a cite key; Edit keeps the existing key.
     _autofill_enabled: bool = False
+
+    # "new" hard-blocks missing required fields; "edit" only blocks fields the
+    # user emptied this session (see validate_entry / _validation_baseline).
+    _validate_mode: str = "new"
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -389,6 +401,10 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
 
     def _make_entry(self) -> BibEntry | None:
         raise NotImplementedError
+
+    def _validation_baseline(self) -> BibEntry | None:
+        """Original entry to compare against (Edit only); None for New."""
+        return None
 
     # -- compose -----------------------------------------------------------
 
@@ -422,6 +438,7 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
                     "[bold]k[/bold] to edit them.[/dim]",
                     id="kw-note",
                 )
+            yield Static("", id="form-notice")
             yield Static("", id="new-error")
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
@@ -670,18 +687,73 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
             if value:
                 entry.set_field(name, value)
 
+    # -- validation / submit ----------------------------------------------
+
+    def _clear_field_marks(self) -> None:
+        for widget in self.query("Input, TextArea"):
+            widget.remove_class("field-error")
+            widget.remove_class("field-fixed")
+        self.query_one("#new-error", Static).update("")
+        self.query_one("#form-notice", Static).update("")
+
+    def _field_widget(self, name: str):
+        target_id = "new-key" if name == "key" else self._field_id(name)
+        try:
+            return self.query_one(f"#{target_id}")
+        except Exception:
+            return None
+
+    def _show_blocking(self, errors: list[dict]) -> None:
+        messages: list[str] = []
+        for err in errors:
+            messages.append(err["message"])
+            widget = self._field_widget(err["field"])
+            if widget is not None:
+                widget.add_class("field-error")
+        self.query_one("#new-error", Static).update("\n".join(messages))
+
+    def _apply_fixes_to_form(
+        self, normalized: BibEntry, fixes: list[str], warnings: list[str]
+    ) -> None:
+        for widget in self._iter_field_widgets():
+            name = widget.id.removeprefix("field-")
+            new_value = normalized.get_field(name)
+            if self._widget_value(widget) != new_value:
+                if isinstance(widget, TextArea):
+                    widget.load_text(new_value)
+                else:
+                    widget.value = new_value
+                widget.add_class("field-fixed")
+        notice = "Auto-fixed — " + "; ".join(fixes)
+        if warnings:
+            notice += "  ⚠ " + "; ".join(warnings)
+        notice += ".  Review, then press Write again to confirm."
+        self.query_one("#form-notice", Static).update(notice)
+
     def _save(self) -> None:
         entry = self._make_entry()
         if entry is None:
             return
-        # Validate with bibtexparser before it can reach the .bib file.
-        if not is_serializable_entry(entry):
-            self.query_one("#new-error", Static).update(
-                "Not valid BibTeX — check the cite key and field values "
-                "for unbalanced { } braces."
+        self._clear_field_marks()
+        result = validate_entry(
+            entry, mode=self._validate_mode, baseline=self._validation_baseline()
+        )
+        if result.blocking_errors:
+            self._show_blocking(result.blocking_errors)
+            return
+        # Re-validation is idempotent, so applying fixes into the form and
+        # returning gives the user a chance to review; the next Write finds
+        # nothing left to fix and goes through.
+        if result.applied_fixes:
+            self._apply_fixes_to_form(
+                result.entry, result.applied_fixes, result.warnings
             )
             return
-        self.dismiss(entry)
+        if result.warnings:
+            self.app.notify(
+                "\n".join(result.warnings), severity="warning", timeout=6
+            )
+        self.dismiss(result.entry)
 
     def action_save(self) -> None:
         self._save()
@@ -720,6 +792,8 @@ class EditModal(_EntryFormModal):
         template = {name for name, _ in self._ordered_type_fields()}
         self._custom_names = [name for name in self._values if name not in template]
 
+    _validate_mode = "edit"
+
     def _initial_type(self) -> str:
         return self._entry.entry_type
 
@@ -731,21 +805,24 @@ class EditModal(_EntryFormModal):
         if inputs:
             self.call_after_refresh(inputs[0].focus)
 
+    def _validation_baseline(self) -> BibEntry | None:
+        return self._entry
+
     def _make_entry(self) -> BibEntry | None:
-        entry = self._entry
+        # Build a candidate copy — the original stays untouched until a
+        # successful, validated write, so a blocked save never mutates it.
+        entry = copy.deepcopy(self._entry)
         entry.entry_type = self._current_type
         # Clear the content fields this form owns, then rewrite them from the
         # inputs. Keywords and metadata (rating/read_state/priority) are left
-        # untouched on the entry.
+        # untouched on the copy.
         for name in _FORM_CONTENT_FIELDS:
             if name not in _FORM_EXCLUDED_FIELDS:
                 entry.set_field(name, "")
         # Keep hidden auto-managed raw fields (e.g. date-added); rebuild the
         # rest from the form inputs.
         entry.raw_fields = {
-            k: v
-            for k, v in entry.raw_fields.items()
-            if k in _FORM_HIDDEN_RAW_FIELDS
+            k: v for k, v in entry.raw_fields.items() if k in _FORM_HIDDEN_RAW_FIELDS
         }
         self._collect_into(entry)
         return entry
@@ -781,15 +858,8 @@ class NewEntryModal(_EntryFormModal):
         self.call_after_refresh(target.focus)
 
     def _make_entry(self) -> BibEntry | None:
+        # Key/field validation is handled centrally by validate_entry in _save.
         key = self.query_one("#new-key", Input).value.strip()
-        error = self.query_one("#new-error", Static)
-        if not key:
-            error.update("Cite key is required.")
-            return None
-        # bibtexparser tolerates a space in the key, but LaTeX \cite would break.
-        if any(ch.isspace() for ch in key):
-            error.update("Cite key cannot contain spaces.")
-            return None
         entry = BibEntry(key=key, entry_type=self._current_type)
         self._collect_into(entry)
         return entry

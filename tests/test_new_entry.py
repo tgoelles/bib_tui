@@ -129,6 +129,10 @@ async def test_add_custom_field_saved_to_raw_fields() -> None:
         await pilot.pause()
         modal, result = await _open_modal(app, pilot)
         modal.query_one("#new-key", Input).value = "Custom2024"
+        modal.query_one("#field-author", Input).value = "A"
+        modal.query_one("#field-title", Input).value = "T"
+        modal.query_one("#field-journal", Input).value = "J"
+        modal.query_one("#field-year", Input).value = "2024"
         modal._add_custom_field("note")
         await pilot.pause()
         assert modal.query("#field-note")
@@ -248,6 +252,7 @@ async def test_save_builds_entry_with_type_and_fields() -> None:
         modal.query_one("#field-title", Input).value = "A Title"
         modal.query_one("#field-author", Input).value = "Doe, Jane"
         modal.query_one("#field-journal", Input).value = "Nature"
+        modal.query_one("#field-year", Input).value = "2021"
         modal._save()
         await pilot.pause()
 
@@ -361,18 +366,108 @@ async def test_empty_key_blocks_save() -> None:
         assert isinstance(app.screen, NewEntryModal)
 
 
-async def test_empty_values_not_written() -> None:
+async def test_empty_optional_values_not_written() -> None:
     app = BibTuiApp(BIB)
     async with app.run_test() as pilot:
         await pilot.pause()
         modal, result = await _open_modal(app, pilot)
         modal.query_one("#new-key", Input).value = "Bare2020"
+        modal.query_one("#field-author", Input).value = "A"
+        modal.query_one("#field-title", Input).value = "T"
+        modal.query_one("#field-journal", Input).value = "J"
+        modal.query_one("#field-year", Input).value = "2020"
+        # leave the optional volume/pages/etc. empty
         modal._save()
         await pilot.pause()
         entry = result["entry"]
-        # no optional/empty fields leaked into raw_fields
-        assert entry.raw_fields == {}
-        assert entry.title == ""
+        # empty optional fields don't leak into raw_fields
+        assert "volume" not in entry.raw_fields
+        assert "pages" not in entry.raw_fields
+
+
+# ---------------------------------------------------------------------------
+# Submit-time validation in the form
+# ---------------------------------------------------------------------------
+
+
+async def test_missing_required_blocks_and_highlights() -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(100, 45)) as pilot:
+        await pilot.pause()
+        modal, result = await _open_modal(app, pilot)
+        modal.query_one("#new-key", Input).value = "K2020"
+        modal.query_one("#field-author", Input).value = "A"
+        modal.query_one("#field-title", Input).value = "T"
+        # journal + year left empty
+        modal._save()
+        await pilot.pause()
+        assert "entry" not in result
+        assert isinstance(app.screen, NewEntryModal)
+        assert modal.query_one("#field-journal", Input).has_class("field-error")
+
+
+async def test_autofix_requires_second_write() -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(100, 45)) as pilot:
+        await pilot.pause()
+        modal, result = await _open_modal(app, pilot)
+        modal.query_one("#new-key", Input).value = "K2021"
+        modal.query_one("#field-author", Input).value = "A"
+        modal.query_one("#field-title", Input).value = "Cats & Dogs"
+        modal.query_one("#field-journal", Input).value = "Nature"
+        modal.query_one("#field-year", Input).value = "2021"
+        modal.query_one("#field-pages", Input).value = "12-23"
+
+        # first Write applies fixes into the form, does not write
+        modal._save()
+        await pilot.pause()
+        assert "entry" not in result
+        assert modal.query_one("#field-title", Input).value == r"Cats \& Dogs"
+        assert modal.query_one("#field-pages", Input).value == "12--23"
+        assert modal.query_one("#field-title", Input).has_class("field-fixed")
+
+        # second Write goes through with the normalized values
+        modal._save()
+        await pilot.pause()
+        assert result["entry"].title == r"Cats \& Dogs"
+        assert result["entry"].get_field("pages") == "12--23"
+
+
+async def test_edit_missing_required_writes_with_warning() -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(100, 45)) as pilot:
+        await pilot.pause()
+        # journal + year already empty on the entry being edited
+        entry = BibEntry(key="Old2000", entry_type="article", title="T", author="A")
+        modal, result = await _open_edit(app, pilot, entry)
+        modal.query_one("#field-title", Input).value = "T2"
+        modal._save()
+        await pilot.pause()
+        # not blocked — writes despite the pre-existing gaps
+        assert result["entry"] is not None
+        assert result["entry"].title == "T2"
+        # original entry object left untouched until write
+        assert entry.title == "T"
+
+
+async def test_edit_emptying_required_field_blocks() -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(100, 45)) as pilot:
+        await pilot.pause()
+        entry = BibEntry(
+            key="Full2020",
+            entry_type="article",
+            title="T",
+            author="A",
+            journal="Nature",
+            year="2020",
+        )
+        modal, result = await _open_edit(app, pilot, entry)
+        modal.query_one("#field-journal", Input).value = ""  # clear a filled field
+        modal._save()
+        await pilot.pause()
+        assert "entry" not in result
+        assert modal.query_one("#field-journal", Input).has_class("field-error")
 
 
 # ---------------------------------------------------------------------------
