@@ -1362,7 +1362,7 @@ class HelpModal(_BaseModal[None]):
         return (
             f"[bold]bibtui[/bold] v{version}  —  BibTeX TUI\n"
             "[dim]Author:[/dim] Thomas Gölles\n"
-            "[dim]Web:[/dim] https://thomasgoelles.com\n"
+            "[dim]Docs:[/dim] https://tgoelles.github.io/bib_tui/\n"
             "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui"
         )
 
