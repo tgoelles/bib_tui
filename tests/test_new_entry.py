@@ -171,6 +171,38 @@ async def test_common_field_select_adds_and_resets() -> None:
         assert not isinstance(sel.value, str)
 
 
+async def test_common_dropdown_excludes_present_fields() -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(100, 45)) as pilot:
+        await pilot.pause()
+        modal, _ = await _open_modal(app, pilot)
+
+        def options():
+            sel = modal.query_one("#add-common", Select)
+            return {value for _, value in sel._options}
+
+        # doi/note are shown as fields already, so they aren't offered
+        opts = options()
+        assert "doi" not in opts
+        assert "note" not in opts
+        assert "isbn" in opts
+
+        # adding a field removes it from the dropdown…
+        modal._add_custom_field("isbn")
+        await pilot.pause()
+        assert "isbn" not in options()
+
+        # …and removing it puts it back
+        modal._remove_custom_field("isbn")
+        await pilot.pause()
+        assert "isbn" in options()
+
+        # switching type re-filters: publisher becomes a book field
+        modal.query_one("#new-type", Select).value = "book"
+        await pilot.pause()
+        assert "publisher" not in options()
+
+
 async def test_all_type_fields_are_visible_height() -> None:
     # Regression: nested Vertical containers defaulted to height 1fr and clipped
     # the field inputs; they must be height:auto so every input renders.

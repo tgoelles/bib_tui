@@ -433,6 +433,7 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
         for name in self._custom_names:
             await cf.mount(self._make_custom_row(name))
         self._update_required_hint()
+        self._refresh_common_field_options()
         self._focus_after_mount()
 
     # -- field helpers -----------------------------------------------------
@@ -518,6 +519,17 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
         if widgets:
             await container.mount(*widgets)
 
+    def _refresh_common_field_options(self) -> None:
+        """Limit the common-field dropdown to fields not already in the form."""
+        try:
+            select = self.query_one("#add-common", Select)
+        except Exception:
+            return
+        present = {name for name, _ in self._ordered_type_fields()}
+        present.update(self._custom_names)
+        available = [f for f in COMMON_FIELDS if f not in present]
+        select.set_options((f, f) for f in available)
+
     def _update_required_hint(self) -> None:
         required = [
             n
@@ -581,6 +593,7 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
         self._custom_names.append(name)
         self.query_one("#custom-fields", Vertical).mount(self._make_custom_row(name))
         add_name.value = ""
+        self._refresh_common_field_options()
 
     def _remove_custom_field(self, name: str) -> None:
         if name in self._custom_names:
@@ -590,6 +603,7 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
             self.query_one(f"#custom-row-{name}").remove()
         except Exception:
             pass
+        self._refresh_common_field_options()
 
     # -- events ------------------------------------------------------------
 
@@ -603,6 +617,7 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
         self._current_type = new_type
         await self._rebuild_type_fields()
         self._update_required_hint()
+        self._refresh_common_field_options()
 
     @on(Select.Changed, "#add-common")
     def _on_common_field_chosen(self, event: Select.Changed) -> None:
