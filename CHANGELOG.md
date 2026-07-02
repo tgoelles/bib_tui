@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Entry validation on write** — when you write a new or edited entry, bibtui validates it against the required-field rules for its type (from `ENTRY_TYPES`) before touching the `.bib` file, in three tiers: **auto-fixed** (a `12-23` page range → `12--23`, a `https://doi.org/…` DOI → bare identifier, bare `& % #` → escaped — shown in the form for you to confirm with a second Write; intentional LaTeX/maths and Unicode are left alone), **flagged** (e.g. an implausible year — surfaced but never blocking), and **blocked** (missing required field, non-numeric/missing year, or an empty/space-containing/unparseable cite key — the offending fields are outlined and the write is refused). Editing runs the same checks and *feels* identical to adding, with one deliberate difference: a required field that was already empty when you opened the entry is only flagged, never blocked, so you're never trapped fixing an unrelated field. Opening a `.bib` file never validates or rejects anything.
+- **Create a new entry from scratch (`n`)** — press <kbd>n</kbd> to open a new-entry form. Choose the BibTeX entry type (article, book, inproceedings, …) and the form shows that type's fields under their real BibTeX names, with required fields marked `*` and listed in a hint, driven by the built-in `ENTRY_TYPES` table. `doi`, `url` and `note` are surfaced near the top; `keywords` is intentionally omitted because it is managed by the Keywords modal (<kbd>k</kbd>). Switching type re-shapes the form while preserving values you already typed. The cursor starts in the first content field (the cite key is auto-suggested from author + year in `AuthorYear` form and shown dimmed/italic while auto-generated, until you type your own). A **custom fields** section lets you add any additional field — pick one from a common-field shortlist or type any field name — so you can capture `isbn`, `urldate`, or anything else. Every new entry is stamped with a `date-added` timestamp automatically, and the entry is validated with bibtexparser before it can be written. New entries reuse the existing import pipeline, so duplicate cite keys are resolved the same way as DOI/paste imports.
+
+### Changed
+
+- **Edit form now uses real BibTeX field names** — the field-form editor (<kbd>e</kbd>) shares the new-entry form, so it shows the entry's fields under their actual BibTeX names for the entry type (and lets you change the type or add custom fields) instead of a fixed handful of relabelled inputs. Keywords, rating, read state and priority are managed by their own shortcuts and are left untouched by the edit form.
+
 ## [0.15.2] - 2026-06-23
 
 ### Fixed

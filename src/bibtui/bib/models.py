@@ -86,6 +86,38 @@ ENTRY_TYPES: dict[str, dict[str, list[str]]] = {
     },
 }
 
+# Common BibTeX / biblatex field names offered as quick picks when the user
+# adds a custom field to a new entry. Not exhaustive and not type-specific —
+# just a curated shortlist; the user can always type any field name instead.
+COMMON_FIELDS: list[str] = [
+    "note",
+    "month",
+    "number",
+    "volume",
+    "pages",
+    "address",
+    "publisher",
+    "series",
+    "edition",
+    "editor",
+    "organization",
+    "institution",
+    "school",
+    "booktitle",
+    "chapter",
+    "howpublished",
+    "type",
+    "isbn",
+    "issn",
+    "url",
+    "doi",
+    "language",
+    "annote",
+    "crossref",
+    "urldate",
+    "eprint",
+]
+
 
 @dataclass
 class BibEntry:

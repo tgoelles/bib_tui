@@ -27,6 +27,7 @@ from bibtui.bib.models import BibEntry
 from bibtui.pdf.fetcher import pdf_filename
 from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
 from bibtui.utils import update_check
+from bibtui.utils.dates import extract_date_added, now_date_added_value
 from bibtui.utils.config import (
     CONFIG_PATH,
     Config,
@@ -49,6 +50,7 @@ from bibtui.widgets.modals import (
     HelpModal,
     KeywordsModal,
     LibraryFetchConfirmModal,
+    NewEntryModal,
     PasteModal,
     RawEditModal,
     SettingsModal,
@@ -144,6 +146,7 @@ class BibTuiApp(App):
         Binding("w", "save", "Write"),
         Binding("s", "focus_search", "Search"),
         Binding("e", "edit_entry", "Edit"),
+        Binding("n", "new_entry", "New"),
         Binding("d", "doi_import", "From DOI"),
         Binding("k", "edit_keywords", "Keywords"),
         Binding("m", "toggle_table_maximize", "Max table"),
@@ -434,6 +437,14 @@ class BibTuiApp(App):
         self.query_one(EntryDetail).show_entry(result)
         self.notify("Entry updated. Press [w] to write.", timeout=3)
 
+    def action_new_entry(self) -> None:
+        self.push_screen(NewEntryModal(), self._on_new_entry_done)
+
+    def _on_new_entry_done(self, result: BibEntry | None) -> None:
+        if result is None:
+            return
+        self._finalize_imported_entry(result)
+
     def action_paste_import(self) -> None:
         self.push_screen(PasteModal(), self._on_paste_done)
 
@@ -510,6 +521,10 @@ class BibTuiApp(App):
             return
 
         entry.key = resolved_key or entry.key
+        # Stamp every newly added entry with a date-added timestamp if it has
+        # none yet (DOI imports already carry one; new/paste entries do not).
+        if not extract_date_added(entry.raw_fields):
+            entry.raw_fields["date-added"] = now_date_added_value()
         self._entries.append(entry)
         self._dirty = True
         el = self.query_one(EntryList)

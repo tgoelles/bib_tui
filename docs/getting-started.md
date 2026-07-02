@@ -44,6 +44,7 @@ updates as you go.
 | Search                             | <kbd>s</kbd>                             |
 | Edit the selected entry            | <kbd>e</kbd>                             |
 | Edit keywords                      | <kbd>k</kbd>                             |
+| Create a new entry                 | <kbd>n</kbd>                             |
 | Import a new entry by DOI          | <kbd>d</kbd>                             |
 | Fetch the PDF for an entry         | <kbd>f</kbd>                             |
 | Open the PDF                       | <kbd>Space</kbd>                         |
