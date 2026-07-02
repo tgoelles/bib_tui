@@ -8,7 +8,7 @@ entry, and all of them refuse to create duplicate cite keys.
 Press <kbd>n</kbd> to open the new-entry form. Pick the entry type (article,
 book, inproceedings, …) and the form shows that type's fields under their real
 BibTeX names: **required fields are marked with `*`** and listed in the hint
-under the type selector, then `doi` and `note`, then the remaining optional
+under the type selector, then `doi`, `url` and `note`, then the remaining optional
 fields.
 
 The cursor starts in the first field (usually the author) rather than the cite

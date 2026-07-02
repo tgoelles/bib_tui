@@ -185,9 +185,10 @@ async def test_common_dropdown_excludes_present_fields() -> None:
             sel = modal.query_one("#add-common", Select)
             return {value for _, value in sel._options}
 
-        # doi/note are shown as fields already, so they aren't offered
+        # doi/url/note are shown as fields already, so they aren't offered
         opts = options()
         assert "doi" not in opts
+        assert "url" not in opts
         assert "note" not in opts
         assert "isbn" in opts
 
@@ -503,10 +504,12 @@ async def test_doi_and_note_promoted_keywords_excluded() -> None:
             for w in modal.query("#type-fields Input, #type-fields TextArea")
         ]
         assert "keywords" not in order
+        # doi, url and note are always shown near the top
         assert "note" in order
+        assert "url" in order
         # doi sits right after the required fields, ahead of other optionals
         assert order.index("doi") < order.index("volume")
-        assert order.index("doi") < order.index("note")
+        assert order.index("doi") < order.index("url") < order.index("note")
 
 
 async def test_keywords_never_addable_as_custom() -> None:

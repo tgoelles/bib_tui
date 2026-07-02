@@ -242,7 +242,7 @@ _FORM_EXCLUDED_FIELDS: set[str] = {"keywords"}
 
 # Optional fields promoted to the top of the optional section (in this order)
 # because they are the ones most people want to fill in right away.
-_FORM_PROMOTED_FIELDS: list[str] = ["doi", "note"]
+_FORM_PROMOTED_FIELDS: list[str] = ["doi", "url", "note"]
 
 # Raw fields the form never shows and must never wipe — auto-managed metadata
 # such as the date-added timestamp.
@@ -271,7 +271,7 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
     entry type (required fields marked ``*``), driven by
     :data:`bibtui.bib.models.ENTRY_TYPES`, plus a custom-field section for any
     additional field (picked from a common shortlist or typed freely).
-    ``doi`` and ``note`` are surfaced near the top; ``keywords`` is deliberately
+    ``doi``, ``url`` and ``note`` are surfaced near the top; ``keywords`` is deliberately
     excluded — it is managed through the Keywords modal.
     """
 
