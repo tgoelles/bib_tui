@@ -5,13 +5,21 @@
 Press <kbd>e</kbd> on the selected entry to edit it. bibtui offers two modes,
 and you switch between them with <kbd>v</kbd>:
 
-- **Field form** — a labelled form with one input per field. Best for quick
+- **Field form** — the same dynamic form as [creating a new
+  entry](importing.md#create-a-new-entry): inputs are labelled with the real
+  BibTeX field names for the entry's type (required fields marked `*`), and you
+  can change the type, edit any field, or add custom ones. Best for quick
   corrections.
-- **Raw BibTeX** — edit the entry's BibTeX source directly. Best for power users
-  and for fields the form doesn't surface.
+- **Raw BibTeX** — edit the entry's BibTeX source directly. Best for power users.
 
 Save with <kbd>Ctrl</kbd>+<kbd>S</kbd>, cancel with <kbd>Esc</kbd>. Remember that
 edits live in memory until you write the file with <kbd>w</kbd>.
+
+!!! note "Keywords, rating and read state aren't in the form"
+
+    Keywords are managed separately in the [keywords picker](keywords.md)
+    (<kbd>k</kbd>), and the rating, read state and priority have their own
+    shortcuts — so the edit form leaves them out and never disturbs them.
 
 ## Deleting an entry
 

@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Create a new entry from scratch (`n`)** — press <kbd>n</kbd> to open a new-entry form. Choose the BibTeX entry type (article, book, inproceedings, …) and the form shows that type's fields, with required fields marked `*` and listed in a hint, driven by the built-in `ENTRY_TYPES` table. Switching type re-shapes the form while preserving values you already typed. The cite key is auto-suggested from author + year (`AuthorYear`) until you edit it. A **custom fields** section at the bottom lets you add any additional field — pick one from a common-field shortlist or type any field name — so you can capture `note`, `isbn`, `urldate`, or anything else. New entries reuse the existing import pipeline, so duplicate cite keys are resolved the same way as DOI/paste imports.
+- **Create a new entry from scratch (`n`)** — press <kbd>n</kbd> to open a new-entry form. Choose the BibTeX entry type (article, book, inproceedings, …) and the form shows that type's fields under their real BibTeX names, with required fields marked `*` and listed in a hint, driven by the built-in `ENTRY_TYPES` table. `doi` and `note` are surfaced near the top; `keywords` is intentionally omitted because it is managed by the Keywords modal (<kbd>k</kbd>). Switching type re-shapes the form while preserving values you already typed. The cursor starts in the first content field (the cite key is auto-suggested from author + year in `AuthorYear` form and shown dimmed/italic while auto-generated, until you type your own). A **custom fields** section lets you add any additional field — pick one from a common-field shortlist or type any field name — so you can capture `isbn`, `urldate`, or anything else. Every new entry is stamped with a `date-added` timestamp automatically, and the entry is validated with bibtexparser before it can be written. New entries reuse the existing import pipeline, so duplicate cite keys are resolved the same way as DOI/paste imports.
+
+### Changed
+
+- **Edit form now uses real BibTeX field names** — the field-form editor (<kbd>e</kbd>) shares the new-entry form, so it shows the entry's fields under their actual BibTeX names for the entry type (and lets you change the type or add custom fields) instead of a fixed handful of relabelled inputs. Keywords, rating, read state and priority are managed by their own shortcuts and are left untouched by the edit form.
 
 ## [0.15.2] - 2026-06-23
 

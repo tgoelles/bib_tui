@@ -6,13 +6,31 @@ entry, and all of them refuse to create duplicate cite keys.
 ## Create a new entry
 
 Press <kbd>n</kbd> to open the new-entry form. Pick the entry type (article,
-book, inproceedings, …) and the form shows that type's fields: **required
-fields are marked with `*`** and listed in the hint under the type selector,
-followed by the common optional fields. The cite key is suggested automatically
-from the author and year (in `AuthorYear` form) until you edit it yourself.
+book, inproceedings, …) and the form shows that type's fields under their real
+BibTeX names: **required fields are marked with `*`** and listed in the hint
+under the type selector, then `doi` and `note`, then the remaining optional
+fields.
+
+The cursor starts in the first field (usually the author) rather than the cite
+key, because the key is filled in for you: it's suggested automatically from the
+author and year (in `AuthorYear` form) and shown dimmed and italic while
+auto-generated, so you can see at a glance that it will follow the author/year.
+Type your own key any time to take over; the styling switches to a normal key
+and stops auto-updating.
+
+Every new entry is stamped with a `date-added` timestamp automatically, so the
+**Added** column and date sorting work straight away — you never enter it by
+hand. When you save, the entry is validated with the BibTeX parser first, so a
+malformed cite key or field can't be written to your `.bib` file.
 
 Switching the entry type re-shapes the form to match the new type while keeping
 any values you already typed.
+
+!!! note "Keywords are managed separately"
+
+    The form doesn't include a keywords field — keywords are curated in the
+    [keywords picker](keywords.md) (<kbd>k</kbd>), which lets you reuse the ones
+    already in your library. Add the entry first, then press <kbd>k</kbd>.
 
 ### Custom fields
 

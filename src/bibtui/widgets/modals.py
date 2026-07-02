@@ -27,8 +27,13 @@ from textual.widgets._selection_list import Selection
 from bibtui.bib.citation_preview import available_csl_styles, default_csl_style_key
 from bibtui.bib.citekeys import author_year_base
 from bibtui.bib.models import COMMON_FIELDS, ENTRY_TYPES, BibEntry
-from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
+from bibtui.bib.parser import (
+    bibtex_str_to_entry,
+    entry_to_bibtex_str,
+    is_serializable_entry,
+)
 from bibtui.utils.config import Config
+from bibtui.utils.dates import DATE_ADDED_KEYS
 
 _ModalResult = TypeVar("_ModalResult")
 
@@ -233,109 +238,43 @@ class DOIModal(_BaseModal[BibEntry | None]):
         self.dismiss(None)
 
 
-class EditModal(_BaseModal[BibEntry | None]):
-    """Modal to edit key fields of an entry."""
+# Fields the New/Edit entry form never shows as editable inputs: keywords are
+# managed separately through the Keywords modal (press `k`).
+_FORM_EXCLUDED_FIELDS: set[str] = {"keywords"}
 
-    BINDINGS = [
-        Binding("ctrl+s", "save_and_close", "Write", show=True),
-        Binding("escape", "cancel", "Cancel", show=True),
-    ]
+# Optional fields promoted to the top of the optional section (in this order)
+# because they are the ones most people want to fill in right away.
+_FORM_PROMOTED_FIELDS: list[str] = ["doi", "note"]
 
-    DEFAULT_CSS = """
-    EditModal > Vertical {
-        width: 80;
-        max-height: 92%;
-    }
-    EditModal #edit-fields {
-        height: 22;
-    }
-    EditModal Input {
-        margin-bottom: 1;
-    }
-    EditModal Label {
-        color: $accent;
-    }
-    EditModal TextArea {
-        height: 6;
-        margin-bottom: 1;
-    }
-    """
+# Raw fields the form never shows and must never wipe — auto-managed metadata
+# such as the date-added timestamp.
+_FORM_HIDDEN_RAW_FIELDS: set[str] = set(DATE_ADDED_KEYS)
 
-    def __init__(self, entry: BibEntry, **kwargs):
-        super().__init__(**kwargs)
-        self._entry = entry
-
-    def compose(self) -> ComposeResult:
-        e = self._entry
-        with Vertical():
-            yield Label(
-                f"[bold]Edit Entry[/bold]  [dim]{e.key}[/dim]", classes="modal-title"
-            )
-            with VerticalScroll(id="edit-fields"):
-                yield Label("Title")
-                yield Input(value=e.title, id="edit-title")
-                yield Label("Author")
-                yield Input(value=e.author, id="edit-author")
-                yield Label("Year")
-                yield Input(value=e.year, id="edit-year")
-                yield Label("Journal / Booktitle")
-                yield Input(value=e.journal, id="edit-journal")
-                yield Label("DOI")
-                yield Input(value=e.doi, id="edit-doi")
-                yield Label("Keywords")
-                yield Input(value=e.keywords, id="edit-keywords")
-                yield Label("PDF file path")
-                yield Input(value=e.file, id="edit-file")
-                yield Label("Abstract")
-                yield TextArea(e.abstract, id="edit-abstract")
-                yield Label("Comment")
-                yield TextArea(e.comment, id="edit-comment")
-            with Horizontal(classes="modal-buttons"):
-                yield Button("Write", variant="primary", id="btn-save")
-                yield Button("Cancel", id="btn-cancel")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-cancel":
-            self.dismiss(None)
-        elif event.button.id == "btn-save":
-            self._save()
-
-    def on_input_submitted(self, _: Input.Submitted) -> None:
-        self._save()
-
-    def _save(self) -> None:
-        e = self._entry
-
-        def v(widget_id: str) -> str:
-            return self.query_one(widget_id, Input).value
-
-        e.title = v("#edit-title")
-        e.author = v("#edit-author")
-        e.year = v("#edit-year")
-        e.journal = v("#edit-journal")
-        e.doi = v("#edit-doi")
-        e.keywords = v("#edit-keywords")
-        e.file = v("#edit-file")
-        e.abstract = self.query_one("#edit-abstract", TextArea).text
-        e.comment = self.query_one("#edit-comment", TextArea).text
-        self.dismiss(e)
-
-    def action_save_and_close(self) -> None:
-        self._save()
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
+# BibEntry attributes that map to real BibTeX content fields — everything except
+# keywords and the app-only metadata (rating, read_state, priority). Used when
+# editing to know which content fields the form owns and may clear/rewrite.
+_FORM_CONTENT_FIELDS: list[str] = [
+    "title",
+    "author",
+    "year",
+    "journal",
+    "doi",
+    "url",
+    "abstract",
+    "comment",
+    "file",
+]
 
 
-class NewEntryModal(_BaseModal[BibEntry | None]):
-    """Create a new BibTeX entry.
+class _EntryFormModal(_BaseModal[BibEntry | None]):
+    """Shared dynamic BibTeX field form used by New and Edit.
 
-    The user picks an entry type; the form then shows that type's required
-    fields (marked ``*``) and optional fields, driven by
-    :data:`bibtui.bib.models.ENTRY_TYPES`. A custom-field section at the bottom
-    lets the user add any additional field (chosen from a common shortlist or
-    typed freely). The cite key is auto-suggested from author + year until the
-    user edits it manually.
+    Renders inputs labelled with the real BibTeX field names for the chosen
+    entry type (required fields marked ``*``), driven by
+    :data:`bibtui.bib.models.ENTRY_TYPES`, plus a custom-field section for any
+    additional field (picked from a common shortlist or typed freely).
+    ``doi`` and ``note`` are surfaced near the top; ``keywords`` is deliberately
+    excluded — it is managed through the Keywords modal.
     """
 
     BINDINGS = [
@@ -344,77 +283,118 @@ class NewEntryModal(_BaseModal[BibEntry | None]):
     ]
 
     DEFAULT_CSS = """
-    NewEntryModal > Vertical {
+    _EntryFormModal > Vertical {
         width: 84;
         max-height: 92%;
     }
-    NewEntryModal #new-fields {
+    _EntryFormModal #new-fields {
         height: 30;
     }
-    NewEntryModal Input {
+    _EntryFormModal #type-fields,
+    _EntryFormModal #custom-fields {
+        height: auto;
+    }
+    _EntryFormModal Input {
         margin-bottom: 1;
     }
-    NewEntryModal Label {
+    _EntryFormModal Label {
         color: $accent;
     }
-    NewEntryModal TextArea {
+    _EntryFormModal TextArea {
         height: 6;
         margin-bottom: 1;
     }
-    NewEntryModal .type-row {
+    _EntryFormModal .type-row {
         height: auto;
         align: left middle;
         margin-bottom: 1;
     }
-    NewEntryModal .type-row Label {
+    _EntryFormModal .type-row Label {
         width: 10;
     }
-    NewEntryModal #required-hint {
+    _EntryFormModal #required-hint {
         margin-bottom: 1;
         color: $text-muted;
     }
-    NewEntryModal .section-label {
+    _EntryFormModal #new-key.auto {
+        color: $text-muted;
+        text-style: italic;
+    }
+    _EntryFormModal #key-hint {
+        margin-bottom: 1;
+    }
+    _EntryFormModal .section-label {
         margin-top: 1;
     }
-    NewEntryModal .custom-row {
+    _EntryFormModal #kw-note {
+        color: $text-muted;
+        margin-top: 1;
         height: auto;
     }
-    NewEntryModal .custom-row Label {
+    _EntryFormModal .custom-row {
+        height: auto;
+    }
+    _EntryFormModal .custom-row Label {
         width: 18;
         content-align: left middle;
         height: 3;
     }
-    NewEntryModal .custom-row Input {
+    _EntryFormModal .custom-row Input {
         width: 1fr;
     }
-    NewEntryModal .custom-remove {
+    _EntryFormModal .custom-remove {
         min-width: 4;
         width: 4;
     }
-    NewEntryModal .add-field-row {
+    _EntryFormModal .add-field-row {
         height: auto;
         margin-top: 1;
     }
-    NewEntryModal .add-field-row Input {
+    _EntryFormModal .add-field-row Input {
         width: 1fr;
     }
-    NewEntryModal #new-error {
+    _EntryFormModal #new-error {
         color: $error;
     }
     """
 
+    # Only New auto-suggests a cite key; Edit keeps the existing key.
+    _autofill_enabled: bool = False
+
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self._current_type = "article"
+        self._current_type = self._initial_type()
         # Field values are kept here so they survive an entry-type switch.
         self._values: dict[str, str] = {}
         self._custom_names: list[str] = []
         self._key_touched = False
-        self._autofilling = False
+        # The last value we auto-filled into the cite-key input. Used to tell
+        # our own programmatic edits apart from real user typing (the Changed
+        # message arrives after any transient flag would have been reset).
+        self._auto_key_value = ""
+
+    # -- hooks for subclasses ---------------------------------------------
+
+    def _initial_type(self) -> str:
+        return "article"
+
+    def _form_title(self) -> str:
+        return "[bold]Entry[/bold]"
+
+    def _compose_key_row(self) -> ComposeResult:
+        return iter(())  # no cite-key row by default
+
+    def _focus_after_mount(self) -> None:
+        return None
+
+    def _make_entry(self) -> BibEntry | None:
+        raise NotImplementedError
+
+    # -- compose -----------------------------------------------------------
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Label("[bold]New Entry[/bold]", classes="modal-title")
+            yield Label(self._form_title(), classes="modal-title")
             with VerticalScroll(id="new-fields"):
                 with Horizontal(classes="type-row"):
                     yield Label("Type")
@@ -425,8 +405,7 @@ class NewEntryModal(_BaseModal[BibEntry | None]):
                         id="new-type",
                     )
                 yield Static("", id="required-hint")
-                yield Label("Cite key *")
-                yield Input(id="new-key")
+                yield from self._compose_key_row()
                 yield Vertical(id="type-fields")
                 yield Label("Custom fields", classes="section-label")
                 yield Vertical(id="custom-fields")
@@ -438,6 +417,11 @@ class NewEntryModal(_BaseModal[BibEntry | None]):
                     )
                     yield Input(placeholder="or type a field name…", id="add-name")
                     yield Button("Add", id="btn-add")
+                yield Static(
+                    "[dim]Keywords are managed separately — press "
+                    "[bold]k[/bold] to edit them.[/dim]",
+                    id="kw-note",
+                )
             yield Static("", id="new-error")
             with Horizontal(classes="modal-buttons"):
                 yield Button("Write", variant="primary", id="btn-save")
@@ -445,8 +429,11 @@ class NewEntryModal(_BaseModal[BibEntry | None]):
 
     async def on_mount(self) -> None:
         await self._rebuild_type_fields()
+        cf = self.query_one("#custom-fields", Vertical)
+        for name in self._custom_names:
+            await cf.mount(self._make_custom_row(name))
         self._update_required_hint()
-        self.call_after_refresh(self.query_one("#new-key", Input).focus)
+        self._focus_after_mount()
 
     # -- field helpers -----------------------------------------------------
 
@@ -477,6 +464,31 @@ class NewEntryModal(_BaseModal[BibEntry | None]):
             name = widget.id.removeprefix("field-")
             self._values[name] = self._widget_value(widget)
 
+    def _ordered_type_fields(self) -> list[tuple[str, bool]]:
+        """Return ``(field_name, is_required)`` for the current type, in order.
+
+        Required fields first, then ``doi``/``note``, then the type's remaining
+        optional fields. Keywords and already-added custom fields are omitted.
+        """
+        spec = ENTRY_TYPES.get(self._current_type, {})
+        required = [
+            n for n in spec.get("required", []) if n not in _FORM_EXCLUDED_FIELDS
+        ]
+        optional = [
+            n for n in spec.get("optional", []) if n not in _FORM_EXCLUDED_FIELDS
+        ]
+        promoted = [n for n in _FORM_PROMOTED_FIELDS if n not in required]
+        rest = [n for n in optional if n not in promoted]
+        custom = set(self._custom_names)
+        result: list[tuple[str, bool]] = []
+        seen: set[str] = set()
+        for name in [*required, *promoted, *rest]:
+            if name in seen or name in custom:
+                continue
+            seen.add(name)
+            result.append((name, name in required))
+        return result
+
     def _make_field_widgets(self, name: str, required: bool) -> list:
         label = f"{name.capitalize()}{' *' if required else ''}"
         fid = self._field_id(name)
@@ -500,20 +512,18 @@ class NewEntryModal(_BaseModal[BibEntry | None]):
         # Await the removal so the old widgets are gone before the new ones are
         # mounted — otherwise reused field ids (e.g. field-author) collide.
         await container.remove_children()
-        spec = ENTRY_TYPES.get(self._current_type, {})
-        custom = set(self._custom_names)
         widgets: list = []
-        for name in spec.get("required", []):
-            if name not in custom:
-                widgets += self._make_field_widgets(name, required=True)
-        for name in spec.get("optional", []):
-            if name not in custom:
-                widgets += self._make_field_widgets(name, required=False)
+        for name, required in self._ordered_type_fields():
+            widgets += self._make_field_widgets(name, required=required)
         if widgets:
             await container.mount(*widgets)
 
     def _update_required_hint(self) -> None:
-        required = ENTRY_TYPES.get(self._current_type, {}).get("required", [])
+        required = [
+            n
+            for n in ENTRY_TYPES.get(self._current_type, {}).get("required", [])
+            if n not in _FORM_EXCLUDED_FIELDS
+        ]
         if required:
             text = "Required: " + ", ".join(required)
         else:
@@ -529,22 +539,36 @@ class NewEntryModal(_BaseModal[BibEntry | None]):
             return ""
         return self._widget_value(widget)
 
+    def _set_key_hint(self, *, auto: bool) -> None:
+        try:
+            hint = self.query_one("#key-hint", Static)
+        except Exception:
+            return
+        if auto:
+            hint.update(
+                "[dim]✎ auto-generated from author + year — edit to override[/dim]"
+            )
+        else:
+            hint.update("[dim]custom cite key[/dim]")
+
     def _autofill_key(self) -> None:
         author = self._field_value("author")
         year = self._field_value("year")
         if not author and not year:
             return
         key_input = self.query_one("#new-key", Input)
-        self._autofilling = True
-        key_input.value = author_year_base(author, year)
-        self._autofilling = False
+        self._auto_key_value = author_year_base(author, year)
+        key_input.value = self._auto_key_value
+        key_input.add_class("auto")
+        self._set_key_hint(auto=True)
 
     # -- custom fields -----------------------------------------------------
 
     def _add_custom_field(self, raw_name: str) -> None:
         name = self._sanitize(raw_name)
         add_name = self.query_one("#add-name", Input)
-        if not name:
+        if not name or name in _FORM_EXCLUDED_FIELDS:
+            add_name.value = ""
             return
         if name in self._current_field_names():
             # Already present (a type field or a prior custom field) — focus it.
@@ -582,10 +606,15 @@ class NewEntryModal(_BaseModal[BibEntry | None]):
 
     @on(Select.Changed, "#add-common")
     def _on_common_field_chosen(self, event: Select.Changed) -> None:
-        if event.value is Select.BLANK:
+        # A real pick is always one of our string options; the blank/cleared
+        # state is a non-string sentinel (whose name differs across Textual
+        # versions), so filter by type rather than comparing to a sentinel.
+        if not isinstance(event.value, str):
             return
-        self._add_custom_field(str(event.value))
-        event.select.value = Select.BLANK
+        self._add_custom_field(event.value)
+        # Reset the dropdown back to its prompt. Assigning the sentinel directly
+        # is rejected by the value validator; clear() is the supported API.
+        event.select.clear()
 
     @on(Input.Submitted, "#add-name")
     def _on_add_name_submitted(self, event: Input.Submitted) -> None:
@@ -593,10 +622,16 @@ class NewEntryModal(_BaseModal[BibEntry | None]):
 
     @on(Input.Changed)
     def _on_input_changed(self, event: Input.Changed) -> None:
+        if not self._autofill_enabled:
+            return
         wid = event.input.id or ""
         if wid == "new-key":
-            if not self._autofilling:
-                self._key_touched = True
+            # Ignore the echo of our own autofill; anything else is a real edit.
+            if event.input.value == self._auto_key_value:
+                return
+            self._key_touched = True
+            event.input.remove_class("auto")
+            self._set_key_hint(auto=False)
             return
         if wid in ("field-author", "field-year") and not self._key_touched:
             self._autofill_key()
@@ -612,18 +647,25 @@ class NewEntryModal(_BaseModal[BibEntry | None]):
         elif bid.startswith("rm-"):
             self._remove_custom_field(bid[len("rm-") :])
 
-    def _save(self) -> None:
-        key = self.query_one("#new-key", Input).value.strip()
-        error = self.query_one("#new-error", Static)
-        if not key:
-            error.update("Cite key is required.")
-            return
-        entry = BibEntry(key=key, entry_type=self._current_type)
+    def _collect_into(self, entry: BibEntry) -> None:
+        """Write every non-empty form field into *entry* by its real name."""
         for widget in self._iter_field_widgets():
             name = widget.id.removeprefix("field-")
             value = self._widget_value(widget).strip()
             if value:
                 entry.set_field(name, value)
+
+    def _save(self) -> None:
+        entry = self._make_entry()
+        if entry is None:
+            return
+        # Validate with bibtexparser before it can reach the .bib file.
+        if not is_serializable_entry(entry):
+            self.query_one("#new-error", Static).update(
+                "Not valid BibTeX — check the cite key and field values "
+                "for unbalanced { } braces."
+            )
+            return
         self.dismiss(entry)
 
     def action_save(self) -> None:
@@ -631,6 +673,111 @@ class NewEntryModal(_BaseModal[BibEntry | None]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class EditModal(_EntryFormModal):
+    """Edit an existing entry's BibTeX fields, under their real field names.
+
+    Shows the entry's fields for its type plus any extra fields it already has.
+    Keywords, rating, read state and priority are managed elsewhere and are
+    preserved untouched. The cite key is not editable here.
+    """
+
+    def __init__(self, entry: BibEntry, **kwargs) -> None:
+        self._entry = entry
+        super().__init__(**kwargs)
+        # Seed the form with the entry's existing content fields…
+        for name in _FORM_CONTENT_FIELDS:
+            if name in _FORM_EXCLUDED_FIELDS:
+                continue
+            value = entry.get_field(name)
+            if value:
+                self._values[name] = value
+        # …and any custom / non-standard fields it carries, except the
+        # auto-managed ones (e.g. date-added) which stay hidden and untouched.
+        for key, value in entry.raw_fields.items():
+            if key in _FORM_EXCLUDED_FIELDS or key in _FORM_HIDDEN_RAW_FIELDS:
+                continue
+            if value:
+                self._values[key] = value
+        # Fields the entry has that aren't part of this type's template become
+        # custom rows so they stay editable under their real names.
+        template = {name for name, _ in self._ordered_type_fields()}
+        self._custom_names = [name for name in self._values if name not in template]
+
+    def _initial_type(self) -> str:
+        return self._entry.entry_type
+
+    def _form_title(self) -> str:
+        return f"[bold]Edit Entry[/bold]  [dim]{self._entry.key}[/dim]"
+
+    def _focus_after_mount(self) -> None:
+        inputs = list(self.query("#type-fields Input"))
+        if inputs:
+            self.call_after_refresh(inputs[0].focus)
+
+    def _make_entry(self) -> BibEntry | None:
+        entry = self._entry
+        entry.entry_type = self._current_type
+        # Clear the content fields this form owns, then rewrite them from the
+        # inputs. Keywords and metadata (rating/read_state/priority) are left
+        # untouched on the entry.
+        for name in _FORM_CONTENT_FIELDS:
+            if name not in _FORM_EXCLUDED_FIELDS:
+                entry.set_field(name, "")
+        # Keep hidden auto-managed raw fields (e.g. date-added); rebuild the
+        # rest from the form inputs.
+        entry.raw_fields = {
+            k: v
+            for k, v in entry.raw_fields.items()
+            if k in _FORM_HIDDEN_RAW_FIELDS
+        }
+        self._collect_into(entry)
+        return entry
+
+
+class NewEntryModal(_EntryFormModal):
+    """Create a new BibTeX entry from scratch.
+
+    The user picks an entry type; the form shows that type's fields under their
+    real BibTeX names (required marked ``*``), with ``doi``/``note`` near the
+    top and a custom-field section at the bottom. The cite key is auto-suggested
+    from author + year until the user edits it manually.
+    """
+
+    _autofill_enabled = True
+
+    def _form_title(self) -> str:
+        return "[bold]New Entry[/bold]"
+
+    def _compose_key_row(self) -> ComposeResult:
+        yield Label("Cite key *")
+        yield Input(id="new-key")
+        yield Static(
+            "[dim]✎ auto-generated from author + year — edit to override[/dim]",
+            id="key-hint",
+        )
+
+    def _focus_after_mount(self) -> None:
+        # The cite key is auto-generated, so start the cursor in the first
+        # content field (typically author) instead of the key input.
+        inputs = list(self.query("#type-fields Input"))
+        target = inputs[0] if inputs else self.query_one("#new-key", Input)
+        self.call_after_refresh(target.focus)
+
+    def _make_entry(self) -> BibEntry | None:
+        key = self.query_one("#new-key", Input).value.strip()
+        error = self.query_one("#new-error", Static)
+        if not key:
+            error.update("Cite key is required.")
+            return None
+        # bibtexparser tolerates a space in the key, but LaTeX \cite would break.
+        if any(ch.isspace() for ch in key):
+            error.update("Cite key cannot contain spaces.")
+            return None
+        entry = BibEntry(key=key, entry_type=self._current_type)
+        self._collect_into(entry)
+        return entry
 
 
 class KeywordsModal(_BaseModal["tuple[str, set[str]] | None"]):
