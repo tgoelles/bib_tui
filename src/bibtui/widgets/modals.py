@@ -1,3 +1,4 @@
+import re
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TypeVar
@@ -24,7 +25,8 @@ from textual.widgets import (
 from textual.widgets._selection_list import Selection
 
 from bibtui.bib.citation_preview import available_csl_styles, default_csl_style_key
-from bibtui.bib.models import BibEntry
+from bibtui.bib.citekeys import author_year_base
+from bibtui.bib.models import COMMON_FIELDS, ENTRY_TYPES, BibEntry
 from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bibtui.utils.config import Config
 
@@ -319,6 +321,312 @@ class EditModal(_BaseModal[BibEntry | None]):
         self.dismiss(e)
 
     def action_save_and_close(self) -> None:
+        self._save()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class NewEntryModal(_BaseModal[BibEntry | None]):
+    """Create a new BibTeX entry.
+
+    The user picks an entry type; the form then shows that type's required
+    fields (marked ``*``) and optional fields, driven by
+    :data:`bibtui.bib.models.ENTRY_TYPES`. A custom-field section at the bottom
+    lets the user add any additional field (chosen from a common shortlist or
+    typed freely). The cite key is auto-suggested from author + year until the
+    user edits it manually.
+    """
+
+    BINDINGS = [
+        Binding("ctrl+s", "save", "Write", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
+
+    DEFAULT_CSS = """
+    NewEntryModal > Vertical {
+        width: 84;
+        max-height: 92%;
+    }
+    NewEntryModal #new-fields {
+        height: 30;
+    }
+    NewEntryModal Input {
+        margin-bottom: 1;
+    }
+    NewEntryModal Label {
+        color: $accent;
+    }
+    NewEntryModal TextArea {
+        height: 6;
+        margin-bottom: 1;
+    }
+    NewEntryModal .type-row {
+        height: auto;
+        align: left middle;
+        margin-bottom: 1;
+    }
+    NewEntryModal .type-row Label {
+        width: 10;
+    }
+    NewEntryModal #required-hint {
+        margin-bottom: 1;
+        color: $text-muted;
+    }
+    NewEntryModal .section-label {
+        margin-top: 1;
+    }
+    NewEntryModal .custom-row {
+        height: auto;
+    }
+    NewEntryModal .custom-row Label {
+        width: 18;
+        content-align: left middle;
+        height: 3;
+    }
+    NewEntryModal .custom-row Input {
+        width: 1fr;
+    }
+    NewEntryModal .custom-remove {
+        min-width: 4;
+        width: 4;
+    }
+    NewEntryModal .add-field-row {
+        height: auto;
+        margin-top: 1;
+    }
+    NewEntryModal .add-field-row Input {
+        width: 1fr;
+    }
+    NewEntryModal #new-error {
+        color: $error;
+    }
+    """
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._current_type = "article"
+        # Field values are kept here so they survive an entry-type switch.
+        self._values: dict[str, str] = {}
+        self._custom_names: list[str] = []
+        self._key_touched = False
+        self._autofilling = False
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]New Entry[/bold]", classes="modal-title")
+            with VerticalScroll(id="new-fields"):
+                with Horizontal(classes="type-row"):
+                    yield Label("Type")
+                    yield Select(
+                        [(t, t) for t in ENTRY_TYPES],
+                        value=self._current_type,
+                        allow_blank=False,
+                        id="new-type",
+                    )
+                yield Static("", id="required-hint")
+                yield Label("Cite key *")
+                yield Input(id="new-key")
+                yield Vertical(id="type-fields")
+                yield Label("Custom fields", classes="section-label")
+                yield Vertical(id="custom-fields")
+                with Horizontal(classes="add-field-row"):
+                    yield Select(
+                        [(f, f) for f in COMMON_FIELDS],
+                        prompt="Common field…",
+                        id="add-common",
+                    )
+                    yield Input(placeholder="or type a field name…", id="add-name")
+                    yield Button("Add", id="btn-add")
+            yield Static("", id="new-error")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Write", variant="primary", id="btn-save")
+                yield Button("Cancel", id="btn-cancel")
+
+    async def on_mount(self) -> None:
+        await self._rebuild_type_fields()
+        self._update_required_hint()
+        self.call_after_refresh(self.query_one("#new-key", Input).focus)
+
+    # -- field helpers -----------------------------------------------------
+
+    @staticmethod
+    def _sanitize(name: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", (name or "").strip().lower())
+
+    @staticmethod
+    def _field_id(name: str) -> str:
+        return f"field-{name}"
+
+    def _iter_field_widgets(self):
+        """Yield every value-carrying field widget, in DOM order."""
+        for widget in self.query("Input, TextArea"):
+            wid = widget.id or ""
+            if wid.startswith("field-"):
+                yield widget
+
+    @staticmethod
+    def _widget_value(widget) -> str:
+        return widget.text if isinstance(widget, TextArea) else widget.value
+
+    def _current_field_names(self) -> set[str]:
+        return {w.id.removeprefix("field-") for w in self._iter_field_widgets()}
+
+    def _snapshot_values(self) -> None:
+        for widget in self._iter_field_widgets():
+            name = widget.id.removeprefix("field-")
+            self._values[name] = self._widget_value(widget)
+
+    def _make_field_widgets(self, name: str, required: bool) -> list:
+        label = f"{name.capitalize()}{' *' if required else ''}"
+        fid = self._field_id(name)
+        value = self._values.get(name, "")
+        if name == "abstract":
+            return [Label(label), TextArea(value, id=fid)]
+        return [Label(label), Input(value=value, id=fid)]
+
+    def _make_custom_row(self, name: str) -> Horizontal:
+        return Horizontal(
+            Label(f"{name}"),
+            Input(value=self._values.get(name, ""), id=self._field_id(name)),
+            Button("✕", id=f"rm-{name}", classes="custom-remove"),
+            classes="custom-row",
+            id=f"custom-row-{name}",
+        )
+
+    async def _rebuild_type_fields(self) -> None:
+        self._snapshot_values()
+        container = self.query_one("#type-fields", Vertical)
+        # Await the removal so the old widgets are gone before the new ones are
+        # mounted — otherwise reused field ids (e.g. field-author) collide.
+        await container.remove_children()
+        spec = ENTRY_TYPES.get(self._current_type, {})
+        custom = set(self._custom_names)
+        widgets: list = []
+        for name in spec.get("required", []):
+            if name not in custom:
+                widgets += self._make_field_widgets(name, required=True)
+        for name in spec.get("optional", []):
+            if name not in custom:
+                widgets += self._make_field_widgets(name, required=False)
+        if widgets:
+            await container.mount(*widgets)
+
+    def _update_required_hint(self) -> None:
+        required = ENTRY_TYPES.get(self._current_type, {}).get("required", [])
+        if required:
+            text = "Required: " + ", ".join(required)
+        else:
+            text = "No required fields for this type."
+        self.query_one("#required-hint", Static).update(text)
+
+    # -- cite key auto-suggest --------------------------------------------
+
+    def _field_value(self, name: str) -> str:
+        try:
+            widget = self.query_one(f"#{self._field_id(name)}")
+        except Exception:
+            return ""
+        return self._widget_value(widget)
+
+    def _autofill_key(self) -> None:
+        author = self._field_value("author")
+        year = self._field_value("year")
+        if not author and not year:
+            return
+        key_input = self.query_one("#new-key", Input)
+        self._autofilling = True
+        key_input.value = author_year_base(author, year)
+        self._autofilling = False
+
+    # -- custom fields -----------------------------------------------------
+
+    def _add_custom_field(self, raw_name: str) -> None:
+        name = self._sanitize(raw_name)
+        add_name = self.query_one("#add-name", Input)
+        if not name:
+            return
+        if name in self._current_field_names():
+            # Already present (a type field or a prior custom field) — focus it.
+            try:
+                self.query_one(f"#{self._field_id(name)}").focus()
+            except Exception:
+                pass
+            add_name.value = ""
+            return
+        self._custom_names.append(name)
+        self.query_one("#custom-fields", Vertical).mount(self._make_custom_row(name))
+        add_name.value = ""
+
+    def _remove_custom_field(self, name: str) -> None:
+        if name in self._custom_names:
+            self._custom_names.remove(name)
+        self._values.pop(name, None)
+        try:
+            self.query_one(f"#custom-row-{name}").remove()
+        except Exception:
+            pass
+
+    # -- events ------------------------------------------------------------
+
+    @on(Select.Changed, "#new-type")
+    async def _on_type_changed(self, event: Select.Changed) -> None:
+        new_type = str(event.value)
+        # Ignore the spurious Changed the Select posts for its initial value;
+        # on_mount already builds the fields for the starting type.
+        if new_type == self._current_type:
+            return
+        self._current_type = new_type
+        await self._rebuild_type_fields()
+        self._update_required_hint()
+
+    @on(Select.Changed, "#add-common")
+    def _on_common_field_chosen(self, event: Select.Changed) -> None:
+        if event.value is Select.BLANK:
+            return
+        self._add_custom_field(str(event.value))
+        event.select.value = Select.BLANK
+
+    @on(Input.Submitted, "#add-name")
+    def _on_add_name_submitted(self, event: Input.Submitted) -> None:
+        self._add_custom_field(event.value)
+
+    @on(Input.Changed)
+    def _on_input_changed(self, event: Input.Changed) -> None:
+        wid = event.input.id or ""
+        if wid == "new-key":
+            if not self._autofilling:
+                self._key_touched = True
+            return
+        if wid in ("field-author", "field-year") and not self._key_touched:
+            self._autofill_key()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id or ""
+        if bid == "btn-cancel":
+            self.dismiss(None)
+        elif bid == "btn-save":
+            self._save()
+        elif bid == "btn-add":
+            self._add_custom_field(self.query_one("#add-name", Input).value)
+        elif bid.startswith("rm-"):
+            self._remove_custom_field(bid[len("rm-") :])
+
+    def _save(self) -> None:
+        key = self.query_one("#new-key", Input).value.strip()
+        error = self.query_one("#new-error", Static)
+        if not key:
+            error.update("Cite key is required.")
+            return
+        entry = BibEntry(key=key, entry_type=self._current_type)
+        for widget in self._iter_field_widgets():
+            name = widget.id.removeprefix("field-")
+            value = self._widget_value(widget).strip()
+            if value:
+                entry.set_field(name, value)
+        self.dismiss(entry)
+
+    def action_save(self) -> None:
         self._save()
 
     def action_cancel(self) -> None:
@@ -675,9 +983,10 @@ _HELP_SECTIONS = [
     (
         "Add new entry",
         [
+            ("n", "Create a new entry (pick type, fill fields, add custom)"),
             ("d", "Import entry by DOI (fetches metadata online)"),
             ("ctrl+v", "Paste a raw BibTeX entry from clipboard"),
-            (None, "Both methods reject duplicate cite keys."),
+            (None, "All methods reject duplicate cite keys."),
         ],
     ),
     (

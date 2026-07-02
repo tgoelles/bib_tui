@@ -49,6 +49,7 @@ from bibtui.widgets.modals import (
     HelpModal,
     KeywordsModal,
     LibraryFetchConfirmModal,
+    NewEntryModal,
     PasteModal,
     RawEditModal,
     SettingsModal,
@@ -144,6 +145,7 @@ class BibTuiApp(App):
         Binding("w", "save", "Write"),
         Binding("s", "focus_search", "Search"),
         Binding("e", "edit_entry", "Edit"),
+        Binding("n", "new_entry", "New"),
         Binding("d", "doi_import", "From DOI"),
         Binding("k", "edit_keywords", "Keywords"),
         Binding("m", "toggle_table_maximize", "Max table"),
@@ -433,6 +435,14 @@ class BibTuiApp(App):
         entry_list.refresh_entries(self._entries)
         self.query_one(EntryDetail).show_entry(result)
         self.notify("Entry updated. Press [w] to write.", timeout=3)
+
+    def action_new_entry(self) -> None:
+        self.push_screen(NewEntryModal(), self._on_new_entry_done)
+
+    def _on_new_entry_done(self, result: BibEntry | None) -> None:
+        if result is None:
+            return
+        self._finalize_imported_entry(result)
 
     def action_paste_import(self) -> None:
         self.push_screen(PasteModal(), self._on_paste_done)

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Create a new entry from scratch (`n`)** — press <kbd>n</kbd> to open a new-entry form. Choose the BibTeX entry type (article, book, inproceedings, …) and the form shows that type's fields, with required fields marked `*` and listed in a hint, driven by the built-in `ENTRY_TYPES` table. Switching type re-shapes the form while preserving values you already typed. The cite key is auto-suggested from author + year (`AuthorYear`) until you edit it. A **custom fields** section at the bottom lets you add any additional field — pick one from a common-field shortlist or type any field name — so you can capture `note`, `isbn`, `urldate`, or anything else. New entries reuse the existing import pipeline, so duplicate cite keys are resolved the same way as DOI/paste imports.
+
 ## [0.15.2] - 2026-06-23
 
 ### Fixed

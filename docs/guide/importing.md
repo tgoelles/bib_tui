@@ -1,7 +1,26 @@
 # Importing references
 
-You rarely type BibTeX by hand in bibtui. There are two fast ways to add an
-entry, and both refuse to create duplicate cite keys.
+You rarely type BibTeX by hand in bibtui. There are three ways to add an
+entry, and all of them refuse to create duplicate cite keys.
+
+## Create a new entry
+
+Press <kbd>n</kbd> to open the new-entry form. Pick the entry type (article,
+book, inproceedings, …) and the form shows that type's fields: **required
+fields are marked with `*`** and listed in the hint under the type selector,
+followed by the common optional fields. The cite key is suggested automatically
+from the author and year (in `AuthorYear` form) until you edit it yourself.
+
+Switching the entry type re-shapes the form to match the new type while keeping
+any values you already typed.
+
+### Custom fields
+
+Need a field the form doesn't show — `note`, `isbn`, `urldate`, or anything
+else? At the bottom of the form, pick one from the **Common field** dropdown or
+type any field name and press <kbd>Enter</kbd> (or **Add**). It appears as a new
+input you can fill in, and the <kbd>✕</kbd> button removes it again. Any field
+name is accepted, so you're never limited to the built-in list.
 
 ## Import by DOI
 
@@ -29,7 +48,7 @@ directly as a new entry.
 
 ## Cite-key conflicts
 
-Both methods check your library for an existing entry with the same cite key:
+Every method checks your library for an existing entry with the same cite key:
 
 - If a different paper already uses the key, bibtui assigns the next free
   lowercase suffix — `Goelles2025`, then `Goelles2025a`, `Goelles2025b`, and so
