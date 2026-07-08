@@ -417,6 +417,21 @@ def entry_to_bibtex_str(entry: BibEntry) -> str:
     return bibtexparser.write_string(lib)
 
 
+def is_serializable_entry(entry: BibEntry) -> bool:
+    """Return True if *entry* serializes to BibTeX that parses back cleanly.
+
+    Guards against writing malformed entries: the entry is rendered with
+    bibtexparser and re-parsed; it must yield exactly one entry with the same
+    key. Catches problems such as an unparseable cite key or field values with
+    unbalanced braces before the entry ever reaches the ``.bib`` file.
+    """
+    try:
+        text = entry_to_bibtex_str(entry)
+    except Exception:
+        return False
+    return _validate_entry_text(text, entry.key)
+
+
 def bibtex_str_to_entry(text: str) -> BibEntry:
     """Parse a BibTeX string containing a single entry back to a BibEntry.
 

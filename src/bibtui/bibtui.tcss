@@ -91,20 +91,6 @@ DOIModal > Vertical {
     padding: 1 2;
 }
 
-EditModal {
-    align: center middle;
-}
-
-EditModal > Vertical {
-    width: 80;
-    height: auto;
-    max-height: 40;
-    border: double $accent;
-    background: $surface;
-    padding: 1 2;
-    overflow-y: scroll;
-}
-
 ConfirmModal {
     align: center middle;
 }
