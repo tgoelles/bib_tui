@@ -34,7 +34,7 @@ any values you already typed.
 
 ### Custom fields
 
-Need a field the form doesn't show — `note`, `isbn`, `urldate`, or anything
+Need a field the form doesn't show — `isbn`, `urldate`, `eprint`, or anything
 else? At the bottom of the form, pick one from the **Common field** dropdown or
 type any field name and press <kbd>Enter</kbd> (or **Add**). It appears as a new
 input you can fill in, and the <kbd>✕</kbd> button removes it again. Any field
@@ -55,15 +55,15 @@ entry before it touches your `.bib` file. There are three levels:
   implausible `year` (outside ~1450–next year).
 - **Blocked** — the entry is not written and the offending fields are outlined
   in red: a missing required field for the entry type (e.g. `journal` on an
-  `@article`), a missing or non-numeric `year`, or a cite key that is empty,
-  contains spaces, or wouldn't parse as valid BibTeX.
+  `@article`), a missing or non-numeric `year` where the type requires one, or
+  a cite key that is empty, contains spaces, or wouldn't parse as valid BibTeX.
 
 The same checks run when you **edit** an existing entry (<kbd>e</kbd>), so
 editing feels identical to adding — with one deliberate difference: a required
-field that was *already* empty when you opened the entry is only flagged, never
-blocked, so you're never trapped fixing an unrelated field in a messy entry.
-This validation only ever runs in the form; opening a `.bib` file never
-validates or rejects anything.
+field that was *already* empty (or a `year` that was already non-numeric) when
+you opened the entry is only flagged, never blocked, so you're never trapped
+fixing an unrelated field in a messy entry. This validation only ever runs in
+the form; opening a `.bib` file never validates or rejects anything.
 
 ## Import by DOI
 
@@ -87,7 +87,8 @@ list — copy the DOI, press <kbd>d</kbd>, paste, done.
 
 If you already have a BibTeX snippet (for example from a publisher's "cite this"
 button or Google Scholar), press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste it
-directly as a new entry.
+directly as a new entry. Like entries created with the form, pasted entries are
+stamped with a `date-added` timestamp automatically if they don't carry one.
 
 ## Cite-key conflicts
 

@@ -414,8 +414,14 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
             with VerticalScroll(id="new-fields"):
                 with Horizontal(classes="type-row"):
                     yield Label("Type")
+                    # Include the current type even if it isn't one of the
+                    # built-ins (e.g. editing an existing @unpublished entry) —
+                    # Select rejects a value that isn't among its options.
+                    types = list(ENTRY_TYPES)
+                    if self._current_type not in ENTRY_TYPES:
+                        types.append(self._current_type)
                     yield Select(
-                        [(t, t) for t in ENTRY_TYPES],
+                        [(t, t) for t in types],
                         value=self._current_type,
                         allow_blank=False,
                         id="new-type",
@@ -485,8 +491,9 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
     def _ordered_type_fields(self) -> list[tuple[str, bool]]:
         """Return ``(field_name, is_required)`` for the current type, in order.
 
-        Required fields first, then ``doi``/``note``, then the type's remaining
-        optional fields. Keywords and already-added custom fields are omitted.
+        Required fields first, then the promoted fields (``doi``, ``url``,
+        ``note``), then the type's remaining optional fields. Keywords and
+        already-added custom fields are omitted.
         """
         spec = ENTRY_TYPES.get(self._current_type, {})
         required = [

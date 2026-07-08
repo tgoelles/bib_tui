@@ -170,7 +170,10 @@ def validate_entry(
             warnings.append(f"{name} is missing (was already empty).")
 
     # Year plausibility: numeric-but-implausible is only ever a warning; a
-    # non-numeric year is treated with the same severity as a required field.
+    # non-numeric year is treated with the same severity as a required field —
+    # unless it is unchanged from the baseline (e.g. an entry that already had
+    # "in press" when opened), so editing a messy entry is never blocked on a
+    # year the user didn't touch.
     year_raw = normalized.get_field("year").strip()
     if year_raw:
         if year_raw.isdigit():
@@ -181,12 +184,22 @@ def validate_entry(
                     f"Year {year} looks implausible "
                     f"(expected {_MIN_PLAUSIBLE_YEAR}–{upper})."
                 )
-        elif "year" in required and _required_is_blocking("year", mode, baseline):
-            blocking.append(
-                {"field": "year", "message": "Year must be a number."}
-            )
         else:
-            warnings.append(f"Year '{year_raw}' is not a number.")
+            preexisting = (
+                mode == "edit"
+                and baseline is not None
+                and baseline.get_field("year").strip() == year_raw
+            )
+            if (
+                "year" in required
+                and not preexisting
+                and _required_is_blocking("year", mode, baseline)
+            ):
+                blocking.append(
+                    {"field": "year", "message": "Year must be a number."}
+                )
+            else:
+                warnings.append(f"Year '{year_raw}' is not a number.")
 
     # Final structural gate: reject anything bibtexparser can't round-trip.
     if not blocking and not is_serializable_entry(normalized):

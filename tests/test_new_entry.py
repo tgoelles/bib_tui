@@ -605,6 +605,29 @@ async def test_edit_can_change_entry_type() -> None:
         assert result["entry"].entry_type == "book"
 
 
+async def test_edit_non_builtin_entry_type_opens_and_saves() -> None:
+    """An entry type outside ENTRY_TYPES (e.g. @unpublished) must not crash."""
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(100, 45)) as pilot:
+        await pilot.pause()
+        entry = BibEntry(
+            key="Draft2020",
+            entry_type="unpublished",
+            title="A draft",
+            author="Smith, John",
+        )
+        modal, result = await _open_edit(app, pilot, entry)
+        select = modal.query_one("#new-type", Select)
+        assert select.value == "unpublished"
+        # its fields stay editable (as custom rows, since there's no template)
+        modal.query_one("#field-title", Input).value = "A revised draft"
+        modal._save()
+        await pilot.pause()
+        out = result["entry"]
+        assert out.entry_type == "unpublished"
+        assert out.title == "A revised draft"
+
+
 async def test_edit_clearing_field_removes_it() -> None:
     app = BibTuiApp(BIB)
     async with app.run_test(size=(100, 45)) as pilot:

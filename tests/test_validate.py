@@ -135,6 +135,50 @@ def test_edit_emptying_a_filled_field_blocks() -> None:
     assert "journal" in _blocking_fields(result)
 
 
+def test_edit_preexisting_non_numeric_year_only_warns() -> None:
+    baseline = BibEntry(
+        key="Old2000",
+        entry_type="article",
+        title="T",
+        author="A",
+        journal="Nature",
+        year="in press",
+    )
+    candidate = BibEntry(
+        key="Old2000",
+        entry_type="article",
+        title="T (revised)",  # user edited an unrelated field
+        author="A",
+        journal="Nature",
+        year="in press",  # untouched
+    )
+    result = validate_entry(candidate, mode="edit", baseline=baseline)
+    assert result.is_writable
+    assert any("not a number" in w for w in result.warnings)
+
+
+def test_edit_changing_year_to_non_numeric_blocks() -> None:
+    baseline = BibEntry(
+        key="Old2000",
+        entry_type="article",
+        title="T",
+        author="A",
+        journal="Nature",
+        year="2020",
+    )
+    candidate = BibEntry(
+        key="Old2000",
+        entry_type="article",
+        title="T",
+        author="A",
+        journal="Nature",
+        year="twenty-twenty",  # broken this session
+    )
+    result = validate_entry(candidate, mode="edit", baseline=baseline)
+    assert not result.is_writable
+    assert "year" in _blocking_fields(result)
+
+
 # ---------------------------------------------------------------------------
 # Auto-fixes
 # ---------------------------------------------------------------------------
