@@ -36,11 +36,13 @@ from bibtui.utils.config import (
     save_config,
 )
 from bibtui.utils.theme import get_omarchy_theme
+from bibtui.widgets.columns import DEFAULT_TABLE_COLUMNS, available_columns
 from bibtui.widgets.entry_detail import EntryDetail
 from bibtui.widgets.entry_list import EntryList
 from bibtui.widgets.modals import (
     AddPDFModal,
     BatchFetchPDFModal,
+    ColumnConfigModal,
     ConfirmModal,
     DOIModal,
     EditModal,
@@ -66,6 +68,11 @@ class SettingsProvider(Provider):
             "Settings", app.action_settings, help="Open the settings dialog"
         )
         yield DiscoveryHit(
+            "Table: Configure columns",
+            app.action_configure_columns,
+            help="Choose which table columns are shown and their order",
+        )
+        yield DiscoveryHit(
             "Theme: Reset to auto (Omarchy/OS)",
             app.action_reset_theme,
             help="Clear saved theme and follow the OS/Omarchy theme",
@@ -81,6 +88,11 @@ class SettingsProvider(Provider):
         matcher = self.matcher(query)
         for label, action, help_text in (
             ("Settings", app.action_settings, "Open the settings dialog"),
+            (
+                "Table: Configure columns",
+                app.action_configure_columns,
+                "Choose which table columns are shown and their order",
+            ),
             (
                 "Theme: Reset to auto (Omarchy/OS)",
                 app.action_reset_theme,
@@ -196,7 +208,7 @@ class BibTuiApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="main-content"):
-            yield EntryList([], id="entry-list")
+            yield EntryList([], columns=self._config.table_columns, id="entry-list")
             yield EntryDetail(
                 default_csl_style=self._config.default_citation_style,
                 id="entry-detail",
@@ -867,6 +879,21 @@ class BibTuiApp(App):
 
     def action_settings(self) -> None:
         self.push_screen(SettingsModal(self._config), self._on_settings_done)
+
+    def action_configure_columns(self) -> None:
+        active = self._config.table_columns or DEFAULT_TABLE_COLUMNS
+        self.push_screen(
+            ColumnConfigModal(available_columns(self._entries), list(active)),
+            self._on_columns_done,
+        )
+
+    def _on_columns_done(self, keys: list[str] | None) -> None:
+        if keys is None:
+            return
+        self._config.table_columns = keys
+        save_config(self._config)
+        self.query_one(EntryList).set_columns(keys)
+        self.notify("Table columns updated.", timeout=3)
 
     def action_reset_theme(self) -> None:
         self._config.theme = ""

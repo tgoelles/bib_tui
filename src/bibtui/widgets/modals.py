@@ -4,6 +4,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TypeVar
 
+from rich.text import Text
+
 from textual import events, on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -17,6 +19,7 @@ from textual.widgets import (
     ListItem,
     ListView,
     LoadingIndicator,
+    OptionList,
     Select,
     SelectionList,
     Static,
@@ -24,6 +27,7 @@ from textual.widgets import (
     TextArea,
 )
 from textual.widgets._selection_list import Selection
+from textual.widgets.option_list import Option
 
 from bibtui.bib.citation_preview import available_csl_styles, default_csl_style_key
 from bibtui.bib.citekeys import author_year_base
@@ -32,6 +36,7 @@ from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bibtui.bib.validate import validate_entry
 from bibtui.utils.config import Config
 from bibtui.utils.dates import DATE_ADDED_KEYS
+from bibtui.widgets.columns import DEFAULT_TABLE_COLUMNS, ColumnSpec
 
 _ModalResult = TypeVar("_ModalResult")
 
@@ -1193,6 +1198,159 @@ class SettingsModal(_BaseModal["Config | None"]):
         self.dismiss(None)
 
 
+class ColumnConfigModal(_BaseModal["list[str] | None"]):
+    """Choose which entry-table columns are shown and in what order.
+
+    Configures the read-only browsing table (left pane / maximized "Max table"
+    view) — not the entry-editing forms. Space toggles a column on/off;
+    Shift+↑/↓ (or the ▲/▼ buttons) reorder the highlighted column. The result
+    is the ordered list of enabled column keys.
+    """
+
+    BINDINGS = [
+        Binding("ctrl+s", "save", "Write", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
+
+    DEFAULT_CSS = """
+    ColumnConfigModal > Vertical {
+        width: 60;
+        height: 80%;
+    }
+    ColumnConfigModal OptionList {
+        height: 1fr;
+        border: solid $panel;
+    }
+    ColumnConfigModal #col-hints {
+        height: auto;
+        margin-top: 1;
+        color: $text-muted;
+    }
+    ColumnConfigModal .move-buttons {
+        height: auto;
+        margin-bottom: 1;
+    }
+    """
+
+    def __init__(
+        self, available: list[ColumnSpec], active_keys: list[str], **kwargs
+    ) -> None:
+        super().__init__(**kwargs)
+        self._names: dict[str, str] = {s.key: s.name for s in available}
+        # Enabled columns first (in their saved order), then the rest.
+        active = [k for k in active_keys if k in self._names]
+        rest = [s.key for s in available if s.key not in active]
+        self._order: list[str] = active + rest
+        self._active: set[str] = set(active)
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Configure Table Columns[/bold]", classes="modal-title")
+            yield OptionList(id="col-list")
+            yield Static(
+                "[dim]● shown · ○ hidden — Space toggle · Shift+↑/↓ move · "
+                "sets the entry table view[/dim]",
+                id="col-hints",
+            )
+            with Horizontal(classes="move-buttons"):
+                yield Button("▲ Up", id="btn-up")
+                yield Button("▼ Down", id="btn-down")
+                yield Button("Reset", id="btn-reset")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Write", variant="primary", id="btn-save")
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self._rebuild(0)
+        self.call_after_refresh(self.query_one("#col-list", OptionList).focus)
+
+    def _option_text(self, key: str) -> Text:
+        """Style a row by state: a filled marker + theme accent when shown,
+        a hollow marker + dimmed text when hidden (color *and* shape so the
+        state reads without relying on color alone)."""
+        name = self._names.get(key, key)
+        if key in self._active:
+            color = self.app.current_theme.success
+            return Text(f"● {name}", style=f"bold {color}")
+        return Text(f"○ {name}", style="dim")
+
+    def _rebuild(self, highlight: int) -> None:
+        ol = self.query_one("#col-list", OptionList)
+        ol.clear_options()
+        for key in self._order:
+            ol.add_option(Option(self._option_text(key)))
+        if self._order:
+            ol.highlighted = max(0, min(highlight, len(self._order) - 1))
+
+    @property
+    def _highlighted_index(self) -> int:
+        highlighted = self.query_one("#col-list", OptionList).highlighted
+        return highlighted if highlighted is not None else -1
+
+    def _toggle(self, index: int) -> None:
+        if not 0 <= index < len(self._order):
+            return
+        key = self._order[index]
+        if key in self._active:
+            self._active.discard(key)
+        else:
+            self._active.add(key)
+        self._rebuild(index)
+
+    def _move(self, index: int, delta: int) -> None:
+        target = index + delta
+        if not (0 <= index < len(self._order) and 0 <= target < len(self._order)):
+            return
+        self._order[index], self._order[target] = (
+            self._order[target],
+            self._order[index],
+        )
+        self._rebuild(target)
+
+    def _reset(self) -> None:
+        rest = [k for k in self._order if k not in DEFAULT_TABLE_COLUMNS]
+        self._order = list(DEFAULT_TABLE_COLUMNS) + rest
+        self._active = set(DEFAULT_TABLE_COLUMNS)
+        self._rebuild(0)
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key == "space":
+            self._toggle(self._highlighted_index)
+            event.stop()
+        elif event.key == "shift+up":
+            self._move(self._highlighted_index, -1)
+            event.stop()
+        elif event.key == "shift+down":
+            self._move(self._highlighted_index, 1)
+            event.stop()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id
+        if bid == "btn-cancel":
+            self.dismiss(None)
+        elif bid == "btn-save":
+            self._save()
+        elif bid == "btn-up":
+            self._move(self._highlighted_index, -1)
+        elif bid == "btn-down":
+            self._move(self._highlighted_index, 1)
+        elif bid == "btn-reset":
+            self._reset()
+
+    def _save(self) -> None:
+        chosen = [k for k in self._order if k in self._active]
+        if not chosen:
+            self.app.notify("Select at least one column.", severity="warning")
+            return
+        self.dismiss(chosen)
+
+    def action_save(self) -> None:
+        self._save()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 # Layout constants for the keybindings reference. Keys are rendered in a
 # fixed-width gutter so every description starts at the same column regardless
 # of how long the key combo is.
@@ -1270,6 +1428,8 @@ _HELP_SECTIONS = [
         "Library actions",
         [
             ("ctrl+p", "Open command palette"),
+            ("[bold]Table: Configure columns[/bold]",),
+            (None, "Choose which columns show and their order; saved to config."),
             ("[bold]Library: Fetch missing PDFs[/bold]",),
             (None, "Shows a toggle for: Overwrite broken links."),
             ("[bold]Library: Unify citekeys (AuthorYear)[/bold]",),
@@ -1315,9 +1475,12 @@ _HELP_SECTIONS = [
                 "[bold]▲[/bold] (asc) or [bold]▼[/bold] (desc).",
             ),
             (
-                "Cols: [bold]◉[/bold] state  [bold]![/bold] prio  "
+                "Default cols: [bold]◉[/bold] state  [bold]![/bold] prio  "
                 "[bold]◫[/bold] PDF  [bold]🔗[/bold] URL  Type  Year  "
                 "Author  Journal  Title  Added  [bold]★[/bold]",
+            ),
+            (
+                "[dim]Customize via Ctrl+P → Table: Configure columns.[/dim]",
             ),
         ],
     ),
