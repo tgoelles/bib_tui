@@ -83,6 +83,7 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
         update_last_notified_utc="2026-02-26T10:00:00Z",
         update_latest_version="0.10.0",
         check_for_updates=False,
+        table_columns=["state", "title", "year", "volume"],
     )
     save_config(cfg)
     assert config_file.exists()
@@ -97,6 +98,7 @@ def test_save_and_load_roundtrip(tmp_path: Path, monkeypatch) -> None:
     assert loaded.update_last_notified_utc == "2026-02-26T10:00:00Z"
     assert loaded.update_latest_version == "0.10.0"
     assert loaded.check_for_updates is False
+    assert loaded.table_columns == ["state", "title", "year", "volume"]
 
 
 def test_load_config_returns_defaults_when_missing(tmp_path: Path, monkeypatch) -> None:
@@ -109,6 +111,7 @@ def test_load_config_returns_defaults_when_missing(tmp_path: Path, monkeypatch) 
     assert cfg.unpaywall_email == ""
     assert cfg.pdf_download_dir == str(home / "Downloads")
     assert cfg.check_for_updates is True
+    assert cfg.table_columns == []
 
 
 def test_save_config_creates_parent_dirs(tmp_path: Path, monkeypatch) -> None:

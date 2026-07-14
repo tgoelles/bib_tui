@@ -28,6 +28,33 @@ Open the command palette with <kbd>Ctrl</kbd>+<kbd>P</kbd> and choose
 
 Save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.
 
+## Table columns
+
+You can choose which columns the entry table shows, and in what order. Open the
+command palette with <kbd>Ctrl</kbd>+<kbd>P</kbd> and choose
+**Table: Configure columns**.
+
+The panel lists every available column. Alongside the built-in columns (read
+state, priority, PDF, URL, type, year, author, journal, title, added, rating)
+and an optional **cite key** column, it offers a column for **any BibTeX field
+found in your library** — bibtui discovers these by scanning the whole `.bib`
+file, so fields like `doi`, `keywords`, `volume`, or `publisher` can all become
+columns.
+
+| Key                                          | Action                                |
+| -------------------------------------------- | ------------------------------------- |
+| <kbd>Space</kbd>                             | Show / hide the highlighted column    |
+| <kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd> | Move the highlighted column up / down |
+| **▲ / ▼** buttons                            | Move the highlighted column up / down |
+| **Reset**                                    | Restore the default layout            |
+| <kbd>Ctrl</kbd>+<kbd>S</kbd>                 | Save                                  |
+
+Shown columns are marked with a filled `●` in the theme's accent colour; hidden
+ones are dimmed. Your layout is saved to `config.toml` (under
+`[ui] table_columns`) and applied immediately, so it persists across restarts.
+The **Title** column always stretches to fill the remaining width — it's widest
+in the maximized *Max table* view (<kbd>m</kbd>).
+
 ## Themes
 
 bibtui supports the full range of [Textual](https://textual.textualize.io/)

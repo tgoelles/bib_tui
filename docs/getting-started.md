@@ -29,7 +29,8 @@ You can change any of these later from the [settings](configuration.md) screen.
 
 - **Left** — a sortable table of your entries. The first columns are compact
   status icons: read state (`◉`), priority (`!`), a local-PDF indicator (`◫`),
-  and a link (`🔗`) when the entry has a URL.
+  and a link (`🔗`) when the entry has a URL. You can change which columns appear
+  and their order — see [Table columns](configuration.md#table-columns).
 - **Right** — the detail pane for the selected entry: its fields, keywords, a
   formatted citation preview, and PDF actions.
 - **Bottom** — the footer shows the most common key bindings.

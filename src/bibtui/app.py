@@ -36,11 +36,13 @@ from bibtui.utils.config import (
     save_config,
 )
 from bibtui.utils.theme import get_omarchy_theme
+from bibtui.widgets.columns import DEFAULT_TABLE_COLUMNS, available_columns
 from bibtui.widgets.entry_detail import EntryDetail
 from bibtui.widgets.entry_list import EntryList
 from bibtui.widgets.modals import (
     AddPDFModal,
     BatchFetchPDFModal,
+    ColumnConfigModal,
     ConfirmModal,
     DOIModal,
     EditModal,
@@ -57,66 +59,21 @@ from bibtui.widgets.modals import (
 )
 
 
-class SettingsProvider(Provider):
-    """Exposes the Settings dialog through the command palette."""
+class BibTuiCommands(Provider):
+    """Exposes bibtui's app-level commands in the command palette.
 
-    async def discover(self) -> Hits:
-        app = cast("BibTuiApp", self.app)
-        yield DiscoveryHit(
-            "Settings", app.action_settings, help="Open the settings dialog"
-        )
-        yield DiscoveryHit(
-            "Theme: Reset to auto (Omarchy/OS)",
-            app.action_reset_theme,
-            help="Clear saved theme and follow the OS/Omarchy theme",
-        )
-        yield DiscoveryHit(
-            "Check for updates",
-            app.action_check_for_updates,
-            help="Check PyPI for a newer bibtui release now",
-        )
+    Both discovery (empty query) and search yield commands in alphabetical
+    order by label, so the palette listing stays stable and easy to scan.
+    """
 
-    async def search(self, query: str) -> Hits:
+    def _commands(self) -> tuple[tuple[str, object, str], ...]:
         app = cast("BibTuiApp", self.app)
-        matcher = self.matcher(query)
-        for label, action, help_text in (
-            ("Settings", app.action_settings, "Open the settings dialog"),
-            (
-                "Theme: Reset to auto (Omarchy/OS)",
-                app.action_reset_theme,
-                "Clear saved theme and follow the OS/Omarchy theme",
-            ),
+        commands = (
             (
                 "Check for updates",
                 app.action_check_for_updates,
                 "Check PyPI for a newer bibtui release now",
             ),
-        ):
-            score = matcher.match(label)
-            if score > 0:
-                yield Hit(score, matcher.highlight(label), action, help=help_text)
-
-
-class LibraryProvider(Provider):
-    """Exposes library-wide actions through the command palette."""
-
-    async def discover(self) -> Hits:
-        app = cast("BibTuiApp", self.app)
-        yield DiscoveryHit(
-            "Library: Fetch missing PDFs",
-            app.action_fetch_missing_pdfs,
-            help="Fetch PDFs for entries missing local files",
-        )
-        yield DiscoveryHit(
-            "Library: Unify citekeys (AuthorYear)",
-            app.action_unify_citekeys,
-            help="Unify citekeys to AuthorYear format",
-        )
-
-    async def search(self, query: str) -> Hits:
-        app = cast("BibTuiApp", self.app)
-        matcher = self.matcher(query)
-        for label, action, help_text in (
             (
                 "Library: Fetch missing PDFs",
                 app.action_fetch_missing_pdfs,
@@ -127,7 +84,27 @@ class LibraryProvider(Provider):
                 app.action_unify_citekeys,
                 "Unify citekeys to AuthorYear format",
             ),
-        ):
+            ("Settings", app.action_settings, "Open the settings dialog"),
+            (
+                "Table: Configure columns",
+                app.action_configure_columns,
+                "Choose which table columns are shown and their order",
+            ),
+            (
+                "Theme: Reset to auto (Omarchy/OS)",
+                app.action_reset_theme,
+                "Clear saved theme and follow the OS/Omarchy theme",
+            ),
+        )
+        return tuple(sorted(commands, key=lambda c: c[0].lower()))
+
+    async def discover(self) -> Hits:
+        for label, action, help_text in self._commands():
+            yield DiscoveryHit(label, action, help=help_text)
+
+    async def search(self, query: str) -> Hits:
+        matcher = self.matcher(query)
+        for label, action, help_text in self._commands():
             score = matcher.match(label)
             if score > 0:
                 yield Hit(score, matcher.highlight(label), action, help=help_text)
@@ -136,7 +113,7 @@ class LibraryProvider(Provider):
 class BibTuiApp(App):
     """BibTeX TUI Application."""
 
-    COMMANDS = App.COMMANDS | {SettingsProvider, LibraryProvider}
+    COMMANDS = App.COMMANDS | {BibTuiCommands}
 
     CSS_PATH = "bibtui.tcss"
 
@@ -196,7 +173,7 @@ class BibTuiApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="main-content"):
-            yield EntryList([], id="entry-list")
+            yield EntryList([], columns=self._config.table_columns, id="entry-list")
             yield EntryDetail(
                 default_csl_style=self._config.default_citation_style,
                 id="entry-detail",
@@ -867,6 +844,21 @@ class BibTuiApp(App):
 
     def action_settings(self) -> None:
         self.push_screen(SettingsModal(self._config), self._on_settings_done)
+
+    def action_configure_columns(self) -> None:
+        active = self._config.table_columns or DEFAULT_TABLE_COLUMNS
+        self.push_screen(
+            ColumnConfigModal(available_columns(self._entries), list(active)),
+            self._on_columns_done,
+        )
+
+    def _on_columns_done(self, keys: list[str] | None) -> None:
+        if keys is None:
+            return
+        self._config.table_columns = keys
+        save_config(self._config)
+        self.query_one(EntryList).set_columns(keys)
+        self.notify("Table columns updated.", timeout=3)
 
     def action_reset_theme(self) -> None:
         self._config.theme = ""

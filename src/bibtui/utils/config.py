@@ -31,6 +31,7 @@ class Config:
     recent_files: list[str] = field(default_factory=list)
     theme: str = ""  # empty means auto-detect from OS/Omarchy
     default_citation_style: str = "copernicus-publications"
+    table_columns: list[str] = field(default_factory=list)  # empty = default layout
 
 
 def csl_dir() -> Path:
@@ -118,6 +119,8 @@ def load_config() -> Config:
     ui_section = data.get("ui", {})
     recent_raw = files_section.get("recent", [])
     recent_files = [str(r) for r in recent_raw if isinstance(r, str)]
+    columns_raw = ui_section.get("table_columns", [])
+    table_columns = [str(c) for c in columns_raw if isinstance(c, str)]
     return Config(
         pdf_base_dir=pdf.get("base_dir", ""),
         unpaywall_email=pdf.get("unpaywall_email", ""),
@@ -133,6 +136,7 @@ def load_config() -> Config:
         default_citation_style=ui_section.get(
             "default_citation_style", "copernicus-publications"
         ),
+        table_columns=table_columns,
     )
 
 
@@ -160,6 +164,7 @@ def save_config(config: Config) -> None:
         "ui": {
             "theme": config.theme,
             "default_citation_style": config.default_citation_style,
+            "table_columns": config.table_columns,
         },
     }
     with open(CONFIG_PATH, "wb") as f:

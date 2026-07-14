@@ -6,31 +6,13 @@ from textual.widget import Widget
 from textual.widgets import DataTable, Input
 from textual.widgets._data_table import ColumnKey
 
-from bibtui.bib.models import READ_STATES, BibEntry
-from bibtui.pdf.paths import find_pdf_for_entry
-from bibtui.utils.dates import extract_date_added, format_bib_date
+from bibtui.bib.models import BibEntry
+from bibtui.widgets.columns import ColumnSpec, resolve_columns
 
-# Original header labels in column order
-_COL_LABELS = (
-    "◉",
-    "!",
-    "◫",
-    "🔗",
-    "Type",
-    "Year",
-    "Author",
-    "Journal",
-    "Title",
-    "Added",
-    "★",
-)
-
-_COL_OVERHEAD_WITH_JOURNAL_AND_ADDED = 85
-_COL_OVERHEAD_WITH_JOURNAL_NO_ADDED = 75
-_COL_OVERHEAD_NO_JOURNAL_WITH_ADDED = 68
-_COL_OVERHEAD_NO_JOURNAL_NO_ADDED = 58
-_JOURNAL_THRESHOLD = 120  # min widget width (chars) to show the Journal column
-_ADDED_THRESHOLD = 140  # min widget width (chars) to show the Date Added column
+# Extra horizontal budget beyond the sum of fixed column widths: DataTable pads
+# every cell (1 char each side) and the widget itself has a small border/gutter.
+# Chosen so the default 11-column layout reproduces the historical title sizing.
+_TITLE_PADDING = 2
 
 _FIELD_PREFIXES: dict[str, str] = {
     "t": "title",
@@ -126,7 +108,13 @@ def _entry_matches(
 
 
 class EntryList(Widget):
-    """Left pane: searchable DataTable of BibTeX entries."""
+    """Left pane: searchable DataTable of BibTeX entries.
+
+    The visible columns and their order are driven entirely by a list of
+    :class:`~bibtui.widgets.columns.ColumnSpec` (``self._specs``) resolved from
+    the user's saved configuration, so column layout is data rather than logic
+    duplicated across methods.
+    """
 
     ALLOW_MAXIMIZE = True
 
@@ -147,37 +135,28 @@ class EntryList(Widget):
 
     search_text: reactive[str] = reactive("")
 
-    def __init__(self, entries: list[BibEntry], **kwargs):
+    def __init__(
+        self,
+        entries: list[BibEntry],
+        columns: list[str] | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self._all_entries: list[BibEntry] = entries
         self._filtered: list[BibEntry] = list(entries)
+        self._specs: list[ColumnSpec] = resolve_columns(columns)
         self._col_keys: tuple[ColumnKey, ...] = ()
-        self._col_state: ColumnKey | None = None
-        self._col_priority: ColumnKey | None = None
-        self._col_file: ColumnKey | None = None
-        self._col_url: ColumnKey | None = None
-        self._col_journal: ColumnKey | None = None
-        self._col_title: ColumnKey | None = None
-        self._col_added: ColumnKey | None = None
-        self._col_rating: ColumnKey | None = None
+        self._col_keys_by_key: dict[str, ColumnKey] = {}
         self._title_width: int = 30
-        self._journal_visible: bool = True
-        self._added_visible: bool = True
+        # Sort is tracked by the column's stable spec key so it survives a
+        # column reconfigure (the DataTable ColumnKey objects do not).
         self._sort_key: ColumnKey | None = None
+        self._sort_spec_key: str | None = None
         self._sort_reverse: bool = False
         self._pdf_base_dir: str = ""
 
     def set_pdf_base_dir(self, base_dir: str) -> None:
         self._pdf_base_dir = base_dir
-
-    def _file_icon(self, entry: BibEntry) -> str:
-        if not entry.file:
-            return " "
-        return (
-            "■"
-            if find_pdf_for_entry(entry.file, entry.key, self._pdf_base_dir)
-            else "□"
-        )
 
     def compose(self) -> ComposeResult:
         yield Input(
@@ -188,143 +167,68 @@ class EntryList(Widget):
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
-        col_state = table.add_column("◉", width=1)
-        col_priority = table.add_column("!", width=1)
-        col_file = table.add_column("◫", width=1)
-        col_url = table.add_column("🔗", width=2)
-        col_type = table.add_column("Type", width=7)
-        col_year = table.add_column("Year", width=4)
-        col_author = table.add_column("Author", width=13)
-        col_journal = table.add_column("Journal", width=17)
-        col_title = table.add_column("Title", width=self._title_width)
-        col_added = table.add_column("Added", width=10)
-        col_rating = table.add_column("★", width=5)
-        self._col_keys = (
-            col_state,
-            col_priority,
-            col_file,
-            col_url,
-            col_type,
-            col_year,
-            col_author,
-            col_journal,
-            col_title,
-            col_added,
-            col_rating,
-        )
-        self._col_state = col_state
-        self._col_priority = col_priority
-        self._col_file = col_file
-        self._col_url = col_url
-        self._col_journal = col_journal
-        self._col_title = col_title
-        self._col_added = col_added
-        self._col_rating = col_rating
+        self._add_columns(table)
         self._populate_table(self._all_entries)
         self._update_title_width()
+
+    def _add_columns(self, table: DataTable) -> None:
+        """(Re)create the DataTable columns from ``self._specs``."""
+        keys: list[ColumnKey] = []
+        self._col_keys_by_key = {}
+        for spec in self._specs:
+            col_key = table.add_column(spec.label, width=spec.width)
+            keys.append(col_key)
+            self._col_keys_by_key[spec.key] = col_key
+        self._col_keys = tuple(keys)
+
+    def _row_for_entry(self, entry: BibEntry) -> list[str]:
+        """Render one table row as cell values, one per active column."""
+        return [spec.render(entry, self._pdf_base_dir) for spec in self._specs]
 
     def on_resize(self, event) -> None:
         self._update_title_width()
 
     def _update_title_width(self) -> None:
-        """Recompute title column width to fill available horizontal space.
-
-        Also shows/hides Journal and Added columns based on width thresholds.
-        """
-        if self._col_title is None:
+        """Size the flex (Title) column to fill the remaining horizontal space."""
+        flex_idx = next((i for i, s in enumerate(self._specs) if s.flex), None)
+        if flex_idx is None:
             return
-        show_journal = self.size.width >= _JOURNAL_THRESHOLD
-        show_added = self.size.width >= _ADDED_THRESHOLD
         table = self.query_one(DataTable)
-        if self._col_journal is not None and show_journal != self._journal_visible:
-            self._journal_visible = show_journal
-            table.columns[self._col_journal].width = 17 if show_journal else 0
-        if self._col_added is not None and show_added != self._added_visible:
-            self._added_visible = show_added
-            table.columns[self._col_added].width = 10 if show_added else 0
-        if self._journal_visible and self._added_visible:
-            overhead = _COL_OVERHEAD_WITH_JOURNAL_AND_ADDED
-        elif self._journal_visible and not self._added_visible:
-            overhead = _COL_OVERHEAD_WITH_JOURNAL_NO_ADDED
-        elif not self._journal_visible and self._added_visible:
-            overhead = _COL_OVERHEAD_NO_JOURNAL_WITH_ADDED
-        else:
-            overhead = _COL_OVERHEAD_NO_JOURNAL_NO_ADDED
+        fixed = sum(s.width for i, s in enumerate(self._specs) if i != flex_idx)
+        overhead = fixed + 2 * len(self._specs) + _TITLE_PADDING
         width = max(10, self.size.width - overhead)
         if width == self._title_width:
             return
         self._title_width = width
-        table.columns[self._col_title].width = width
+        table.columns[self._col_keys[flex_idx]].width = width
         table.refresh()
-
-    @staticmethod
-    def _date_added_text(entry: BibEntry) -> str:
-        return format_bib_date(extract_date_added(entry.raw_fields))
 
     def _populate_table(self, entries: list[BibEntry]) -> None:
         table = self.query_one(DataTable)
         table.clear()
         self._filtered = entries
         for e in entries:
-            journal = e.journal or e.raw_fields.get("booktitle", "")
-            table.add_row(
-                e.read_state_icon,
-                e.priority_icon,
-                self._file_icon(e),
-                e.url_icon,
-                e.entry_type[:7],
-                e.year[:4] if e.year else "",
-                e.authors_short[:12] + "…"
-                if len(e.authors_short) > 12
-                else e.authors_short,
-                journal[:16] + "…" if len(journal) > 16 else journal,
-                e.title,
-                self._date_added_text(e),
-                e.rating_stars,
-                key=e.key,
-            )
+            table.add_row(*self._row_for_entry(e), key=e.key)
 
     # ── Sorting ───────────────────────────────────────────────────────────
 
     @on(DataTable.HeaderSelected)
     def on_header_selected(self, event: DataTable.HeaderSelected) -> None:
-        col_key = event.column_key
-        if self._sort_key == col_key:
+        idx = self._col_keys.index(event.column_key)
+        spec_key = self._specs[idx].key
+        if self._sort_spec_key == spec_key:
             self._sort_reverse = not self._sort_reverse
         else:
-            self._sort_key = col_key
+            self._sort_spec_key = spec_key
             self._sort_reverse = False
+        self._sort_key = event.column_key
         self._apply_sort()
         self._update_header_labels()
 
     def _sort_fn(self, col_key: ColumnKey):
-        """Return a key function for sorting BibEntry by the given column."""
-        idx = list(self._col_keys).index(col_key)
-        if idx == 0:  # ◉ read state
-            return lambda e: (
-                READ_STATES.index(e.read_state) if e.read_state in READ_STATES else 0
-            )
-        if idx == 1:  # ! priority
-            return lambda e: e.priority if e.priority > 0 else 99
-        if idx == 2:  # ◫ file
-            return lambda e: 0 if e.file else 1
-        if idx == 3:  # ⊕ url
-            return lambda e: 0 if e.url else 1
-        if idx == 4:  # Type
-            return lambda e: e.entry_type
-        if idx == 5:  # Year
-            return lambda e: int(e.year) if e.year.isdigit() else 0
-        if idx == 6:  # Author
-            return lambda e: e.authors_short.lower()
-        if idx == 7:  # Journal
-            return lambda e: (e.journal or e.raw_fields.get("booktitle", "")).lower()
-        if idx == 8:  # Title
-            return lambda e: e.title.lower()
-        if idx == 9:  # Added
-            return lambda e: self._date_added_text(e)
-        if idx == 10:  # ★ rating
-            return lambda e: e.rating
-        return lambda e: ""
+        """Return the sort-key function for the column identified by *col_key*."""
+        idx = self._col_keys.index(col_key)
+        return self._specs[idx].sort_key
 
     def _apply_sort(self) -> None:
         if self._sort_key is None:
@@ -338,33 +242,17 @@ class EntryList(Widget):
         table = self.query_one(DataTable)
         table.clear()
         for e in self._filtered:
-            journal = e.journal or e.raw_fields.get("booktitle", "")
-            table.add_row(
-                e.read_state_icon,
-                e.priority_icon,
-                self._file_icon(e),
-                e.url_icon,
-                e.entry_type[:7],
-                e.year[:4] if e.year else "",
-                e.authors_short[:12] + "…"
-                if len(e.authors_short) > 12
-                else e.authors_short,
-                journal[:16] + "…" if len(journal) > 16 else journal,
-                e.title,
-                self._date_added_text(e),
-                e.rating_stars,
-                key=e.key,
-            )
+            table.add_row(*self._row_for_entry(e), key=e.key)
 
     def _update_header_labels(self) -> None:
         """Put ▲/▼ on the active sort column, restore others."""
         table = self.query_one(DataTable)
-        for key, label in zip(self._col_keys, _COL_LABELS):
+        for key, spec in zip(self._col_keys, self._specs):
             if key == self._sort_key:
                 indicator = "▼" if self._sort_reverse else "▲"
-                table.columns[key].label = Text(f"{label} {indicator}")
+                table.columns[key].label = Text(f"{spec.label} {indicator}")
             else:
-                table.columns[key].label = Text(label)
+                table.columns[key].label = Text(spec.label)
         table.refresh()
 
     # ── Search ────────────────────────────────────────────────────────────
@@ -402,20 +290,40 @@ class EntryList(Widget):
 
     # ── Public helpers ────────────────────────────────────────────────────
 
-    def refresh_entries(self, entries: list[BibEntry]) -> None:
-        """Reload all entries (e.g. after add/edit)."""
-        table = self.query_one(DataTable)
+    def set_columns(self, keys: list[str]) -> None:
+        """Rebuild the table with a new column layout, preserving data & sort."""
         selected_before = self.selected_entry
         selected_key = selected_before.key if selected_before is not None else None
-        self._all_entries = entries
-        search = self.query_one(Input).value
+        self._specs = resolve_columns(keys)
+        table = self.query_one(DataTable)
+        table.clear(columns=True)
+        self._add_columns(table)
+        # Restore the active sort only if that column is still present.
+        self._sort_key = (
+            self._col_keys_by_key.get(self._sort_spec_key)
+            if self._sort_spec_key
+            else None
+        )
+        if self._sort_key is None:
+            self._sort_spec_key = None
+        self._reload_rows()
+        if self._sort_key is not None:
+            self._update_header_labels()
+        self._title_width = -1  # force a recompute on the new column set
+        self._update_title_width()
+        self._restore_cursor(table, selected_key)
+
+    def _reload_rows(self) -> None:
+        """Repopulate rows honoring the current search filter and sort."""
+        search = self.query_one(Input).value.strip()
         if search:
             self.on_search_changed(Input.Changed(self.query_one(Input), search))
         else:
-            self._populate_table(entries)
+            self._populate_table(self._all_entries)
             if self._sort_key is not None:
                 self._apply_sort()
 
+    def _restore_cursor(self, table: DataTable, selected_key: str | None) -> None:
         if selected_key is None:
             return
         try:
@@ -426,22 +334,27 @@ class EntryList(Widget):
             return
         table.move_cursor(row=row_idx)
 
-    def refresh_row(self, entry: BibEntry) -> None:
-        """Update the read-state, priority, file, and rating cells for a single row."""
+    def refresh_entries(self, entries: list[BibEntry]) -> None:
+        """Reload all entries (e.g. after add/edit)."""
         table = self.query_one(DataTable)
-        table.update_cell(
-            entry.key, self._col_state, entry.read_state_icon, update_width=False
-        )
-        table.update_cell(
-            entry.key, self._col_priority, entry.priority_icon, update_width=False
-        )
-        table.update_cell(
-            entry.key, self._col_file, self._file_icon(entry), update_width=False
-        )
-        table.update_cell(entry.key, self._col_url, entry.url_icon, update_width=False)
-        table.update_cell(
-            entry.key, self._col_rating, entry.rating_stars, update_width=False
-        )
+        selected_before = self.selected_entry
+        selected_key = selected_before.key if selected_before is not None else None
+        self._all_entries = entries
+        self._reload_rows()
+        self._restore_cursor(table, selected_key)
+
+    def refresh_row(self, entry: BibEntry) -> None:
+        """Update the in-place (dynamic) cells for a single row."""
+        table = self.query_one(DataTable)
+        for spec in self._specs:
+            if not spec.dynamic:
+                continue
+            table.update_cell(
+                entry.key,
+                self._col_keys_by_key[spec.key],
+                spec.render(entry, self._pdf_base_dir),
+                update_width=False,
+            )
 
     @property
     def selected_entry(self) -> BibEntry | None:
