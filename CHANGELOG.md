@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-07-14
+
+### Added
+
+- **Customizable table columns** — you can now choose which columns the entry table shows and in what order, from a new **Table: Configure columns** panel in the command palette (<kbd>Ctrl</kbd>+<kbd>P</kbd>). The available columns are discovered by analyzing the whole `.bib` file, so any BibTeX field present in your library (e.g. `doi`, `keywords`, `volume`, `publisher`) can be added as a column, alongside the built-in columns and a new optional **cite key** column. In the panel, <kbd>Space</kbd> toggles a column on or off and <kbd>Shift</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> (or the ▲/▼ buttons) reorder the highlighted one; shown columns are marked with a filled ● in the theme's accent colour and hidden ones are dimmed, and **Reset** restores the default layout. Your choice is saved to `~/.config/bibtui/config.toml` (`[ui].table_columns`) and applied live, so it persists across restarts. The default layout is unchanged, and the **Title** column still flexes to fill the available width — widest in the maximized "Max table" view (<kbd>m</kbd>).
+
+### Changed
+
+- **Command palette ordering** — bibtui's own commands (Settings, Table: Configure columns, Theme reset, Check for updates, and the Library actions) now appear in alphabetical order in the command palette instead of an arbitrary order.
+- **Table column visibility is now user-controlled** — the table no longer auto-hides the Journal and Added columns when the pane is narrow. Which columns appear is determined entirely by your saved column layout (configure it via <kbd>Ctrl</kbd>+<kbd>P</kbd> → *Table: Configure columns*).
+
 ## [0.16.0] - 2026-07-08
 
 ### Added

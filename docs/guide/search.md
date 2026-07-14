@@ -56,3 +56,11 @@ Click any column header to sort by it; click again to reverse. The active sort
 column is marked with `▲` (ascending) or `▼` (descending). Sort by **Added** to
 see what's new, by **★** to surface your highest-rated reading, or by **Year**
 to scan chronologically.
+
+## Choosing columns
+
+You're not limited to the default columns. From the command palette
+(<kbd>Ctrl</kbd>+<kbd>P</kbd> → **Table: Configure columns**) you can pick which
+columns the table shows and in what order, including the cite key or any BibTeX
+field present in your library. See
+[Table columns](../configuration.md#table-columns) for details.
