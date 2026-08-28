@@ -27,6 +27,7 @@ from bibtui.bib.models import BibEntry
 from bibtui.pdf.fetcher import pdf_filename
 from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
 from bibtui.utils import update_check
+from bibtui.utils.clipboard import copy_to_os_clipboard
 from bibtui.utils.dates import extract_date_added, now_date_added_value
 from bibtui.utils.config import (
     CONFIG_PATH,
@@ -706,8 +707,7 @@ class BibTuiApp(App):
         _entry, path = self._selected_entry_pdf_path()
         if path is None:
             return
-        self.copy_to_clipboard(path)
-        self.notify("Copied PDF path.", timeout=3)
+        self._copy_text(path, "Copied PDF path.")
 
     def action_pdf_delete(self) -> None:
         entry, path = self._selected_entry_pdf_path()
@@ -1201,27 +1201,46 @@ class BibTuiApp(App):
     def action_show_help(self) -> None:
         self.push_screen(HelpModal())
 
+    def _copy_text(self, text: str, label: str) -> None:
+        """Copy *text* to the clipboard and notify with *label*.
+
+        Emits OSC 52 (works over SSH and in modern terminals) *and* shells out
+        to the OS clipboard tool (works in macOS Terminal.app, iTerm2 and tmux,
+        where OSC 52 is unavailable or off by default). If neither the native
+        tool nor an SSH session is present, the notification says the copy
+        relied on the terminal escape so the user can act if it did not stick.
+        """
+        self.copy_to_clipboard(text)
+        if copy_to_os_clipboard(text) or os.environ.get("SSH_CONNECTION"):
+            self.notify(label, timeout=2)
+        else:
+            self.notify(
+                f"{label}\nSent via terminal escape (OSC 52). If paste fails, "
+                "install wl-copy/xclip or enable clipboard access in your terminal.",
+                timeout=6,
+            )
+
     def action_copy_key(self) -> None:
         focused = self.focused
         if isinstance(focused, (Input, TextArea)):
-            copy_action = getattr(focused, "action_copy", None)
-            if callable(copy_action):
-                copy_action()
-                return
+            selected = getattr(focused, "selected_text", "")
+            if selected:
+                self._copy_text(selected, "Copied selection")
+            return
 
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        self.copy_to_clipboard(entry.key)
-        self.notify(f"Copied: {entry.key}", timeout=2)
+        self._copy_text(entry.key, f"Copied: {entry.key}")
 
     def action_copy_entry(self) -> None:
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             self.notify("No entry selected.", severity="warning")
             return
-        self.copy_to_clipboard(parser.entry_to_bibtex_str(entry))
-        self.notify(f"Copied BibTeX: {entry.key}", timeout=2)
+        self._copy_text(
+            parser.entry_to_bibtex_str(entry), f"Copied BibTeX: {entry.key}"
+        )
 
     def action_copy_citation(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -1236,8 +1255,7 @@ class BibTuiApp(App):
             )
             return
 
-        self.copy_to_clipboard(citation)
-        self.notify(f"Copied citation: {entry.key}", timeout=2)
+        self._copy_text(citation, f"Copied citation: {entry.key}")
 
     def action_edit_keywords(self) -> None:
         entry = self.query_one(EntryList).selected_entry

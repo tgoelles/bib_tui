@@ -14,6 +14,7 @@ def test_action_pdf_copy_path(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(app, "_selected_entry_pdf_path", lambda: (None, path))
     monkeypatch.setattr(app, "copy_to_clipboard", lambda value: copied.append(value))
     monkeypatch.setattr(app, "notify", lambda message, **kwargs: notes.append(message))
+    monkeypatch.setattr("bibtui.app.copy_to_os_clipboard", lambda text: True)
 
     app.action_pdf_copy_path()
 
