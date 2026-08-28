@@ -1140,11 +1140,15 @@ class BibTuiApp(App):
         self._omarchy_timer = self.set_interval(2, self._sync_omarchy_theme)
 
     def _apply_omarchy_theme(self) -> str:
-        """Detect the Omarchy theme, register a custom one if needed, return name."""
-        theme_name, custom = get_omarchy_theme()
-        if custom:
-            self.register_theme(custom)
-        return theme_name
+        """Detect the Omarchy theme, register it, and return its name.
+
+        Falls back to ``textual-dark`` when Omarchy 4 is not present.
+        """
+        theme = get_omarchy_theme()
+        if theme is None:
+            return "textual-dark"
+        self.register_theme(theme)
+        return theme.name
 
     def _mark_theme_initialized(self) -> None:
         self._theme_initialized = True

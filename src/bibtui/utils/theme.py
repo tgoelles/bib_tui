@@ -1,95 +1,83 @@
-"""Detect the OS / Omarchy theme and map it to a Textual theme name."""
+"""Detect the active Omarchy 4 theme and turn it into a Textual theme.
+
+Omarchy 4 keeps the live theme under ``~/.local/state/omarchy/current``:
+
+* ``theme.name``    - the active theme's slug
+* ``theme/colors.toml`` - ``mode = "light"|"dark"`` plus a named palette
+  (``accent``, ``selection``, ``muted``, ``background`` and its
+  ``dark``/``darker``/``lighter`` variants, ``foreground`` variants, and the
+  ANSI colors ``red``/``green``/``yellow``/... with ``bright_*`` companions).
+
+Every bundled Omarchy 4 theme ships ``colors.toml``, so the palette is built
+straight from it - there is no name-to-builtin mapping.  Omarchy 3
+(``~/.config/omarchy``, ``color0..15`` palette, ``light.mode`` marker) is not
+supported.
+"""
 
 import tomllib
 from pathlib import Path
 
 from textual.theme import Theme
 
-# Omarchy theme name → Textual built-in theme name.
-# Only exact or canonical aliases are listed here; everything else falls
-# through to the colors.toml path so the actual palette is used.
-_THEME_MAP: dict[str, str] = {
-    "catppuccin": "catppuccin-mocha",  # catppuccin without suffix == mocha
-    "catppuccin-frappe": "catppuccin-frappe",
-    "catppuccin-latte": "catppuccin-latte",
-    "catppuccin-macchiato": "catppuccin-macchiato",
-    "catppuccin-mocha": "catppuccin-mocha",
-    "dracula": "dracula",
-    "flexoki": "flexoki",
-    "gruvbox": "gruvbox",
-    "monokai": "monokai",
-    "nord": "nord",
-    "rose-pine": "rose-pine",
-    "rose-pine-dawn": "rose-pine-dawn",
-    "rose-pine-moon": "rose-pine-moon",
-    "tokyo-night": "tokyo-night",
-}
-
-_OMARCHY_THEME_NAME = Path.home() / ".config" / "omarchy" / "current" / "theme.name"
-_OMARCHY_THEME_DIR = Path.home() / ".config" / "omarchy" / "current" / "theme"
-_OMARCHY_COLORS_TOML = _OMARCHY_THEME_DIR / "colors.toml"
+_OMARCHY_CURRENT = Path(".local") / "state" / "omarchy" / "current"
 
 
-def _omarchy_theme_name() -> str | None:
-    """Return the active Omarchy theme name by reading theme.name, or None."""
+def _current_dir() -> Path:
+    return Path.home() / _OMARCHY_CURRENT
+
+
+def _theme_name() -> str | None:
+    """Return the active Omarchy theme slug, or None when Omarchy 4 is absent."""
     try:
-        return _OMARCHY_THEME_NAME.read_text(encoding="utf-8").strip()
+        return (_current_dir() / "theme.name").read_text(encoding="utf-8").strip()
     except OSError:
         return None
 
 
-def _omarchy_is_light() -> bool:
-    """True if the current Omarchy theme ships a light.mode marker file."""
-    return (_OMARCHY_THEME_DIR / "light.mode").exists()
-
-
 def _read_colors() -> dict | None:
     try:
-        with open(_OMARCHY_COLORS_TOML, "rb") as f:
+        with open(_current_dir() / "theme" / "colors.toml", "rb") as f:
             return tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError):
         return None
 
 
-def _is_dark(hex_color: str) -> bool:
-    r = int(hex_color[1:3], 16)
-    g = int(hex_color[3:5], 16)
-    b = int(hex_color[5:7], 16)
-    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5
-
-
-def _build_theme(omarchy_name: str, colors: dict) -> Theme:
-    bg = colors.get("background", "#1e1e2e")
-    accent = colors.get("accent", colors.get("color4", "#89b4fa"))
+def _build_theme(name: str, colors: dict) -> Theme:
+    light = str(colors.get("mode", "dark")).strip().lower() == "light"
+    bg = colors.get("background", "#eff1f5" if light else "#1e1e2e")
+    accent = colors.get("accent", "#1e66f5" if light else "#89b4fa")
+    # Chrome surfaces: a light theme layers darker, a dark theme layers lighter.
+    surface = colors.get("dark_background" if light else "lighter_background", bg)
+    panel = colors.get("selection" if light else "muted", surface)
+    selection = colors.get("selection", accent)
     return Theme(
-        name=f"omarchy-{omarchy_name}",
+        name=f"omarchy-{name}",
         primary=accent,
         accent=accent,
         background=bg,
-        foreground=colors.get("foreground", "#cdd6f4"),
-        error=colors.get("color1", "#f38ba8"),
-        success=colors.get("color2", "#a6e3a1"),
-        warning=colors.get("color3", "#f9e2af"),
-        dark=_is_dark(bg),
-        variables={},
+        surface=surface,
+        panel=panel,
+        foreground=colors.get("foreground", "#4c4f69" if light else "#cdd6f4"),
+        error=colors.get("red", "#d20f39" if light else "#f38ba8"),
+        success=colors.get("green", "#40a02b" if light else "#a6e3a1"),
+        warning=colors.get("yellow", "#df8e1d" if light else "#f9e2af"),
+        dark=not light,
+        variables={"input-selection-background": f"{selection} 35%"},
     )
 
 
-def get_omarchy_theme() -> tuple[str, Theme | None]:
-    """Return (textual_theme_name, custom_Theme_or_None) for the active Omarchy theme.
+def get_omarchy_theme() -> Theme | None:
+    """Return a Textual ``Theme`` for the active Omarchy 4 theme, or None.
 
-    The second element is non-None only when no built-in Textual theme covers
-    the active Omarchy theme and colors.toml is readable.  Callers must register
-    it with the app before setting self.theme.
+    None means Omarchy 4 is not present (or its ``colors.toml`` is unreadable);
+    callers should fall back to their default theme.  A returned theme must be
+    registered with ``App.register_theme`` before ``App.theme`` is set to its
+    name.
     """
-    name = _omarchy_theme_name()
+    name = _theme_name()
     if name is None:
-        return "textual-dark", None
-    if name in _THEME_MAP:
-        return _THEME_MAP[name], None
+        return None
     colors = _read_colors()
-    if colors:
-        theme = _build_theme(name, colors)
-        return theme.name, theme
-    # No colors.toml — fall back to light/dark.
-    return ("textual-light" if _omarchy_is_light() else "textual-dark"), None
+    if colors is None:
+        return None
+    return _build_theme(name, colors)
