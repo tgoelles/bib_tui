@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Omarchy theming now targets Omarchy 4** — Omarchy 4 moved its live theme from `~/.config/omarchy` to `~/.local/state/omarchy/current` and replaced the old palette format, which stopped bibtui's automatic desktop theming from working. bibtui now reads the Omarchy 4 `theme.name` and `colors.toml` and builds a matching theme directly from that palette — background, accent, light/dark mode (from the `mode` key) and the list/detail/modal surface colours all follow your desktop, still updating live within about two seconds when you switch themes. The previous name-to-builtin mapping is gone, so every Omarchy theme (including custom ones) is matched by its actual colours rather than only the handful that shared a name with a Textual builtin. Manual theme switching from the command palette is unchanged, and **Theme: Reset to auto** still hands control back to Omarchy.
+
+### Removed
+
+- **Omarchy 3 support** — the pre-4 layout (`~/.config/omarchy`, the `color0`–`color15` palette and the `light.mode` marker file) is no longer detected. On Omarchy 3 bibtui falls back to its default theme; switch themes manually from the command palette.
+
 ## [0.17.0] - 2026-07-14
 
 ### Added
