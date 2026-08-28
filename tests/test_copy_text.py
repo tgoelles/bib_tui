@@ -22,8 +22,14 @@ def app(monkeypatch):
     return app
 
 
-def _set_native(monkeypatch, ok: bool) -> None:
-    monkeypatch.setattr("bibtui.app.copy_to_os_clipboard", lambda text: ok)
+@pytest.fixture
+def native(monkeypatch):
+    """Record calls to the native clipboard helper (and stop it touching the real one)."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "bibtui.app.copy_to_os_clipboard", lambda text: calls.append(text) or True
+    )
+    return calls
 
 
 # ---------------------------------------------------------------------------
@@ -31,33 +37,15 @@ def _set_native(monkeypatch, ok: bool) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_copy_text_always_emits_osc52(app, monkeypatch) -> None:
-    _set_native(monkeypatch, True)
+def test_copy_text_writes_via_osc52_and_native_tool(app, native) -> None:
     app._copy_text("payload", "Copied")
     assert app._osc52 == ["payload"]
+    assert native == ["payload"]
 
 
-def test_copy_text_plain_notice_when_native_succeeds(app, monkeypatch) -> None:
-    _set_native(monkeypatch, True)
-    monkeypatch.delenv("SSH_CONNECTION", raising=False)
+def test_copy_text_notification_is_just_the_label(app, native) -> None:
     app._copy_text("x", "Copied BibTeX: Foo2020")
     assert app._notes == ["Copied BibTeX: Foo2020"]
-
-
-def test_copy_text_hint_when_native_fails_and_not_ssh(app, monkeypatch) -> None:
-    _set_native(monkeypatch, False)
-    monkeypatch.delenv("SSH_CONNECTION", raising=False)
-    app._copy_text("x", "Copied")
-    assert len(app._notes) == 1
-    assert app._notes[0].startswith("Copied\n")
-    assert "OSC 52" in app._notes[0]
-
-
-def test_copy_text_plain_notice_over_ssh_even_without_native(app, monkeypatch) -> None:
-    _set_native(monkeypatch, False)
-    monkeypatch.setenv("SSH_CONNECTION", "10.0.0.1 22 10.0.0.2 22")
-    app._copy_text("x", "Copied")
-    assert app._notes == ["Copied"]
 
 
 # ---------------------------------------------------------------------------

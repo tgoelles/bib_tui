@@ -1206,19 +1206,12 @@ class BibTuiApp(App):
 
         Emits OSC 52 (works over SSH and in modern terminals) *and* shells out
         to the OS clipboard tool (works in macOS Terminal.app, iTerm2 and tmux,
-        where OSC 52 is unavailable or off by default). If neither the native
-        tool nor an SSH session is present, the notification says the copy
-        relied on the terminal escape so the user can act if it did not stick.
+        where OSC 52 is unavailable or off by default), so between them a copy
+        lands in every common setup.
         """
         self.copy_to_clipboard(text)
-        if copy_to_os_clipboard(text) or os.environ.get("SSH_CONNECTION"):
-            self.notify(label, timeout=2)
-        else:
-            self.notify(
-                f"{label}\nSent via terminal escape (OSC 52). If paste fails, "
-                "install wl-copy/xclip or enable clipboard access in your terminal.",
-                timeout=6,
-            )
+        copy_to_os_clipboard(text)
+        self.notify(label, timeout=2)
 
     def action_copy_key(self) -> None:
         focused = self.focused
