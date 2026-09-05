@@ -55,6 +55,14 @@ ones are dimmed. Your layout is saved to `config.toml` (under
 The **Title** column always stretches to fill the remaining width — it's widest
 in the maximized *Max table* view (<kbd>m</kbd>).
 
+## List/detail split
+
+Press <kbd>&lt;</kbd> / <kbd>&gt;</kbd> to grow or shrink the detail pane in 5%
+steps (between 20% and 80% of the window). The split is saved to `config.toml`
+(under `[ui] detail_panel_percent`) and restored on the next start. It only
+applies to the side-by-side layout — in narrow terminals, where the panes stack
+vertically, both always span the full width.
+
 ## Themes
 
 bibtui supports the full range of [Textual](https://textual.textualize.io/)
