@@ -1374,6 +1374,7 @@ _HELP_SECTIONS = [
             ("k", "Edit keywords"),
             ("m", "Maximize/restore table pane"),
             (None, "Press m again to restore split view."),
+            ("< / >", "Grow / shrink the detail pane (5% steps, saved)"),
             ("v", "Toggle raw / formatted view"),
         ],
     ),

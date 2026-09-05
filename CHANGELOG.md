@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Adjustable list/detail split** — press <kbd>&lt;</kbd> / <kbd>&gt;</kbd> to grow or shrink the detail pane in 5% steps (between 20% and 80%). The chosen split is saved to `~/.config/bibtui/config.toml` (`[ui].detail_panel_percent`) and restored on the next start. The narrow-terminal vertical layout and the maximized table view (<kbd>m</kbd>) are unaffected.
+
 ### Changed
 
 - **Omarchy theming now targets Omarchy 4** — Omarchy 4 moved its live theme from `~/.config/omarchy` to `~/.local/state/omarchy/current` and replaced the old palette format, which stopped bibtui's automatic desktop theming from working. bibtui now reads the Omarchy 4 `theme.name` and `colors.toml` and builds a matching theme directly from that palette — background, accent, light/dark mode (from the `mode` key) and the list/detail/modal surface colours all follow your desktop, still updating live within about two seconds when you switch themes. The previous name-to-builtin mapping is gone, so every Omarchy theme (including custom ones) is matched by its actual colours rather than only the handful that shared a name with a Textual builtin. Manual theme switching from the command palette is unchanged, and **Theme: Reset to auto** still hands control back to Omarchy.

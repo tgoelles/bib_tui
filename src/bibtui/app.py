@@ -31,6 +31,7 @@ from bibtui.utils.dates import extract_date_added, now_date_added_value
 from bibtui.utils.config import (
     CONFIG_PATH,
     Config,
+    clamp_detail_panel_percent,
     is_first_run,
     load_config,
     save_config,
@@ -128,6 +129,8 @@ class BibTuiApp(App):
         Binding("k", "edit_keywords", "Keywords"),
         Binding("m", "toggle_table_maximize", "Max table"),
         Binding("v", "toggle_view", "View"),
+        Binding("greater_than_sign", "adjust_split(-5)", "Shrink detail", show=False),
+        Binding("less_than_sign", "adjust_split(5)", "Grow detail", show=False),
         # Entry state
         Binding("r", "cycle_read_state", "State"),
         Binding("p", "cycle_priority", "Prio"),
@@ -310,6 +313,30 @@ class BibTuiApp(App):
         self.query_one("#main-content").set_class(
             event.size.width < event.size.height * 2, "vertical"
         )
+        self._apply_split()
+
+    def _apply_split(self) -> None:
+        """Apply the configured list/detail split (horizontal layout only).
+
+        Only the detail pane gets an inline width; the list keeps its
+        stylesheet `1fr` so it fills the rest and can still be maximized.
+        """
+        detail = self.query_one("#entry-detail")
+        if self.query_one("#main-content").has_class("vertical"):
+            # Vertical layout: let the stylesheet's full-width rules apply.
+            detail.styles.width = None
+        else:
+            detail.styles.width = f"{self._config.detail_panel_percent}%"
+
+    def action_adjust_split(self, delta: int) -> None:
+        new_percent = clamp_detail_panel_percent(
+            self._config.detail_panel_percent + delta
+        )
+        if new_percent == self._config.detail_panel_percent:
+            return
+        self._config.detail_panel_percent = new_percent
+        save_config(self._config)
+        self._apply_split()
 
     def on_paste(self, event: events.Paste) -> None:
         """Forward paste to a focused Input/TextArea, or open PasteModal for BibTeX text."""
