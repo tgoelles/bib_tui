@@ -127,10 +127,10 @@ an HPC cluster, or on a colleague's machine. It installs in under a second with
 
 ```bash
 # Run without installing — opens the built-in file browser
-uvx --prerelease=allow bibtui
+uvx bibtui
 
 # Or open a specific library directly
-uvx --prerelease=allow bibtui myrefs.bib
+uvx bibtui myrefs.bib
 ```
 
 Ready for more? Head to the [installation guide](installation.md) or jump

@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "bibtui"
-version = "0.17.0"
+version = "1.0.0"
 authors = [
   {name = "Thomas Gölles", email = "thomas.goelles@gmail.com"}
 ]
@@ -25,7 +25,7 @@ dependencies = [
 ]
 license = {file = "LICENSE"}
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: Education",
@@ -80,9 +80,5 @@ exclude_lines = [
     "def __repr__",
     "raise NotImplementedError",
 ]
-
-[tool.uv]
-# bibtexparser v2 is still in pre-release on PyPI; allow it explicitly.
-prerelease = "allow"
 
 
