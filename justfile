@@ -10,8 +10,18 @@ patch:
     git push
     git push --tags
 
+# Bump minor version, tag, and push
 minor:
     uv version --bump minor
+    git add pyproject.toml uv.lock CHANGELOG.md
+    git commit -m "bump version to $(uv version --short)"
+    git tag "v$(uv version --short)"
+    git push
+    git push --tags
+
+# Bump major version, tag, and push
+major:
+    uv version --bump major
     git add pyproject.toml uv.lock CHANGELOG.md
     git commit -m "bump version to $(uv version --short)"
     git tag "v$(uv version --short)"

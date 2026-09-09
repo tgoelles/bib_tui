@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-09-09
+
+First stable release. bibtui has been in daily use for months; the feature set,
+key bindings and on-disk config format are now considered stable and will follow
+semantic versioning from here on.
 
 ### Added
 
@@ -14,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Copy now works in macOS Terminal.app, iTerm2 and tmux** — every copy action (cite key, BibTeX entry, formatted citation, PDF path) previously relied only on an OSC 52 terminal escape, which macOS Terminal.app ignores entirely and iTerm2/tmux ignore unless clipboard access is explicitly enabled, so copying silently did nothing while still showing a "Copied" message. bibtui now also writes to the OS clipboard through the native tool (`pbcopy` on macOS, `wl-copy`/`xclip`/`xsel` on Linux, `clip` on Windows) and keeps emitting OSC 52 for SSH sessions and terminals without a CLI clipboard tool, so between them a copy lands in every common setup. The stale `Ctrl+Y` "terminal-safe fallback" help entry (it was a duplicate of `Ctrl+Shift+C`, not a fallback) has been corrected.
+
+### Changed
+
+- **Installation no longer needs `--prerelease=allow`** — `bibtexparser` 2.0.0 now has a stable release on PyPI, so `uv tool install bibtui`, `uvx bibtui` and `pip install bibtui` just work. The `--prerelease` / `--pre` flag is no longer required and the `prerelease = "allow"` workaround has been removed from `pyproject.toml`.
+
+## [0.18.0] - 2026-08-28
 
 ### Changed
 

@@ -2,9 +2,6 @@ version = 1
 revision = 3
 requires-python = ">=3.12"
 
-[options]
-prerelease-mode = "allow"
-
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -171,14 +168,14 @@ wheels = [
 
 [[package]]
 name = "bibtexparser"
-version = "2.0.0b9"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pylatexenc" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f4/37/e21f79f5116ad1fb92a8eb0e8a005cad59eb24660003982840daa6b9fafd/bibtexparser-2.0.0b9.tar.gz", hash = "sha256:bcddf796cfe321bb92c17c844ca65d81731fb753a1dd0e82bc76a9947aa0f360", size = 40435, upload-time = "2026-01-29T19:47:52.605Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/88/1fbb799766aed95a310676f0c44ab65d89ccaa2535517059744dede848ec/bibtexparser-2.0.0.tar.gz", hash = "sha256:7f1e1d989282836a0ba39caf88ecc8982dfd924a4f49de58167d7effe99768e8", size = 88017, upload-time = "2026-09-08T10:22:50.275Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/60/8e/5a3726bd421d4977262cee94a3660da4b9ca94397f951499c7d31ec0e863/bibtexparser-2.0.0b9-py3-none-any.whl", hash = "sha256:c30c73a9b4e2e8a4669c8c4d726e2d285990553f60612d8c952786af3cf766ca", size = 41407, upload-time = "2026-01-29T19:47:51.608Z" },
+    { url = "https://files.pythonhosted.org/packages/c0/e2/161a0ee841d23bcf97f3d04cd1a05ab8cd412e3d86640c24ee6a1345b83c/bibtexparser-2.0.0-py3-none-any.whl", hash = "sha256:e5e6df506d53e354874240c7f7fbd98a36db4b725e139f30e175f710a72a68b7", size = 49691, upload-time = "2026-09-08T10:22:49.051Z" },
 ]
 
 [[package]]
@@ -211,7 +208,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bibtexparser", specifier = ">=2.0.0b9" },
+    { name = "bibtexparser", specifier = ">=2.0.0" },
     { name = "citeproc-py", specifier = ">=0.9.3" },
     { name = "click", specifier = ">=8.3.1" },
     { name = "habanero", specifier = ">=2.3.0" },

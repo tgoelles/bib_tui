@@ -24,17 +24,14 @@ leaving the terminal. No database, no sync daemon, no account.
 
 ```bash
 # Run without installing — opens the built-in file browser
-uvx --prerelease=allow bibtui
+uvx bibtui
 
 # Or open a specific library directly
-uvx --prerelease=allow bibtui myrefs.bib
+uvx bibtui myrefs.bib
 
 # Or install permanently
-uv tool install --prerelease=allow bibtui
+uv tool install bibtui
 ```
-
-> **Why `--prerelease=allow`?** bibtui depends on `bibtexparser` v2, still in
-> beta on PyPI. Once it ships a stable v2, the flag is no longer needed.
 
 ## What you can do
 
