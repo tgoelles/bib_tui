@@ -237,6 +237,40 @@ auto_fetch_pdf = true
 
 
 # ---------------------------------------------------------------------------
+# detail_panel_percent
+# ---------------------------------------------------------------------------
+
+
+def test_detail_panel_percent_defaults_to_50() -> None:
+    assert Config().detail_panel_percent == 50
+
+
+def test_detail_panel_percent_roundtrip(tmp_path: Path, monkeypatch) -> None:
+    config_file = tmp_path / "config.toml"
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    save_config(Config(detail_panel_percent=35))
+    assert load_config().detail_panel_percent == 35
+
+
+def test_detail_panel_percent_clamped_on_load(tmp_path: Path, monkeypatch) -> None:
+    config_file = tmp_path / "config.toml"
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    config_file.write_text("[ui]\ndetail_panel_percent = 5\n", encoding="utf-8")
+    assert load_config().detail_panel_percent == 20
+    config_file.write_text("[ui]\ndetail_panel_percent = 95\n", encoding="utf-8")
+    assert load_config().detail_panel_percent == 80
+
+
+def test_detail_panel_percent_non_int_falls_back_to_default(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_file = tmp_path / "config.toml"
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    config_file.write_text('[ui]\ndetail_panel_percent = "wide"\n', encoding="utf-8")
+    assert load_config().detail_panel_percent == 50
+
+
+# ---------------------------------------------------------------------------
 # find_pdf_for_entry — regression tests for filename-mismatch bug
 # ---------------------------------------------------------------------------
 

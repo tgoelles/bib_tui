@@ -16,6 +16,7 @@ their own keys in the footer.
 | <kbd>k</kbd>   | Edit keywords                                 |
 | <kbd>v</kbd>   | Toggle field form / raw BibTeX view          |
 | <kbd>m</kbd>   | Maximize / restore the table pane            |
+| <kbd>&lt;</kbd> / <kbd>&gt;</kbd> | Grow / shrink the detail pane (5% steps, saved to config) |
 | <kbd>?</kbd>   | Show help                                     |
 
 ## Adding & removing entries

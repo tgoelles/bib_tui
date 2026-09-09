@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Adjustable list/detail split** — press <kbd>&lt;</kbd> / <kbd>&gt;</kbd> to grow or shrink the detail pane in 5% steps (between 20% and 80%). The chosen split is saved to `~/.config/bibtui/config.toml` (`[ui].detail_panel_percent`) and restored on the next start. The narrow-terminal vertical layout and the maximized table view (<kbd>m</kbd>) are unaffected.
+
 ### Fixed
 
 - **Copy now works in macOS Terminal.app, iTerm2 and tmux** — every copy action (cite key, BibTeX entry, formatted citation, PDF path) previously relied only on an OSC 52 terminal escape, which macOS Terminal.app ignores entirely and iTerm2/tmux ignore unless clipboard access is explicitly enabled, so copying silently did nothing while still showing a "Copied" message. bibtui now also writes to the OS clipboard through the native tool (`pbcopy` on macOS, `wl-copy`/`xclip`/`xsel` on Linux, `clip` on Windows) and keeps emitting OSC 52 for SSH sessions and terminals without a CLI clipboard tool, so between them a copy lands in every common setup. The stale `Ctrl+Y` "terminal-safe fallback" help entry (it was a duplicate of `Ctrl+Shift+C`, not a fallback) has been corrected.
