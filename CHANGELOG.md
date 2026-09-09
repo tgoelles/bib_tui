@@ -13,7 +13,7 @@ semantic versioning from here on.
 
 ### Added
 
-- **Adjustable list/detail split** — press <kbd>&lt;</kbd> / <kbd>&gt;</kbd> to grow or shrink the detail pane in 5% steps (between 20% and 80%). The chosen split is saved to `~/.config/bibtui/config.toml` (`[ui].detail_panel_percent`) and restored on the next start. The narrow-terminal vertical layout and the maximized table view (<kbd>m</kbd>) are unaffected.
+- **Adjustable list/detail split** — press <kbd>&lt;</kbd> / <kbd>&gt;</kbd> to grow or shrink the detail pane in 5% steps (between 20% and 80%). The chosen split is saved to `~/.config/bibtui/config.toml` (`[ui].detail_panel_percent`) and restored on the next start. The narrow-terminal vertical layout and the maximized table view (<kbd>m</kbd>) are unaffected. Contributed by Paul Emsley ([@pemsley](https://github.com/pemsley)) in [#52](https://github.com/tgoelles/bib_tui/pull/52).
 
 ### Fixed
 
