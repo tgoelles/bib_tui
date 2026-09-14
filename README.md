@@ -35,6 +35,10 @@ uv tool install --prerelease=allow bibtui
 
 > **Why `--prerelease=allow`?** bibtui depends on `bibtexparser` v2, still in
 > beta on PyPI. Once it ships a stable v2, the flag is no longer needed.
+>
+> **Platform support:** actively developed and tested on Linux and macOS.
+> Windows hasn't been tested yet — it's pure Python + Textual, which supports
+> Windows Terminal, so it should work in principle. [Reports welcome →](https://github.com/tgoelles/bib_tui/issues)
 
 ## What you can do
 

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **PDF detected in the table but "PDF Actions" still only showed Fetch/Add (macOS)** — the entry-detail panel's PDF status icon and its action buttons (Open/Copy/Delete vs. Fetch/Add) checked only the exact path stored in the `.bib` file's `file` field, unlike the table's status column and every other "is a PDF linked?" check in the app, which also fall back to a search by entry key when the stored path doesn't resolve. The two could disagree whenever the exact stored path failed to resolve but the PDF was still findable — most commonly on macOS, where a filename's accented characters can be written to disk in a different Unicode normal form (NFD) than the one stored in the `.bib` file (NFC). The detail panel now uses the same lookup as the table, and that shared lookup itself now tolerates NFC/NFD filename differences directly.
+- **"Open PDF" (and the Add-PDF preview) could silently fail on Windows** — both always ran `xdg-open` on any non-macOS platform, but `xdg-open` doesn't exist on Windows. Opening a PDF now uses `os.startfile` on Windows, `open` on macOS, and `xdg-open` on Linux, from one shared helper.
+
+### Documentation
+
+- Clarified in the README and installation guide that bibtui is actively tested on Linux and macOS; Windows support is believed to work (pure Python + Textual, which supports Windows Terminal) but hasn't been tested yet.
+
 ## [0.17.0] - 2026-07-14
 
 ### Added

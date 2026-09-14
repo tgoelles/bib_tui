@@ -36,6 +36,7 @@ from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bibtui.bib.validate import validate_entry
 from bibtui.utils.config import Config
 from bibtui.utils.dates import DATE_ADDED_KEYS
+from bibtui.utils.opener import open_with_default_app
 from bibtui.widgets.columns import DEFAULT_TABLE_COLUMNS, ColumnSpec
 
 _ModalResult = TypeVar("_ModalResult")
@@ -1835,19 +1836,13 @@ class AddPDFModal(_BaseModal["str | None"]):
             event.stop()
 
     def _preview_selected(self) -> None:
-        import platform
-        import subprocess
-
         lv = self.query_one(ListView)
         idx = lv.index
         if idx is None or idx >= len(self._filtered):
             return
         path = self._filtered[idx]
         try:
-            if platform.system() == "Darwin":
-                subprocess.Popen(["open", str(path)])
-            else:
-                subprocess.Popen(["xdg-open", str(path)])
+            open_with_default_app(str(path))
         except Exception as e:
             self.query_one("#add-error", Static).update(f"Could not open: {e}")
 
