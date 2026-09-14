@@ -51,9 +51,9 @@ their own keys in the footer.
 
 | Key                                          | Action                                        |
 | -------------------------------------------- | --------------------------------------------- |
-| <kbd>Ctrl</kbd>+<kbd>C</kbd>                | Copy selected text, or the cite key            |
+| <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>⌘</kbd>+<kbd>C</kbd>                | Copy selected text, or the cite key            |
 | <kbd>Shift</kbd>+<kbd>C</kbd>              | Copy the formatted citation (current CSL style)|
-| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> | Copy the full BibTeX entry       |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> / <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> | Copy the full BibTeX entry       |
 
 Copies go to the OS clipboard via the native tool (`pbcopy`, `wl-copy`/`xclip`/`xsel`,
 `clip`) and also as an OSC 52 escape for SSH sessions.
@@ -62,9 +62,17 @@ Copies go to the OS clipboard via the native tool (`pbcopy`, `wl-copy`/`xclip`/`
 
 | Key                          | Action                                        |
 | ---------------------------- | --------------------------------------------- |
-| <kbd>Ctrl</kbd>+<kbd>P</kbd> | Command palette (settings + library actions)  |
+| <kbd>Ctrl</kbd>+<kbd>P</kbd> / <kbd>⌘</kbd>+<kbd>P</kbd> | Command palette (settings + library actions)  |
 | <kbd>Esc</kbd>               | Clear the search, or close a modal            |
 
 !!! info "In any modal"
 
-    <kbd>Ctrl</kbd>+<kbd>S</kbd> writes/saves and <kbd>Esc</kbd> cancels.
+    <kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>⌘</kbd>+<kbd>S</kbd> writes/saves and <kbd>Esc</kbd> cancels.
+
+!!! note "About the ⌘ shortcuts"
+
+    Ctrl always works. The ⌘ (Cmd) alternative only reaches bibtui in terminals
+    that forward it as a distinct key — Kitty, WezTerm, Ghostty, or iTerm2 with
+    the Kitty keyboard protocol enabled. In macOS Terminal.app and stock iTerm2,
+    Cmd shortcuts are handled by the terminal itself and never reach bibtui, so
+    Ctrl is what you'll actually use there.

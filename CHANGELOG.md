@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Cmd (⌘) aliases for Ctrl shortcuts** — copy key/entry, save in every modal, and the command palette now also fire on <kbd>⌘</kbd> in terminals that forward Cmd as a distinct key (Kitty, WezTerm, Ghostty, iTerm2 with the Kitty keyboard protocol enabled). Ctrl is unchanged and still works everywhere, including macOS Terminal.app and stock iTerm2, where Cmd shortcuts never reach bibtui at all — the terminal keeps them for itself. The key strings are now defined once in `bibtui.utils.keymap` instead of being duplicated as literals at each binding.
+
 ### Fixed
 
 - **PDF detected in the table but "PDF Actions" still only showed Fetch/Add (macOS)** — the entry-detail panel's PDF status icon and its action buttons (Open/Copy/Delete vs. Fetch/Add) checked only the exact path stored in the `.bib` file's `file` field, unlike the table's status column and every other "is a PDF linked?" check in the app, which also fall back to a search by entry key when the stored path doesn't resolve. The two could disagree whenever the exact stored path failed to resolve but the PDF was still findable — most commonly on macOS, where a filename's accented characters can be written to disk in a different Unicode normal form (NFD) than the one stored in the `.bib` file (NFC). The detail panel now uses the same lookup as the table, and that shared lookup itself now tolerates NFC/NFD filename differences directly.
