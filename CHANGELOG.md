@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.1] - 2026-09-14
 
 ### Added
 
@@ -31,7 +31,7 @@ semantic versioning from here on.
 
 ### Added
 
-- **Adjustable list/detail split** — press <kbd>&lt;</kbd> / <kbd>&gt;</kbd> to grow or shrink the detail pane in 5% steps (between 20% and 80%). The chosen split is saved to `~/.config/bibtui/config.toml` (`[ui].detail_panel_percent`) and restored on the next start. The narrow-terminal vertical layout and the maximized table view (<kbd>m</kbd>) are unaffected. Contributed by Paul Emsley ([@pemsley](https://github.com/pemsley)) in [#52](https://github.com/tgoelles/bib_tui/pull/52).
+- **Adjustable list/detail split** — press <kbd></kbd> / <kbd></kbd> to grow or shrink the detail pane in 5% steps (between 20% and 80%). The chosen split is saved to `~/.config/bibtui/config.toml` (`[ui].detail_panel_percent`) and restored on the next start. The narrow-terminal vertical layout and the maximized table view (<kbd>m</kbd>) are unaffected. Contributed by Paul Emsley ([@pemsley](https://github.com/pemsley)) in [#52](https://github.com/tgoelles/bib_tui/pull/52).
 
 ### Fixed
 
