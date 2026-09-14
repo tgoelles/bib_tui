@@ -124,33 +124,42 @@ class BibTuiApp(App):
 
     CSS_PATH = "bibtui.tcss"
 
+    # Footer order follows BINDINGS declaration order, so the block below is
+    # laid out left-to-right exactly as it should appear: new/edit, entry
+    # state (read state, priority, rating), search, PDF preview, quit/write,
+    # help — everything else stays bound but hidden from the footer to keep
+    # it scannable (still reachable by key, the in-app `?` help, or the
+    # command palette, which the Footer always shows on the right regardless
+    # of this list).
+    _RATING_GROUP = Binding.Group("Rating")
+
     BINDINGS = [
-        # Core
-        Binding("q", "quit", "Quit"),
-        Binding("w", "save", "Write"),
-        Binding("s", "focus_search", "Search"),
-        Binding("e", "edit_entry", "Edit"),
+        # Footer (visible)
         Binding("n", "new_entry", "New"),
+        Binding("e", "edit_entry", "Edit"),
         Binding("k", "edit_keywords", "Keywords"),
-        Binding("m", "toggle_table_maximize", "Max table"),
-        Binding("v", "toggle_view", "View"),
-        Binding("greater_than_sign", "adjust_split(-5)", "Shrink detail", show=False),
-        Binding("less_than_sign", "adjust_split(5)", "Grow detail", show=False),
-        # Entry state
         Binding("r", "cycle_read_state", "State"),
         Binding("p", "cycle_priority", "Prio"),
+        Binding("0", "set_rating('0')", "Unrated", group=_RATING_GROUP),
+        Binding("1", "set_rating('1')", "★", group=_RATING_GROUP),
+        Binding("2", "set_rating('2')", "★★", group=_RATING_GROUP),
+        Binding("3", "set_rating('3')", "★★★", group=_RATING_GROUP),
+        Binding("4", "set_rating('4')", "★★★★", group=_RATING_GROUP),
+        Binding("5", "set_rating('5')", "★★★★★", group=_RATING_GROUP),
+        Binding("s", "focus_search", "Search"),
         Binding("space", "open_pdf", "␣ Show PDF"),
-        Binding("b", "open_url", "Browser"),
-        Binding("B", "open_openalex", "OpenAlex"),
-        Binding("f", "fetch_pdf", "Fetch PDF"),
-        Binding("a", "add_pdf", "Add PDF"),
-        # Rating (hidden from footer)
-        Binding("0", "set_rating('0')", "Unrated", show=False),
-        Binding("1", "set_rating('1')", "★", show=False),
-        Binding("2", "set_rating('2')", "★★", show=False),
-        Binding("3", "set_rating('3')", "★★★", show=False),
-        Binding("4", "set_rating('4')", "★★★★", show=False),
-        Binding("5", "set_rating('5')", "★★★★★", show=False),
+        Binding("q", "quit", "Quit"),
+        Binding("w", "save", "Write"),
+        Binding("?", "show_help", "Help"),
+        # Hidden from the footer (still active — see the `?` help screen)
+        Binding("m", "toggle_table_maximize", "Max table", show=False),
+        Binding("v", "toggle_view", "View", show=False),
+        Binding("greater_than_sign", "adjust_split(-5)", "Shrink detail", show=False),
+        Binding("less_than_sign", "adjust_split(5)", "Grow detail", show=False),
+        Binding("b", "open_url", "Browser", show=False),
+        Binding("B", "open_openalex", "OpenAlex", show=False),
+        Binding("f", "fetch_pdf", "Fetch PDF", show=False),
+        Binding("a", "add_pdf", "Add PDF", show=False),
         # Copy
         Binding(COPY_KEY, "copy_key", "Copy key", show=False, priority=True),
         Binding("C", "copy_citation", "Copy citation", show=False),
@@ -165,14 +174,13 @@ class BibTuiApp(App):
         # Delete
         Binding("delete", "delete_entry", "Delete", show=False),
         Binding("backspace", "delete_entry", "Delete", show=False),
-        # Help
-        Binding("?", "show_help", "Help"),
         Binding("escape", "clear_search", "Clear search", show=False),
         # Command palette — Textual binds ctrl+p by default (App.COMMAND_PALETTE_BINDING);
         # this explicit binding replaces that default so the Cmd alias also works. Textual
         # only auto-adds its own default when no binding with this action exists yet, and
         # overriding COMMAND_PALETTE_BINDING itself doesn't work here — it's registered
-        # through a code path that doesn't split comma-separated keys.
+        # through a code path that doesn't split comma-separated keys. The Footer shows
+        # its own "palette" hint on the right regardless of this binding's show flag.
         Binding(
             COMMAND_PALETTE,
             "command_palette",

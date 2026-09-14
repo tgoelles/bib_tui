@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Consolidated the four ways to add an entry behind a single <kbd>n</kbd>** — "New" now opens a small chooser instead of DOI import and PDF import each having their own top-level keybinding (previously <kbd>d</kbd> and <kbd>i</kbd>, now removed). Pick a way with <kbd>m</kbd> fill out manually, <kbd>d</kbd> import by DOI, <kbd>p</kbd> import from PDF, or <kbd>b</kbd> paste BibTeX (the original <kbd>1</kbd>–<kbd>4</kbd> also still work). Pasting BibTeX text is still auto-detected anywhere in the app too, in addition to being an explicit chooser option.
 - **Consistent PDF-list keybindings** — every list of PDFs to pick from now previews the highlighted one on <kbd>Space</kbd>, matching "Add PDF"'s existing convention: the "Import from PDF" file picker and "Add PDF" also both choose the highlighted PDF on <kbd>Enter</kbd>/<kbd>x</kbd> (the review screen's report list has nothing to choose — it's Space-to-preview only, with one "Import N Entries" action for everything that matched).
+- **Trimmed and reordered the footer** — it now shows, left to right: New, Edit, Keywords, State, Prio, Rating (<kbd>0</kbd>–<kbd>5</kbd>, grouped under one "Rating" label), Search, <kbd>Space</kbd> Show PDF, Quit, Write, Help, with the command palette hint still docked on the right. Max table, View, Browser, OpenAlex, Fetch PDF, and Add PDF are no longer shown in the footer — all still work exactly as before and remain listed in the <kbd>?</kbd> help screen.
 
 ## [1.0.1] - 2026-09-14
 
