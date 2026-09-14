@@ -247,10 +247,10 @@ class DOIModal(_BaseModal[BibEntry | None]):
 class NewEntryChooserModal(_BaseModal["str | None"]):
     """First step of `n`: pick how the new entry should be created.
 
-    Dismisses with one of ``"blank"``, ``"doi"``, ``"pdf"``, ``"paste"``, or
-    ``None`` if canceled. Kept as a single entry point (rather than separate
-    top-level keybindings per method) so there's one obvious place to start
-    adding a reference from.
+    Dismisses with one of ``"blank"``, ``"doi"``, ``"pdf"``, ``"bibfile"``,
+    ``"paste"``, or ``None`` if canceled. Kept as a single entry point
+    (rather than separate top-level keybindings per method) so there's one
+    obvious place to start adding a reference from.
     """
 
     BINDINGS = [
@@ -258,7 +258,8 @@ class NewEntryChooserModal(_BaseModal["str | None"]):
         Binding("1,m", "choose('blank')", show=False),
         Binding("2,d", "choose('doi')", show=False),
         Binding("3,p", "choose('pdf')", show=False),
-        Binding("4,b", "choose('paste')", show=False),
+        Binding("4,v", "choose('paste')", show=False),
+        Binding("5,b", "choose('bibfile')", show=False),
     ]
 
     # (result key, mnemonic letter, title, short description)
@@ -266,7 +267,8 @@ class NewEntryChooserModal(_BaseModal["str | None"]):
         ("blank", "m", "Fill out manually", "Pick a type, fill in fields"),
         ("doi", "d", "Import by DOI", "Fetch metadata from a DOI"),
         ("pdf", "p", "Import from PDF", "Fetch metadata from PDF files"),
-        ("paste", "b", "Paste BibTeX", "Paste a raw BibTeX entry"),
+        ("bibfile", "b", "Import .bib File", "Pick a downloaded .bib file"),
+        ("paste", "v", "Paste BibTeX", "Paste a raw BibTeX entry"),
     ]
 
     DEFAULT_CSS = """
@@ -1477,7 +1479,9 @@ _HELP_SECTIONS = [
             (None, "  d  Import by DOI — fetches metadata online"),
             (None, "  p  Import from PDF — finds a DOI/arXiv id, reports the"),
             (None, "     outcome per file before writing anything"),
-            (None, "  b  Paste BibTeX — from clipboard"),
+            (None, "  b  Import .bib File — one entry is added directly;"),
+            (None, "     several show a report, DOI duplicates are skipped"),
+            (None, "  v  Paste BibTeX — from clipboard"),
             (None, "All methods reject duplicate cite keys."),
             ("ctrl+v", "Also auto-detects a pasted BibTeX entry anywhere"),
         ],
@@ -2766,6 +2770,130 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
         self.dismiss(None)
 
 
+class BibFileImportReviewModal(_BaseModal["list[BibEntry] | None"]):
+    """Report the outcome of parsing a multi-entry .bib file and commit it.
+
+    Parsing already happened synchronously (:func:`bibtui.bib.parser.load`)
+    before this modal opens — unlike the PDF import review screen there's no
+    background work here. Each parsed entry is marked ✓ (no DOI, or a DOI
+    not already in the library — will be added) or ✗ (its DOI already
+    matches a library entry, including a duplicate DOI within this same
+    file — skipped). Duplicate detection is DOI-only, matching "Import from
+    PDF": an entry with no DOI is always ✓, never auto-skipped. Dismisses
+    with the list of ✓ entries to append, or ``None`` if none are new or
+    the user cancels — nothing is written until "Import N Entries".
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    DEFAULT_CSS = """
+    BibFileImportReviewModal > Vertical {
+        width: 96;
+        height: 88%;
+    }
+    BibFileImportReviewModal #bfi-summary {
+        margin-top: 1;
+        color: $text;
+    }
+    BibFileImportReviewModal OptionList {
+        height: 1fr;
+        border: solid $panel;
+        margin-top: 1;
+    }
+    """
+
+    def __init__(
+        self,
+        entries: list[BibEntry],
+        existing_by_doi: dict[str, BibEntry],
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        from bibtui.utils.doi import normalize_doi
+
+        self._new_entries: list[BibEntry] = []
+        self._rows: list[tuple[BibEntry, str | None]] = []  # (entry, skip-reason)
+        seen_in_batch: set[str] = set()
+
+        for entry in entries:
+            doi = (entry.doi or "").strip()
+            normalized = normalize_doi(doi) if doi else ""
+            reason: str | None = None
+            if normalized:
+                if normalized in existing_by_doi:
+                    reason = f"Already in library as '{existing_by_doi[normalized].key}'"
+                elif normalized in seen_in_batch:
+                    reason = "Duplicate of another entry in this file"
+            if reason is None:
+                if normalized:
+                    seen_in_batch.add(normalized)
+                self._new_entries.append(entry)
+            self._rows.append((entry, reason))
+
+    def compose(self) -> ComposeResult:
+        total = len(self._rows)
+        with Vertical():
+            yield Label(
+                f"[bold]Import .bib File[/bold]  [dim]{total} entr"
+                f"{'y' if total == 1 else 'ies'}[/dim]",
+                classes="modal-title",
+            )
+            yield Static(self._summary_text(), id="bfi-summary")
+            yield OptionList(id="bfi-list")
+            with Horizontal(classes="modal-buttons"):
+                yield Button(
+                    self._button_label(),
+                    variant="primary",
+                    id="btn-import",
+                    disabled=not self._new_entries,
+                )
+                yield Button("Cancel", id="btn-cancel")
+
+    def _summary_text(self) -> str:
+        total = len(self._rows)
+        new = len(self._new_entries)
+        skipped = total - new
+        return (
+            f"{total} entr{'y' if total == 1 else 'ies'} found: "
+            f"{new} new, {skipped} already in your library."
+        )
+
+    def _button_label(self) -> str:
+        n = len(self._new_entries)
+        if not n:
+            return "Import"
+        return f"Import {n} {'Entry' if n == 1 else 'Entries'}"
+
+    def on_mount(self) -> None:
+        ol = self.query_one(OptionList)
+        for entry, reason in self._rows:
+            ol.add_option(Option(self._row_text(entry, reason)))
+
+    def _row_text(self, entry: BibEntry, reason: str | None) -> Text:
+        if reason is None:
+            text = (
+                f"✓ {entry.key} → {entry.title_short} "
+                f"({entry.authors_short}, {entry.year or '?'})"
+            )
+            color = self.app.current_theme.success
+        else:
+            text = f"✗ {entry.key} — {reason}"
+            color = self.app.current_theme.error
+        return Text(text, style=color)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-import":
+            self._confirm()
+
+    def _confirm(self) -> None:
+        self.dismiss(self._new_entries or None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class FirstRunModal(_BaseModal[bool]):
     """One-time welcome notice — shown only on the very first launch."""
 
@@ -2886,6 +3014,207 @@ class FilePickerModal(_BaseModal["str | None"]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
             self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class ImportBibPickerModal(_BaseModal["str | None"]):
+    """Pick a single .bib file to import, filtered by name.
+
+    Same browsing model as :class:`AddPDFModal` — list a download
+    directory, filter by typing, ``Space`` previews the highlighted row,
+    ``Enter``/``x`` choose it — the .bib counterpart of "choosing a single
+    PDF", plus :class:`PdfImportPickerModal`'s directory-repoint
+    convenience: submitting an existing directory path in the filter
+    re-points the listing at that folder instead of only ever showing the
+    download directory.
+    """
+
+    BINDINGS = [
+        Binding(SAVE, "choose", "Choose", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
+
+    DEFAULT_CSS = """
+    ImportBibPickerModal > Vertical {
+        width: 80;
+        height: 30;
+    }
+    ImportBibPickerModal Input {
+        margin-bottom: 1;
+    }
+    ImportBibPickerModal ListView {
+        height: 1fr;
+        border: solid $panel;
+        margin-bottom: 1;
+    }
+    ImportBibPickerModal #ibp-hint {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+    ImportBibPickerModal #ibp-nav-hint {
+        color: $text-muted;
+        height: auto;
+        margin-bottom: 1;
+    }
+    ImportBibPickerModal #ibp-error {
+        color: $error;
+    }
+    """
+
+    def __init__(self, download_dir: str = "", **kwargs):
+        super().__init__(**kwargs)
+        self._download_dir = download_dir or str(Path.home() / "Downloads")
+        self._all_files: list[Path] = []
+        self._filtered: list[Path] = []
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Import .bib File[/bold]", classes="modal-title")
+            yield Static("", id="ibp-hint")
+            yield Input(
+                placeholder="type to filter, or paste a file/folder path…",
+                id="ibp-filter",
+            )
+            yield ListView(id="ibp-list")
+            yield Static(
+                "[dim]↓/↑ navigate · Space preview · Enter/x choose[/dim]",
+                id="ibp-nav-hint",
+            )
+            yield Static("", id="ibp-error")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Choose", variant="primary", id="btn-choose")
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self._scan()
+        self.call_after_refresh(self.query_one("#ibp-filter", Input).focus)
+
+    def _scan(self) -> None:
+        dl = Path(self._download_dir).expanduser()
+        hint = self.query_one("#ibp-hint", Static)
+        if not dl.is_dir():
+            hint.update(
+                f"[dim]Folder not found: {dl}  ·  paste a file or folder path below[/dim]"
+            )
+            self._all_files = []
+        else:
+            files = sorted(
+                dl.glob("*.bib"), key=lambda p: p.stat().st_mtime, reverse=True
+            )
+            self._all_files = files
+            hint.update(
+                f"[dim]{dl}  ·  {len(files)} .bib file{'s' if len(files) != 1 else ''}  ·  "
+                "paste another folder path to browse elsewhere[/dim]"
+            )
+        self._filtered = list(self._all_files)
+        self._refresh_list()
+
+    def _refresh_list(self) -> None:
+        lv = self.query_one(ListView)
+        lv.clear()
+        for p in self._filtered:
+            stat = p.stat()
+            size = stat.st_size
+            size_str = (
+                f"{size / 1048576:.1f} MB"
+                if size >= 1048576
+                else f"{size / 1024:.0f} KB"
+            )
+            age = _format_age(stat.st_mtime)
+            lv.append(ListItem(Label(f"{p.name}  [dim]{size_str}  {age}[/dim]")))
+
+    @on(Input.Changed, "#ibp-filter")
+    def _on_filter(self, event: Input.Changed) -> None:
+        q = event.value.strip().lower()
+        self._filtered = (
+            [p for p in self._all_files if q in p.name.lower()]
+            if q
+            else list(self._all_files)
+        )
+        self._refresh_list()
+
+    def on_key(self, event: events.Key) -> None:
+        """Down in the Input moves focus to the list; Up from the first item
+        returns focus; Space previews, `x` chooses (same as Enter)."""
+        lv = self.query_one(ListView)
+        inp = self.query_one("#ibp-filter", Input)
+        if self.focused is inp and event.key == "down" and self._filtered:
+            lv.focus()
+            event.stop()
+        elif self.focused is lv and event.key == "up" and (lv.index or 0) == 0:
+            inp.focus()
+            event.stop()
+        elif self.focused is lv and event.key == "space":
+            self._preview_selected()
+            event.stop()
+        elif self.focused is lv and event.key == "x":
+            self._confirm()
+            event.stop()
+
+    def _preview_selected(self) -> None:
+        lv = self.query_one(ListView)
+        idx = lv.index
+        if idx is None or idx >= len(self._filtered):
+            return
+        try:
+            open_with_default_app(str(self._filtered[idx]))
+        except Exception as e:
+            self.query_one("#ibp-error", Static).update(f"Could not open: {e}")
+
+    @on(Input.Submitted, "#ibp-filter")
+    def _on_filter_submitted(self, _: Input.Submitted) -> None:
+        val = self.query_one("#ibp-filter", Input).value.strip()
+        if val:
+            expanded = Path(val).expanduser()
+            if expanded.is_dir():
+                self._download_dir = str(expanded)
+                self.query_one("#ibp-filter", Input).value = ""
+                self.query_one("#ibp-error", Static).update("")
+                self._scan()
+                return
+        self._confirm()
+
+    @on(ListView.Selected)
+    def _on_list_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one(ListView).index
+        if idx is not None and idx < len(self._filtered):
+            self._choose_path(self._filtered[idx])
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-choose":
+            self._confirm()
+
+    def _confirm(self) -> None:
+        lv = self.query_one(ListView)
+        idx = lv.index
+        if self._filtered and idx is not None and idx < len(self._filtered):
+            self._choose_path(self._filtered[idx])
+        else:
+            # Fallback: treat the filter text as a custom path
+            val = self.query_one("#ibp-filter", Input).value.strip()
+            if val:
+                self._choose_path(Path(val).expanduser())
+            else:
+                self.query_one("#ibp-error", Static).update(
+                    "Select a file or enter a path."
+                )
+
+    def _choose_path(self, path: Path) -> None:
+        error = self.query_one("#ibp-error", Static)
+        if not path.is_file():
+            error.update(f"File not found: {path}")
+            return
+        if path.suffix.lower() != ".bib":
+            error.update(f"Not a .bib file: {path.name}")
+            return
+        self.dismiss(str(path))
+
+    def action_choose(self) -> None:
+        self._confirm()
 
     def action_cancel(self) -> None:
         self.dismiss(None)

@@ -50,6 +50,16 @@ def test_choice_pdf_delegates_to_action_import_pdf(monkeypatch) -> None:
     assert calls == ["pdf"]
 
 
+def test_choice_bibfile_delegates_to_action_import_bib_file(monkeypatch) -> None:
+    app = BibTuiApp(BIB)
+    calls = []
+    monkeypatch.setattr(app, "action_import_bib_file", lambda: calls.append("bibfile"))
+
+    app._on_new_entry_choice("bibfile")
+
+    assert calls == ["bibfile"]
+
+
 def test_choice_paste_delegates_to_action_paste_import(monkeypatch) -> None:
     app = BibTuiApp(BIB)
     calls = []
@@ -85,7 +95,9 @@ def test_choice_none_does_nothing(monkeypatch) -> None:
         ("3", "pdf"),
         ("p", "pdf"),
         ("4", "paste"),
-        ("b", "paste"),
+        ("v", "paste"),
+        ("5", "bibfile"),
+        ("b", "bibfile"),
     ],
 )
 async def test_chooser_key_dismisses_with_expected_choice(key, expected) -> None:

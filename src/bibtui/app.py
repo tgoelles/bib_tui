@@ -46,6 +46,7 @@ from bibtui.widgets.entry_list import EntryList
 from bibtui.widgets.modals import (
     AddPDFModal,
     BatchFetchPDFModal,
+    BibFileImportReviewModal,
     ColumnConfigModal,
     ConfirmModal,
     DOIModal,
@@ -54,6 +55,7 @@ from bibtui.widgets.modals import (
     FilePickerModal,
     FirstRunModal,
     HelpModal,
+    ImportBibPickerModal,
     KeywordsModal,
     LibraryFetchConfirmModal,
     NewEntryChooserModal,
@@ -478,6 +480,8 @@ class BibTuiApp(App):
             self.action_doi_import()
         elif choice == "pdf":
             self.action_import_pdf()
+        elif choice == "bibfile":
+            self.action_import_bib_file()
         elif choice == "paste":
             self.action_paste_import()
 
@@ -548,6 +552,58 @@ class BibTuiApp(App):
             self.notify(
                 f"Linked PDF to {len(relinked_entries)} existing {noun}.", timeout=4
             )
+
+    def action_import_bib_file(self) -> None:
+        self.push_screen(ImportBibPickerModal(), self._on_bib_file_picked)
+
+    def _on_bib_file_picked(self, path: str | None) -> None:
+        if path is None:
+            return
+
+        try:
+            entries = parser.load(path)
+        except Exception as exc:  # noqa: BLE001 — bibtexparser errors vary widely
+            self.notify(f"Could not parse {path}: {exc}", severity="error", timeout=6)
+            return
+
+        if not entries:
+            self.notify(f"No entries found in {path}.", severity="warning", timeout=4)
+            return
+
+        if len(entries) == 1:
+            self._import_single_bib_entry(entries[0])
+            return
+
+        self.push_screen(
+            BibFileImportReviewModal(entries, self._existing_entries_by_doi()),
+            self._on_bib_file_review_done,
+        )
+
+    def _import_single_bib_entry(self, entry: BibEntry) -> None:
+        """Fast path for a file with exactly one entry — the common case of
+        a citation downloaded from a journal page. No review screen: the
+        file the user picked already *is* the one thing to review, same
+        reasoning "Import by DOI" relies on.
+        """
+        doi = entry.doi.strip()
+        if doi:
+            from bibtui.utils.doi import normalize_doi
+
+            existing = self._existing_entries_by_doi().get(normalize_doi(doi))
+            if existing is not None:
+                self.notify(
+                    f"Already in library as '{existing.key}'.",
+                    severity="warning",
+                    timeout=4,
+                )
+                return
+
+        self._finalize_imported_entry(entry)
+
+    def _on_bib_file_review_done(self, new_entries: list[BibEntry] | None) -> None:
+        if not new_entries:
+            return
+        self._finalize_imported_entries(new_entries)
 
     def action_delete_entry(self) -> None:
         entry = self.query_one(EntryList).selected_entry
