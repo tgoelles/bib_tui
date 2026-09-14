@@ -37,6 +37,7 @@ from bibtui.utils.config import (
     load_config,
     save_config,
 )
+from bibtui.utils.opener import open_with_default_app
 from bibtui.utils.theme import get_omarchy_theme
 from bibtui.widgets.columns import DEFAULT_TABLE_COLUMNS, available_columns
 from bibtui.widgets.entry_detail import EntryDetail
@@ -713,10 +714,7 @@ class BibTuiApp(App):
             self.notify(f"PDF not found: {stored}", severity="error", timeout=5)
             return
         try:
-            if platform.system() == "Darwin":
-                subprocess.Popen(["open", path])
-            else:
-                subprocess.Popen(["xdg-open", path])
+            open_with_default_app(path)
         except Exception as e:
             self.notify(f"Could not open PDF: {e}", severity="error", timeout=5)
 

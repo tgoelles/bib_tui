@@ -1,4 +1,32 @@
 import os
+import unicodedata
+
+
+def _resolve_normalized(path: str) -> str | None:
+    """Like ``os.path.exists`` but tolerant of Unicode normalization mismatches.
+
+    Returns the path that actually exists on disk (which may differ from
+    *path* only in how accented characters are encoded), or ``None``.
+
+    A path built from text parsed out of a .bib file is normally in NFC form
+    (the common form for UTF-8 text on Linux/Windows). On macOS, filenames
+    written to disk by third-party tools (including some sync/cloud-drive
+    clients) can end up in NFD form instead, so a byte-exact comparison of an
+    NFC path against an NFD-named file fails even though the file is right
+    there — the PDF looks "missing" only because of how its accented
+    characters are encoded, not because it's actually absent.  Try the exact
+    path first, then both normal forms, before giving up.
+    """
+    if os.path.exists(path):
+        return path
+    directory, name = os.path.split(path)
+    if not name:
+        return None
+    for form in ("NFC", "NFD"):
+        candidate = os.path.join(directory, unicodedata.normalize(form, name))
+        if os.path.exists(candidate):
+            return candidate
+    return None
 
 
 def parse_jabref_path(file_field: str, base_dir: str = "") -> str:
@@ -32,8 +60,9 @@ def find_pdf_for_entry(
 
     if file_field:
         path = parse_jabref_path(file_field, base_dir)
-        if os.path.exists(path):
-            return path
+        resolved = _resolve_normalized(path)
+        if resolved is not None:
+            return resolved
 
     if base_dir and entry_key:
         matches = _glob.glob(os.path.join(base_dir, f"{entry_key}*.pdf"))

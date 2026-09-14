@@ -3,6 +3,16 @@
 bibtui is a single Python package. It runs anywhere Python 3.12+ does — your
 laptop, a remote server over SSH, or an HPC login node.
 
+!!! warning "Platform support"
+
+    bibtui is actively developed and tested on **Linux** and **macOS**. It is
+    pure Python on top of [Textual](https://textual.textualize.io/), which
+    itself supports Windows Terminal, so it should work on **Windows** in
+    principle — but it has not yet been tested there, and hasn't seen the same
+    real-world mileage as Linux/macOS. If you try it on Windows, please
+    [open an issue](https://github.com/tgoelles/bib_tui/issues) with whatever
+    you find, good or bad.
+
 ## Recommended — uv
 
 [uv](https://docs.astral.sh/uv/) is the fastest way to install and run bibtui.

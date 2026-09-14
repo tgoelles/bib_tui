@@ -1,4 +1,3 @@
-import os
 from typing import TYPE_CHECKING, cast
 
 from rich.syntax import Syntax
@@ -15,7 +14,7 @@ from bibtui.bib.citation_preview import (
 )
 from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import entry_to_bibtex_str
-from bibtui.pdf.paths import parse_jabref_path
+from bibtui.pdf.paths import find_pdf_for_entry
 
 if TYPE_CHECKING:
     from bibtui.app import BibTuiApp
@@ -339,8 +338,16 @@ class EntryDetail(Widget):
     def _file_icon(self, entry: BibEntry) -> str:
         if not entry.file:
             return " "
-        path = parse_jabref_path(entry.file, self._pdf_base_dir)
-        return "■" if os.path.exists(path) else "□"
+        # Use the same lookup as the table column and app actions (including
+        # the entry-key glob fallback) so the icon and action buttons agree
+        # with what "PDF present" means elsewhere. A bare os.path.exists()
+        # on the stored path alone can disagree with that shared lookup —
+        # e.g. on macOS, where filename normalization/case quirks are more
+        # likely to make the literal stored path miss while the glob still
+        # finds the file — leaving the icon "found" but actions stuck on
+        # Fetch/Add.
+        found = find_pdf_for_entry(entry.file, entry.key, self._pdf_base_dir)
+        return "■" if found else "□"
 
     def _theme_colors(self) -> dict[str, str]:
         """Return Rich color strings derived from the current Textual theme.
