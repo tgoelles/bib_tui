@@ -27,10 +27,12 @@ from bibtui.bib.models import BibEntry
 from bibtui.pdf.fetcher import pdf_filename
 from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
 from bibtui.utils import update_check
+from bibtui.utils.clipboard import copy_to_os_clipboard
 from bibtui.utils.dates import extract_date_added, now_date_added_value
 from bibtui.utils.config import (
     CONFIG_PATH,
     Config,
+    clamp_detail_panel_percent,
     is_first_run,
     load_config,
     save_config,
@@ -129,6 +131,8 @@ class BibTuiApp(App):
         Binding("k", "edit_keywords", "Keywords"),
         Binding("m", "toggle_table_maximize", "Max table"),
         Binding("v", "toggle_view", "View"),
+        Binding("greater_than_sign", "adjust_split(-5)", "Shrink detail", show=False),
+        Binding("less_than_sign", "adjust_split(5)", "Grow detail", show=False),
         # Entry state
         Binding("r", "cycle_read_state", "State"),
         Binding("p", "cycle_priority", "Prio"),
@@ -311,6 +315,30 @@ class BibTuiApp(App):
         self.query_one("#main-content").set_class(
             event.size.width < event.size.height * 2, "vertical"
         )
+        self._apply_split()
+
+    def _apply_split(self) -> None:
+        """Apply the configured list/detail split (horizontal layout only).
+
+        Only the detail pane gets an inline width; the list keeps its
+        stylesheet `1fr` so it fills the rest and can still be maximized.
+        """
+        detail = self.query_one("#entry-detail")
+        if self.query_one("#main-content").has_class("vertical"):
+            # Vertical layout: let the stylesheet's full-width rules apply.
+            detail.styles.width = None
+        else:
+            detail.styles.width = f"{self._config.detail_panel_percent}%"
+
+    def action_adjust_split(self, delta: int) -> None:
+        new_percent = clamp_detail_panel_percent(
+            self._config.detail_panel_percent + delta
+        )
+        if new_percent == self._config.detail_panel_percent:
+            return
+        self._config.detail_panel_percent = new_percent
+        save_config(self._config)
+        self._apply_split()
 
     def on_paste(self, event: events.Paste) -> None:
         """Forward paste to a focused Input/TextArea, or open PasteModal for BibTeX text."""
@@ -704,8 +732,7 @@ class BibTuiApp(App):
         _entry, path = self._selected_entry_pdf_path()
         if path is None:
             return
-        self.copy_to_clipboard(path)
-        self.notify("Copied PDF path.", timeout=3)
+        self._copy_text(path, "Copied PDF path.")
 
     def action_pdf_delete(self) -> None:
         entry, path = self._selected_entry_pdf_path()
@@ -1138,11 +1165,15 @@ class BibTuiApp(App):
         self._omarchy_timer = self.set_interval(2, self._sync_omarchy_theme)
 
     def _apply_omarchy_theme(self) -> str:
-        """Detect the Omarchy theme, register a custom one if needed, return name."""
-        theme_name, custom = get_omarchy_theme()
-        if custom:
-            self.register_theme(custom)
-        return theme_name
+        """Detect the Omarchy theme, register it, and return its name.
+
+        Falls back to ``textual-dark`` when Omarchy 4 is not present.
+        """
+        theme = get_omarchy_theme()
+        if theme is None:
+            return "textual-dark"
+        self.register_theme(theme)
+        return theme.name
 
     def _mark_theme_initialized(self) -> None:
         self._theme_initialized = True
@@ -1195,27 +1226,39 @@ class BibTuiApp(App):
     def action_show_help(self) -> None:
         self.push_screen(HelpModal())
 
+    def _copy_text(self, text: str, label: str) -> None:
+        """Copy *text* to the clipboard and notify with *label*.
+
+        Emits OSC 52 (works over SSH and in modern terminals) *and* shells out
+        to the OS clipboard tool (works in macOS Terminal.app, iTerm2 and tmux,
+        where OSC 52 is unavailable or off by default), so between them a copy
+        lands in every common setup.
+        """
+        self.copy_to_clipboard(text)
+        copy_to_os_clipboard(text)
+        self.notify(label, timeout=2)
+
     def action_copy_key(self) -> None:
         focused = self.focused
         if isinstance(focused, (Input, TextArea)):
-            copy_action = getattr(focused, "action_copy", None)
-            if callable(copy_action):
-                copy_action()
-                return
+            selected = getattr(focused, "selected_text", "")
+            if selected:
+                self._copy_text(selected, "Copied selection")
+            return
 
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             return
-        self.copy_to_clipboard(entry.key)
-        self.notify(f"Copied: {entry.key}", timeout=2)
+        self._copy_text(entry.key, f"Copied: {entry.key}")
 
     def action_copy_entry(self) -> None:
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
             self.notify("No entry selected.", severity="warning")
             return
-        self.copy_to_clipboard(parser.entry_to_bibtex_str(entry))
-        self.notify(f"Copied BibTeX: {entry.key}", timeout=2)
+        self._copy_text(
+            parser.entry_to_bibtex_str(entry), f"Copied BibTeX: {entry.key}"
+        )
 
     def action_copy_citation(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -1230,8 +1273,7 @@ class BibTuiApp(App):
             )
             return
 
-        self.copy_to_clipboard(citation)
-        self.notify(f"Copied citation: {entry.key}", timeout=2)
+        self._copy_text(citation, f"Copied citation: {entry.key}")
 
     def action_edit_keywords(self) -> None:
         entry = self.query_one(EntryList).selected_entry

@@ -55,6 +55,14 @@ ones are dimmed. Your layout is saved to `config.toml` (under
 The **Title** column always stretches to fill the remaining width — it's widest
 in the maximized *Max table* view (<kbd>m</kbd>).
 
+## List/detail split
+
+Press <kbd>&lt;</kbd> / <kbd>&gt;</kbd> to grow or shrink the detail pane in 5%
+steps (between 20% and 80% of the window). The split is saved to `config.toml`
+(under `[ui] detail_panel_percent`) and restored on the next start. It only
+applies to the side-by-side layout — in narrow terminals, where the panes stack
+vertically, both always span the full width.
+
 ## Themes
 
 bibtui supports the full range of [Textual](https://textual.textualize.io/)
@@ -73,12 +81,19 @@ from the command palette.
 
     ![A light theme](assets/img/theme-light.svg){ loading=lazy }
 
-### Automatic desktop theming
+### Automatic desktop theming (Omarchy 4)
 
-If you run [Omarchy](https://omarchy.org), bibtui detects your active desktop
-theme and matches it automatically, updating live when you switch. Pick a theme
-manually at any time and bibtui remembers your choice; reset it from the command
-palette to follow the OS again.
+If you run [Omarchy](https://omarchy.org) **4**, bibtui reads your active
+desktop theme's palette (`~/.local/state/omarchy/current/theme/colors.toml`)
+and builds a matching theme from it — background, accent, surfaces and the
+light/dark mode all follow your desktop, updating live within a couple of
+seconds when you switch themes with `omarchy-theme-set` or the theme menu.
+
+Omarchy 3 (which kept its theme under `~/.config/omarchy`) is not supported;
+on it bibtui falls back to its default theme.
+
+Pick a theme manually at any time and bibtui remembers your choice; reset it
+from the command palette (**Theme: Reset to auto**) to follow Omarchy again.
 
 ## Citation styles (CSL)
 

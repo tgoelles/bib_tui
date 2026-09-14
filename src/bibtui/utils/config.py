@@ -32,6 +32,18 @@ class Config:
     theme: str = ""  # empty means auto-detect from OS/Omarchy
     default_citation_style: str = "copernicus-publications"
     table_columns: list[str] = field(default_factory=list)  # empty = default layout
+    detail_panel_percent: int = 50  # width of the detail pane in the split view
+
+
+DETAIL_PANEL_PERCENT_MIN = 20
+DETAIL_PANEL_PERCENT_MAX = 80
+
+
+def clamp_detail_panel_percent(value: object) -> int:
+    """Coerce a config value to a usable detail-pane percentage."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return Config.detail_panel_percent
+    return max(DETAIL_PANEL_PERCENT_MIN, min(DETAIL_PANEL_PERCENT_MAX, value))
 
 
 def csl_dir() -> Path:
@@ -137,6 +149,9 @@ def load_config() -> Config:
             "default_citation_style", "copernicus-publications"
         ),
         table_columns=table_columns,
+        detail_panel_percent=clamp_detail_panel_percent(
+            ui_section.get("detail_panel_percent", Config.detail_panel_percent)
+        ),
     )
 
 
@@ -165,6 +180,7 @@ def save_config(config: Config) -> None:
             "theme": config.theme,
             "default_citation_style": config.default_citation_style,
             "table_columns": config.table_columns,
+            "detail_panel_percent": config.detail_panel_percent,
         },
     }
     with open(CONFIG_PATH, "wb") as f:

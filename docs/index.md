@@ -114,9 +114,10 @@ an HPC cluster, or on a colleague's machine. It installs in under a second with
 
 === "Themes"
 
-    Full Textual theming — Catppuccin, Nord, Dracula, Gruvbox and more. bibtui
-    also integrates with [Omarchy](https://omarchy.org): it picks up your active
-    desktop theme automatically and follows along live when you switch.
+    Full Textual theming — Catppuccin, Nord, Dracula, Gruvbox and more,
+    switched manually from the command palette. On [Omarchy](https://omarchy.org)
+    4 bibtui also builds a theme from your active desktop palette and follows
+    along live when you switch.
 
     ![A light theme](assets/img/theme-light.svg){ loading=lazy }
 
@@ -126,10 +127,10 @@ an HPC cluster, or on a colleague's machine. It installs in under a second with
 
 ```bash
 # Run without installing — opens the built-in file browser
-uvx --prerelease=allow bibtui
+uvx bibtui
 
 # Or open a specific library directly
-uvx --prerelease=allow bibtui myrefs.bib
+uvx bibtui myrefs.bib
 ```
 
 Ready for more? Head to the [installation guide](installation.md) or jump

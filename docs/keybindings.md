@@ -16,6 +16,7 @@ their own keys in the footer.
 | <kbd>k</kbd>   | Edit keywords                                 |
 | <kbd>v</kbd>   | Toggle field form / raw BibTeX view          |
 | <kbd>m</kbd>   | Maximize / restore the table pane            |
+| <kbd>&lt;</kbd> / <kbd>&gt;</kbd> | Grow / shrink the detail pane (5% steps, saved to config) |
 | <kbd>?</kbd>   | Show help                                     |
 
 ## Adding & removing entries
@@ -52,8 +53,10 @@ their own keys in the footer.
 | -------------------------------------------- | --------------------------------------------- |
 | <kbd>Ctrl</kbd>+<kbd>C</kbd>                | Copy selected text, or the cite key            |
 | <kbd>Shift</kbd>+<kbd>C</kbd>              | Copy the formatted citation (current CSL style)|
-| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> | Copy the full BibTeX entry                  |
-| <kbd>Ctrl</kbd>+<kbd>Y</kbd>               | Copy the full BibTeX entry (terminal-safe)     |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> | Copy the full BibTeX entry       |
+
+Copies go to the OS clipboard via the native tool (`pbcopy`, `wl-copy`/`xclip`/`xsel`,
+`clip`) and also as an OSC 52 escape for SSH sessions.
 
 ## Everything else
 
