@@ -11,7 +11,11 @@ from bibtui.utils.keymap import COMMAND_PALETTE, COPY_ENTRY, COPY_KEY, SAVE
 
 
 def _keys(binding_str: str) -> list[str]:
-    return binding_str.split(",")
+    # Textual itself strips whitespace around each comma-separated key (see
+    # Binding.make_bindings), so mirror that here rather than asserting on
+    # exact formatting — a constant written as "ctrl+c, super+c" is just as
+    # valid as "ctrl+c,super+c".
+    return [key.strip() for key in binding_str.split(",")]
 
 
 def test_copy_key_has_ctrl_and_super() -> None:
