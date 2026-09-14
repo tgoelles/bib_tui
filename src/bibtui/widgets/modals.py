@@ -243,6 +243,76 @@ class DOIModal(_BaseModal[BibEntry | None]):
         self.dismiss(None)
 
 
+class NewEntryChooserModal(_BaseModal["str | None"]):
+    """First step of `n`: pick how the new entry should be created.
+
+    Dismisses with one of ``"blank"``, ``"doi"``, ``"pdf"``, ``"paste"``, or
+    ``None`` if canceled. Kept as a single entry point (rather than separate
+    top-level keybindings per method) so there's one obvious place to start
+    adding a reference from.
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("1", "choose('blank')", show=False),
+        Binding("2", "choose('doi')", show=False),
+        Binding("3", "choose('pdf')", show=False),
+        Binding("4", "choose('paste')", show=False),
+    ]
+
+    _OPTIONS: list[tuple[str, str, str]] = [
+        ("blank", "Fill out manually", "Pick an entry type, fill in the fields"),
+        ("doi", "Import by DOI", "Paste a DOI, fetch its metadata online"),
+        (
+            "pdf",
+            "Import from PDF",
+            "Point at a PDF or folder — finds the DOI, fetches metadata",
+        ),
+        ("paste", "Paste BibTeX", "Paste a raw BibTeX entry"),
+    ]
+
+    DEFAULT_CSS = """
+    NewEntryChooserModal > Vertical {
+        width: 62;
+    }
+    NewEntryChooserModal ListView {
+        height: auto;
+        border: solid $panel;
+    }
+    NewEntryChooserModal ListItem {
+        padding: 0 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]New Entry[/bold]", classes="modal-title")
+            with ListView(id="chooser-list"):
+                for _key, title, desc in self._OPTIONS:
+                    yield ListItem(Label(f"{title}  [dim]— {desc}[/dim]"))
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.call_after_refresh(self.query_one(ListView).focus)
+
+    @on(ListView.Selected, "#chooser-list")
+    def _on_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one(ListView).index
+        if idx is not None and idx < len(self._OPTIONS):
+            self.dismiss(self._OPTIONS[idx][0])
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+
+    def action_choose(self, key: str) -> None:
+        self.dismiss(key)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 # Fields the New/Edit entry form never shows as editable inputs: keywords are
 # managed separately through the Keywords modal (press `k`).
 _FORM_EXCLUDED_FIELDS: set[str] = {"keywords"}
@@ -1402,13 +1472,14 @@ _HELP_SECTIONS = [
     (
         "Add new entry",
         [
-            ("n", "Create a new entry (pick type, fill fields, add custom)"),
-            ("d", "Import entry by DOI (fetches metadata online)"),
-            ("i", "Import from PDF (finds DOI/arXiv id, fetches metadata)"),
-            (None, "Pick a single PDF or a folder — folders are scanned"),
-            (None, "recursively and reviewed in a checklist before writing."),
-            ("ctrl+v", "Paste a raw BibTeX entry from clipboard"),
+            ("n", "New entry — choose how:"),
+            (None, "Fill out manually — pick a type, fill in the fields"),
+            (None, "Import by DOI — fetches metadata online"),
+            (None, "Import from PDF — finds a DOI/arXiv id in a file or"),
+            (None, "  folder, reviewed in a checklist before writing"),
+            (None, "Paste BibTeX — from clipboard"),
             (None, "All methods reject duplicate cite keys."),
+            ("ctrl+v", "Also auto-detects a pasted BibTeX entry anywhere"),
         ],
     ),
     (

@@ -56,6 +56,7 @@ from bibtui.widgets.modals import (
     HelpModal,
     KeywordsModal,
     LibraryFetchConfirmModal,
+    NewEntryChooserModal,
     NewEntryModal,
     PasteModal,
     PdfImportPickerModal,
@@ -130,8 +131,6 @@ class BibTuiApp(App):
         Binding("s", "focus_search", "Search"),
         Binding("e", "edit_entry", "Edit"),
         Binding("n", "new_entry", "New"),
-        Binding("d", "doi_import", "From DOI"),
-        Binding("i", "import_pdf", "Import PDF"),
         Binding("k", "edit_keywords", "Keywords"),
         Binding("m", "toggle_table_maximize", "Max table"),
         Binding("v", "toggle_view", "View"),
@@ -461,7 +460,17 @@ class BibTuiApp(App):
         self.notify("Entry updated. Press [w] to write.", timeout=3)
 
     def action_new_entry(self) -> None:
-        self.push_screen(NewEntryModal(), self._on_new_entry_done)
+        self.push_screen(NewEntryChooserModal(), self._on_new_entry_choice)
+
+    def _on_new_entry_choice(self, choice: str | None) -> None:
+        if choice == "blank":
+            self.push_screen(NewEntryModal(), self._on_new_entry_done)
+        elif choice == "doi":
+            self.action_doi_import()
+        elif choice == "pdf":
+            self.action_import_pdf()
+        elif choice == "paste":
+            self.action_paste_import()
 
     def _on_new_entry_done(self, result: BibEntry | None) -> None:
         if result is None:

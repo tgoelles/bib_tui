@@ -23,10 +23,8 @@ their own keys in the footer.
 
 | Key                              | Action                                |
 | -------------------------------- | ------------------------------------- |
-| <kbd>n</kbd>                     | Create a new entry (pick type, add fields) |
-| <kbd>d</kbd>                     | Import entry by DOI                    |
-| <kbd>i</kbd>                     | Import from PDF (single file or folder) |
-| <kbd>Ctrl</kbd>+<kbd>V</kbd>     | Paste a raw BibTeX entry              |
+| <kbd>n</kbd>                     | New entry — choose: fill out manually, import by DOI, import from PDF (single file or folder), or paste BibTeX |
+| <kbd>Ctrl</kbd>+<kbd>V</kbd>     | Also auto-detects a pasted BibTeX entry anywhere |
 | <kbd>Delete</kbd> / <kbd>⌫</kbd> | Delete the selected entry (confirm)   |
 
 ## Entry state
