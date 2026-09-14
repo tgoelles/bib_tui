@@ -25,6 +25,7 @@ their own keys in the footer.
 | -------------------------------- | ------------------------------------- |
 | <kbd>n</kbd>                     | Create a new entry (pick type, add fields) |
 | <kbd>d</kbd>                     | Import entry by DOI                    |
+| <kbd>i</kbd>                     | Import from PDF (single file or folder) |
 | <kbd>Ctrl</kbd>+<kbd>V</kbd>     | Paste a raw BibTeX entry              |
 | <kbd>Delete</kbd> / <kbd>⌫</kbd> | Delete the selected entry (confirm)   |
 

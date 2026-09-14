@@ -1404,6 +1404,9 @@ _HELP_SECTIONS = [
         [
             ("n", "Create a new entry (pick type, fill fields, add custom)"),
             ("d", "Import entry by DOI (fetches metadata online)"),
+            ("i", "Import from PDF (finds DOI/arXiv id, fetches metadata)"),
+            (None, "Pick a single PDF or a folder — folders are scanned"),
+            (None, "recursively and reviewed in a checklist before writing."),
             ("ctrl+v", "Paste a raw BibTeX entry from clipboard"),
             (None, "All methods reject duplicate cite keys."),
         ],
@@ -2196,6 +2199,277 @@ class BatchFetchPDFModal(_BaseModal["dict | None"]):
             "Stopping after current entry…"
         )
         self.query_one("#btn-cancel", Button).disabled = True
+
+
+class PdfImportDirectoryTree(DirectoryTree):
+    """DirectoryTree that shows only directories and .pdf files."""
+
+    def filter_paths(self, paths: Iterable[Path]) -> Iterable[Path]:
+        return [p for p in paths if p.is_dir() or p.suffix.lower() == ".pdf"]
+
+
+class PdfImportPickerModal(_BaseModal["tuple[str, bool] | None"]):
+    """Browse the filesystem and pick a PDF file or a folder of PDFs to import.
+
+    Dismisses with ``(path, is_folder)`` — selecting a ``.pdf`` file yields
+    ``is_folder=False``; the "Import Folder" button uses the currently
+    highlighted directory (or the parent of a highlighted file) and yields
+    ``is_folder=True``.
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=True)]
+
+    DEFAULT_CSS = """
+    PdfImportPickerModal > Vertical {
+        width: 90;
+        height: 82%;
+    }
+    PdfImportPickerModal PdfImportDirectoryTree {
+        height: 1fr;
+        border: solid $panel;
+        margin-bottom: 1;
+    }
+    PdfImportPickerModal #pip-hint {
+        color: $text-muted;
+        height: 1;
+        margin-bottom: 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Import from PDF[/bold]", classes="modal-title")
+            yield PdfImportDirectoryTree(Path.home(), id="pip-tree")
+            yield Static(
+                "[dim]Select a .pdf file to import it, "
+                "or highlight a folder and press \"Import Folder\"[/dim]",
+                id="pip-hint",
+            )
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Import Folder", variant="primary", id="btn-import-folder")
+                yield Button("Cancel", id="btn-cancel")
+
+    @on(DirectoryTree.FileSelected, "#pip-tree")
+    def on_file_selected(self, event: DirectoryTree.FileSelected) -> None:
+        self.dismiss((str(event.path), False))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-import-folder":
+            self._import_current_folder()
+
+    def _import_current_folder(self) -> None:
+        tree = self.query_one("#pip-tree", PdfImportDirectoryTree)
+        node = tree.cursor_node
+        if node is None or node.data is None:
+            self.app.notify("Highlight a folder first.", severity="warning")
+            return
+        path = node.data.path
+        if not path.is_dir():
+            path = path.parent
+        self.dismiss((str(path), True))
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class PdfImportReviewModal(_BaseModal["list[BibEntry] | None"]):
+    """Scan PDFs for an identifier, fetch metadata, and let the user confirm.
+
+    Scanning (offline extraction + CrossRef lookups, one file at a time)
+    runs in a background thread. Once it finishes, matched files are shown
+    pre-checked in a checklist; files with no match, an ambiguous result,
+    or a failed lookup are listed read-only below with the reason. Nothing
+    is written to the library until "Import Selected" is pressed — the
+    same modal serves both the single-file and folder entry points.
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    DEFAULT_CSS = """
+    PdfImportReviewModal > Vertical {
+        width: 96;
+        height: 88%;
+    }
+    PdfImportReviewModal LoadingIndicator {
+        height: 3;
+    }
+    PdfImportReviewModal #import-progress {
+        margin-top: 1;
+        color: $text;
+    }
+    PdfImportReviewModal SelectionList {
+        height: 1fr;
+        border: solid $panel;
+        margin-top: 1;
+    }
+    PdfImportReviewModal #import-skipped {
+        height: auto;
+        max-height: 10;
+        overflow-y: auto;
+        color: $text-muted;
+        border: solid $panel;
+        margin-top: 1;
+        padding: 0 1;
+    }
+    """
+
+    _STATUS_LABELS = {
+        "already_present": "Already present",
+        "no_identifier": "No identifier found",
+        "ambiguous": "Ambiguous",
+        "lookup_failed": "Lookup failed",
+    }
+
+    def __init__(self, paths: list[str], existing_dois: set[str], base_dir: str, **kwargs):
+        super().__init__(**kwargs)
+        self._paths = paths
+        self._existing_dois = existing_dois
+        self._base_dir = base_dir
+        self._cancel_requested = False
+        self._scanning = True
+        self._rows: list = []
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label(
+                f"[bold]Import from PDF[/bold]  [dim]{len(self._paths)} file"
+                f"{'s' if len(self._paths) != 1 else ''}[/dim]",
+                classes="modal-title",
+            )
+            yield LoadingIndicator(id="import-loading")
+            yield Static("Preparing…", id="import-progress")
+            yield SelectionList(id="import-matched-list")
+            yield Static("", id="import-skipped")
+            with Horizontal(classes="modal-buttons"):
+                yield Button(
+                    "Import Selected", variant="primary", id="btn-import", disabled=True
+                )
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one(SelectionList).display = False
+        self._scan()
+
+    @work(thread=True)
+    def _scan(self) -> None:
+        from bibtui.pdf.import_scan import ImportStatus, process_pdf
+        from bibtui.utils.doi import normalize_doi
+
+        seen_dois = set(self._existing_dois)
+        rows = []
+        total = len(self._paths)
+        for index, path in enumerate(self._paths, start=1):
+            if self._cancel_requested:
+                break
+            self.app.call_from_thread(
+                self._on_progress, f"[{index}/{total}] {Path(path).name}"
+            )
+            row = process_pdf(path, seen_dois)
+            if row.status == ImportStatus.MATCHED and row.entry and row.entry.doi:
+                seen_dois.add(normalize_doi(row.entry.doi))
+            rows.append(row)
+        self.app.call_from_thread(self._on_scan_done, rows)
+
+    def _on_progress(self, message: str) -> None:
+        self.query_one("#import-progress", Static).update(message)
+
+    def _on_scan_done(self, rows: list) -> None:
+        from bibtui.pdf.import_scan import ImportStatus
+
+        self._scanning = False
+        self._rows = rows
+        self.query_one("#import-loading", LoadingIndicator).display = False
+
+        matched = [
+            (i, r) for i, r in enumerate(rows) if r.status == ImportStatus.MATCHED
+        ]
+        skipped = [r for r in rows if r.status != ImportStatus.MATCHED]
+
+        sl = self.query_one(SelectionList)
+        sl.display = True
+        for index, row in matched:
+            entry = row.entry
+            label = (
+                f"{row.filename} → {entry.title_short} "
+                f"({entry.authors_short}, {entry.year or '?'})"
+            )
+            sl.add_option(Selection(label, index, True))
+
+        self.query_one("#import-progress", Static).update(
+            f"Scanned {len(rows)} file{'s' if len(rows) != 1 else ''}: "
+            f"{len(matched)} matched, {len(skipped)} skipped."
+        )
+        self.query_one("#import-skipped", Static).update(self._format_skipped(skipped))
+        self.query_one("#btn-import", Button).disabled = not matched
+
+    def _format_skipped(self, skipped: list) -> str:
+        if not skipped:
+            return "[dim]No skipped files.[/dim]"
+        from collections import defaultdict
+
+        by_status: dict[str, list] = defaultdict(list)
+        for row in skipped:
+            by_status[str(row.status)].append(row)
+
+        lines = []
+        for status, label in self._STATUS_LABELS.items():
+            rows = by_status.get(status)
+            if not rows:
+                continue
+            lines.append(f"[bold]{label} ({len(rows)})[/bold]")
+            for row in rows:
+                lines.append(f"  {row.filename} — {row.message}")
+        return "\n".join(lines)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.action_cancel()
+        elif event.button.id == "btn-import":
+            self._confirm()
+
+    def _confirm(self) -> None:
+        if self._scanning:
+            return
+        selected_indices = sorted(self.query_one(SelectionList).selected)
+        if not selected_indices:
+            self.app.notify("Select at least one entry to import.", severity="warning")
+            return
+
+        from bibtui.pdf.fetcher import FetchError, add_pdf
+        from bibtui.pdf.paths import format_jabref_path
+
+        entries: list[BibEntry] = []
+        errors: list[str] = []
+        for idx in selected_indices:
+            row = self._rows[idx]
+            if row.entry is None:
+                continue
+            entry = row.entry
+            if self._base_dir:
+                try:
+                    dest = add_pdf(Path(row.path), entry, self._base_dir)
+                    entry.file = format_jabref_path(str(dest), self._base_dir)
+                except FetchError as exc:
+                    errors.append(f"{row.filename}: {exc}")
+                    continue
+            entries.append(entry)
+
+        if errors:
+            self.app.notify(
+                "Some PDFs could not be linked:\n" + "\n".join(errors),
+                severity="warning",
+                timeout=8,
+            )
+        self.dismiss(entries or None)
+
+    def action_cancel(self) -> None:
+        if self._scanning:
+            self._cancel_requested = True
+            self.query_one("#import-progress", Static).update("Stopping…")
+            return
+        self.dismiss(None)
 
 
 class FirstRunModal(_BaseModal[bool]):

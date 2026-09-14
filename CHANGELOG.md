@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Import references from PDF files** — press <kbd>i</kbd> and point bibtui at a single PDF or a folder of PDFs (e.g. an old downloads folder or a migrated Papers/Zotero library) to create entries from them automatically. Each PDF is scanned for a DOI or arXiv id (embedded document metadata first, then the first two pages of text), the identifier is validated and its metadata fetched through the same CrossRef pipeline as "Import by DOI", and PDFs whose DOI already matches an entry in the open library are flagged as already present rather than duplicated — including duplicates within the same folder. Nothing is written until you confirm: a review screen lists every file's outcome (matched, already present, ambiguous, no identifier found, or lookup failed) with matched files pre-checked, so you can uncheck any before importing. Matched PDFs are moved into the configured PDF base directory and linked, the same as the existing "Add PDF" action. Scanned PDFs with no extractable text, or files where CrossRef can't be reached, are reported per-file and never block the rest of the batch.
+
 ## [1.0.1] - 2026-09-14
 
 ### Added
