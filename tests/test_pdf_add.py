@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from bibtui.bib.models import BibEntry
-from bibtui.pdf.fetcher import FetchError, add_pdf, pdf_filename
+from bibtui.pdf.fetcher import FetchError, add_pdf, find_duplicate_pdf, pdf_filename
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -118,3 +118,68 @@ def test_destination_collision_raises(
 
     with pytest.raises(FetchError, match="Destination already exists"):
         add_pdf(src_pdf, entry, str(dest_dir))
+
+
+# ---------------------------------------------------------------------------
+# Content-based duplicate detection
+# ---------------------------------------------------------------------------
+
+
+def test_reuses_identical_pdf_already_in_base_dir_under_a_different_name(
+    entry: BibEntry, src_pdf: Path, tmp_path: Path
+) -> None:
+    dest_dir = tmp_path / "library"
+    dest_dir.mkdir()
+    existing = dest_dir / "Old2019 - Some Other Title.pdf"
+    existing.write_bytes(src_pdf.read_bytes())  # identical content, unrelated name
+
+    result = add_pdf(src_pdf, entry, str(dest_dir))
+
+    assert result == existing
+    assert src_pdf.exists()  # left untouched, not moved
+    assert not (dest_dir / pdf_filename(entry)).exists()  # no duplicate copy made
+
+
+def test_same_size_different_content_is_not_treated_as_duplicate(
+    entry: BibEntry, src_pdf: Path, tmp_path: Path
+) -> None:
+    dest_dir = tmp_path / "library"
+    dest_dir.mkdir()
+    same_size_different_content = dest_dir / "Unrelated2020 - Different Paper.pdf"
+    # Same byte length as src_pdf's "%PDF-1.4 fake" but different content.
+    same_size_different_content.write_bytes(b"%PDF-1.4 nope")
+
+    dest = add_pdf(src_pdf, entry, str(dest_dir))
+
+    assert dest.name == pdf_filename(entry)
+    assert dest.read_bytes() == b"%PDF-1.4 fake"
+
+
+def test_source_already_inside_base_dir_is_reused_in_place(
+    entry: BibEntry, tmp_path: Path
+) -> None:
+    dest_dir = tmp_path / "library"
+    dest_dir.mkdir()
+    already_there = dest_dir / "renamed-by-user.pdf"
+    already_there.write_bytes(b"%PDF already here")
+
+    result = add_pdf(already_there, entry, str(dest_dir))
+
+    assert result == already_there
+    assert already_there.exists()  # not renamed to the canonical filename
+    assert not (dest_dir / pdf_filename(entry)).exists()
+
+
+def test_find_duplicate_pdf_returns_none_for_missing_base_dir(
+    src_pdf: Path, tmp_path: Path
+) -> None:
+    assert find_duplicate_pdf(src_pdf, str(tmp_path / "does-not-exist")) is None
+
+
+def test_find_duplicate_pdf_returns_none_when_no_match(
+    src_pdf: Path, tmp_path: Path
+) -> None:
+    dest_dir = tmp_path / "library"
+    dest_dir.mkdir()
+    (dest_dir / "other.pdf").write_bytes(b"completely different")
+    assert find_duplicate_pdf(src_pdf, str(dest_dir)) is None

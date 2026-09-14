@@ -505,20 +505,40 @@ class BibTuiApp(App):
             return
         self.push_screen(
             PdfImportReviewModal(
-                paths, self._existing_dois(), self._config.pdf_base_dir
+                paths, self._existing_entries_by_doi(), self._config.pdf_base_dir
             ),
             self._on_pdf_import_review_done,
         )
 
-    def _existing_dois(self) -> set[str]:
+    def _existing_entries_by_doi(self) -> dict[str, BibEntry]:
+        """Map normalized DOI to the matching entry already in the library.
+
+        Values are the live entry objects (not copies) so PDF-import can
+        link a PDF to an already-existing entry in place — see
+        ``_on_pdf_import_review_done`` and ``PdfImportReviewModal``.
+        """
         from bibtui.utils.doi import normalize_doi
 
-        return {normalize_doi(e.doi) for e in self._entries if e.doi.strip()}
+        return {normalize_doi(e.doi): e for e in self._entries if e.doi.strip()}
 
-    def _on_pdf_import_review_done(self, entries: list[BibEntry] | None) -> None:
-        if not entries:
+    def _on_pdf_import_review_done(self, result: dict | None) -> None:
+        if not result:
             return
-        self._finalize_imported_entries(entries)
+        new_entries = result.get("new") or []
+        relinked_entries = result.get("relinked") or []
+
+        if new_entries:
+            self._finalize_imported_entries(new_entries)
+
+        if relinked_entries:
+            self._dirty = True
+            el = self.query_one(EntryList)
+            el.refresh_entries(self._entries)
+            self.query_one(EntryDetail).show_entry(el.selected_entry)
+            noun = "entry" if len(relinked_entries) == 1 else "entries"
+            self.notify(
+                f"Linked PDF to {len(relinked_entries)} existing {noun}.", timeout=4
+            )
 
     def action_delete_entry(self) -> None:
         entry = self.query_one(EntryList).selected_entry

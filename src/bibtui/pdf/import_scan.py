@@ -29,6 +29,7 @@ _RETRY_DELAY_SECONDS = 0.3
 
 class ImportStatus(StrEnum):
     MATCHED = "matched"
+    LINK_EXISTING = "link_existing"
     ALREADY_PRESENT = "already_present"
     AMBIGUOUS = "ambiguous"
     NO_IDENTIFIER = "no_identifier"
@@ -53,13 +54,20 @@ def _candidate_doi(result) -> str | None:
     return None
 
 
-def process_pdf(path: str, seen_dois: set[str]) -> ImportRow:
+def process_pdf(
+    path: str,
+    existing_by_doi: dict[str, BibEntry],
+    seen_in_batch: set[str],
+) -> ImportRow:
     """Identify and fetch metadata for the PDF at *path*.
 
-    *seen_dois* holds normalized DOIs already in the library; on a
-    ``MATCHED`` result the caller is expected to add the new entry's
-    normalized DOI to it before processing the next file, so duplicate
-    PDFs within one batch are also caught.
+    *existing_by_doi* maps normalized DOI to the matching entry already in
+    the open library (same object references — a ``LINK_EXISTING`` result
+    hands one of these back to be linked in place, not copied). *seen_in_batch*
+    holds normalized DOIs already resolved earlier in this same scan; the
+    caller is expected to add a ``MATCHED``/``LINK_EXISTING`` result's
+    normalized DOI to it before processing the next file, so duplicate PDFs
+    within one selection are also caught.
     """
     filename = os.path.basename(path)
 
@@ -85,12 +93,32 @@ def process_pdf(path: str, seen_dois: set[str]) -> ImportRow:
             return ImportRow(path, filename, ImportStatus.NO_IDENTIFIER, message=message)
 
         normalized = normalize_doi(doi)
-        if normalized in seen_dois:
+        if normalized in seen_in_batch:
             return ImportRow(
                 path,
                 filename,
                 ImportStatus.ALREADY_PRESENT,
-                message=f"Already in library ({doi}).",
+                message=f"Duplicate of another PDF in this import ({doi}).",
+            )
+
+        existing_entry = existing_by_doi.get(normalized)
+        if existing_entry is not None:
+            if (existing_entry.file or "").strip():
+                return ImportRow(
+                    path,
+                    filename,
+                    ImportStatus.ALREADY_PRESENT,
+                    message=f"Already in library with a PDF linked ({doi}).",
+                )
+            return ImportRow(
+                path,
+                filename,
+                ImportStatus.LINK_EXISTING,
+                entry=existing_entry,
+                message=(
+                    f"Matches existing entry '{existing_entry.key}' "
+                    "(no PDF linked yet)."
+                ),
             )
 
         last_error = ""

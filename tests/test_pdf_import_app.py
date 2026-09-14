@@ -58,18 +58,22 @@ def _wire_dummies(app, monkeypatch, dummy_list=None, dummy_detail=None):
 
 
 # ---------------------------------------------------------------------------
-# _existing_dois
+# _existing_entries_by_doi
 # ---------------------------------------------------------------------------
 
 
-def test_existing_dois_normalizes_and_skips_empty() -> None:
+def test_existing_entries_by_doi_normalizes_and_skips_empty() -> None:
     app = BibTuiApp("tests/bib_examples/MyCollection.bib")
-    app._entries = [
-        BibEntry(key="a", entry_type="article", doi="https://doi.org/10.1000/TEST"),
-        BibEntry(key="b", entry_type="article", doi=""),
-        BibEntry(key="c", entry_type="article", doi="10.2000/other"),
-    ]
-    assert app._existing_dois() == {"10.1000/test", "10.2000/other"}
+    e_a = BibEntry(key="a", entry_type="article", doi="https://doi.org/10.1000/TEST")
+    e_b = BibEntry(key="b", entry_type="article", doi="")
+    e_c = BibEntry(key="c", entry_type="article", doi="10.2000/other")
+    app._entries = [e_a, e_b, e_c]
+
+    result = app._existing_entries_by_doi()
+
+    assert result == {"10.1000/test": e_a, "10.2000/other": e_c}
+    # Same objects, not copies — PDF import mutates them in place to link.
+    assert result["10.1000/test"] is e_a
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +121,8 @@ def test_on_pdf_import_picked_pushes_review_with_selected_paths(
 ) -> None:
     app = BibTuiApp("tests/bib_examples/MyCollection.bib")
     app._config = Config(pdf_base_dir=str(tmp_path))
-    app._entries = []
+    existing = BibEntry(key="Existing2020", entry_type="article", doi="10.9/x")
+    app._entries = [existing]
     pushed = []
     monkeypatch.setattr(
         app, "push_screen", lambda screen, callback=None: pushed.append(screen)
@@ -132,6 +137,7 @@ def test_on_pdf_import_picked_pushes_review_with_selected_paths(
 
     assert len(pushed) == 1
     assert pushed[0]._paths == [str(pdf1), str(pdf2)]
+    assert pushed[0]._existing_by_doi == {"10.9/x": existing}
 
 
 def test_on_pdf_import_picked_empty_list_does_not_push(monkeypatch) -> None:
@@ -152,6 +158,78 @@ def test_on_pdf_import_picked_none_result_does_nothing(monkeypatch) -> None:
     app._on_pdf_import_picked(None)
 
     assert pushed == []
+
+
+# ---------------------------------------------------------------------------
+# _on_pdf_import_review_done
+# ---------------------------------------------------------------------------
+
+
+def test_on_pdf_import_review_done_appends_new_entries(monkeypatch) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app._entries = []
+    app._dirty = False
+    dummy_list, _dummy_detail, notifications = _wire_dummies(app, monkeypatch)
+
+    new_entry = BibEntry(key="New2024", entry_type="article", doi="10.1/n")
+    app._on_pdf_import_review_done({"new": [new_entry], "relinked": []})
+
+    assert app._entries == [new_entry]
+    assert dummy_list.refresh_calls == 1
+    assert any("Imported 1 entry" in msg for msg, _sev in notifications)
+
+
+def test_on_pdf_import_review_done_relinks_existing_entry_without_appending(
+    monkeypatch,
+) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    existing = BibEntry(key="Old2020", entry_type="article", doi="10.1/o")
+    app._entries = [existing]
+    app._dirty = False
+    dummy_list, dummy_detail, notifications = _wire_dummies(
+        app, monkeypatch, dummy_list=DummyList(selected=existing)
+    )
+
+    # The review modal mutates the same object in place before calling back.
+    existing.file = ":Old2020.pdf:PDF"
+    app._on_pdf_import_review_done({"new": [], "relinked": [existing]})
+
+    assert app._entries == [existing]  # not duplicated
+    assert app._dirty is True
+    assert dummy_list.refresh_calls == 1
+    assert dummy_detail.shown is existing
+    assert any("Linked PDF to 1 existing entry" in msg for msg, _sev in notifications)
+
+
+def test_on_pdf_import_review_done_handles_both_new_and_relinked(monkeypatch) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    existing = BibEntry(key="Old2020", entry_type="article", doi="10.1/o")
+    app._entries = [existing]
+    app._dirty = False
+    dummy_list, _dummy_detail, notifications = _wire_dummies(app, monkeypatch)
+
+    new_entry = BibEntry(key="New2024", entry_type="article", doi="10.1/n")
+    existing.file = ":Old2020.pdf:PDF"
+    app._on_pdf_import_review_done({"new": [new_entry], "relinked": [existing]})
+
+    assert app._entries == [existing, new_entry]
+    assert dummy_list.refresh_calls == 2  # one per branch — both ran
+    assert any("Imported 1 entry" in msg for msg, _sev in notifications)
+    assert any("Linked PDF to 1 existing entry" in msg for msg, _sev in notifications)
+
+
+def test_on_pdf_import_review_done_none_or_empty_does_nothing(monkeypatch) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app._entries = []
+    calls = []
+    monkeypatch.setattr(app, "query_one", lambda *a, **k: calls.append(a))
+
+    app._on_pdf_import_review_done(None)
+    app._on_pdf_import_review_done({})
+    app._on_pdf_import_review_done({"new": [], "relinked": []})
+
+    assert app._entries == []
+    assert calls == []
 
 
 # ---------------------------------------------------------------------------
