@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Consolidated the four ways to add an entry behind a single <kbd>n</kbd>** — "New" now opens a small chooser (fill out manually, import by DOI, import from PDF, paste BibTeX) instead of DOI import and PDF import each having their own top-level keybinding (previously <kbd>d</kbd> and <kbd>i</kbd>, now removed). Pasting BibTeX text is still auto-detected anywhere in the app, in addition to being an explicit chooser option.
+- **Consistent PDF-list keybindings** — every list of PDFs to pick from ("Add PDF", the "Import from PDF" file picker, and its review checklist) now uses the same keys: <kbd>Space</kbd> always previews the highlighted PDF, and <kbd>Enter</kbd>/<kbd>x</kbd> always choose it (add it, or toggle its checkbox). The "Import from PDF" picker's checklist previously toggled on Space with no preview at all; its review checklist gained a preview key for the first time.
 
 ## [1.0.1] - 2026-09-14
 

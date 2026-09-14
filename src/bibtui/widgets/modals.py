@@ -1850,7 +1850,7 @@ class AddPDFModal(_BaseModal["str | None"]):
             yield Input(placeholder="type to filter…", id="add-filter")
             yield ListView(id="add-list")
             yield Static(
-                "[dim]↓/↑ navigate · Space preview [/dim]",
+                "[dim]↓/↑ navigate · Space preview · Enter/x add[/dim]",
                 id="add-preview-hint",
             )
             yield Static("", id="add-error")
@@ -1908,7 +1908,8 @@ class AddPDFModal(_BaseModal["str | None"]):
         self._refresh_list()
 
     def on_key(self, event: events.Key) -> None:
-        """Down in the Input moves focus to the list; Up from the first item returns focus."""
+        """Down in the Input moves focus to the list; Up from the first item
+        returns focus; Space previews, `x` adds (same as Enter)."""
         lv = self.query_one(ListView)
         inp = self.query_one("#add-filter", Input)
         if self.focused is inp and event.key == "down" and self._filtered:
@@ -1919,6 +1920,9 @@ class AddPDFModal(_BaseModal["str | None"]):
             event.stop()
         elif self.focused is lv and event.key == "space":
             self._preview_selected()
+            event.stop()
+        elif self.focused is lv and event.key == "x":
+            self._confirm()
             event.stop()
 
     def _preview_selected(self) -> None:
@@ -2272,12 +2276,32 @@ class BatchFetchPDFModal(_BaseModal["dict | None"]):
         self.query_one("#btn-cancel", Button).disabled = True
 
 
+class PdfSelectionList(SelectionList):
+    """A SelectionList for picking PDFs: Space previews the highlighted PDF
+    (delegated to the screen's ``_preview_highlighted``) instead of toggling
+    it; Enter and `x` toggle it instead. Keeps every PDF checklist in the app
+    consistent with :class:`AddPDFModal`'s Space-previews convention, and
+    with each other — plain ``SelectionList`` still toggles on Space.
+    """
+
+    BINDINGS = [
+        Binding("space", "preview", "Preview", show=False),
+        Binding("x", "select", "Toggle", show=False),
+    ]
+
+    def action_preview(self) -> None:
+        preview = getattr(self.screen, "_preview_highlighted", None)
+        if callable(preview):
+            preview()
+
+
 class PdfImportPickerModal(_BaseModal["list[str] | None"]):
     """Pick one or more existing PDFs to import, filtered by name.
 
     Same browsing model as :class:`AddPDFModal` (list the configured download
-    directory, filter by typing, ``Space``/``Enter`` act on the highlighted
-    row) but as a checklist so several files can be picked at once, since
+    directory, filter by typing, ``Space`` previews the highlighted row) but
+    as a checklist — ``Enter``/``x`` toggle a row instead of choosing it
+    outright — so several files can be picked at once, since
     there's no single entry to attach them to yet — that happens per-file in
     the review step after metadata is fetched. Submitting an existing
     directory path in the filter re-points the listing at that folder
@@ -2332,9 +2356,9 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
                 placeholder="type to filter, or paste a file/folder path…",
                 id="pip-filter",
             )
-            yield SelectionList(id="pip-list")
+            yield PdfSelectionList(id="pip-list")
             yield Static(
-                "[dim]↓/↑ navigate · Space/Enter toggle · o preview[/dim]",
+                "[dim]↓/↑ navigate · Space preview · Enter/x toggle[/dim]",
                 id="pip-nav-hint",
             )
             yield Static("", id="pip-error")
@@ -2405,7 +2429,7 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
 
     def on_key(self, event: events.Key) -> None:
         """Down in the Input moves focus to the list; Up from the first item
-        returns focus; `o` on the list previews the highlighted PDF."""
+        returns focus."""
         sl = self.query_one(SelectionList)
         inp = self.query_one("#pip-filter", Input)
         if self.focused is inp and event.key == "down" and self._filtered:
@@ -2413,9 +2437,6 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
             event.stop()
         elif self.focused is sl and event.key == "up" and (sl.highlighted or 0) == 0:
             inp.focus()
-            event.stop()
-        elif self.focused is sl and event.key == "o":
-            self._preview_highlighted()
             event.stop()
 
     def _preview_highlighted(self) -> None:
@@ -2499,6 +2520,9 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
     :class:`PdfImportPickerModal`. Dismisses with ``{"new": [...], "relinked":
     [...]}`` (new entries to append vs. existing entries that got a PDF
     linked in place) or ``None`` if canceled or nothing was importable.
+
+    Space previews the highlighted row's source PDF; Enter/x toggle it —
+    same convention as :class:`PdfImportPickerModal`.
     """
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
@@ -2518,6 +2542,11 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
     PdfImportReviewModal SelectionList {
         height: 1fr;
         border: solid $panel;
+        margin-top: 1;
+    }
+    PdfImportReviewModal #import-nav-hint {
+        color: $text-muted;
+        height: auto;
         margin-top: 1;
     }
     PdfImportReviewModal #import-skipped {
@@ -2562,7 +2591,11 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
             )
             yield LoadingIndicator(id="import-loading")
             yield Static("Preparing…", id="import-progress")
-            yield SelectionList(id="import-matched-list")
+            yield PdfSelectionList(id="import-matched-list")
+            yield Static(
+                "[dim]↓/↑ navigate · Space preview · Enter/x toggle[/dim]",
+                id="import-nav-hint",
+            )
             yield Static("", id="import-skipped")
             with Horizontal(classes="modal-buttons"):
                 yield Button(
@@ -2650,6 +2683,18 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
             for row in rows:
                 lines.append(f"  {row.filename} — {row.message}")
         return "\n".join(lines)
+
+    def _preview_highlighted(self) -> None:
+        sl = self.query_one(SelectionList)
+        idx = sl.highlighted
+        if idx is None:
+            return
+        row_index = sl.get_option_at_index(idx).value
+        row = self._rows[row_index]
+        try:
+            open_with_default_app(row.path)
+        except Exception as e:
+            self.app.notify(f"Could not open: {e}", severity="error", timeout=5)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":

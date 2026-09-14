@@ -66,13 +66,59 @@ async def test_toggling_and_confirming_dismisses_with_selected_paths(tmp_path) -
         sl.focus()
         sl.highlighted = 0
         await pilot.pause()
-        await pilot.press("space")
+        await pilot.press("x")
         await pilot.pause()
 
         modal._confirm()
         await pilot.pause()
 
         assert result["paths"] == [str(modal._filtered[0])]
+
+
+async def test_enter_also_toggles_selection(tmp_path) -> None:
+    (tmp_path / "a.pdf").write_bytes(b"fake")
+
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        modal, result = await _open_modal(app, pilot, str(tmp_path))
+
+        sl = modal.query_one(SelectionList)
+        sl.focus()
+        sl.highlighted = 0
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        modal._confirm()
+        await pilot.pause()
+
+        assert result["paths"] == [str(modal._filtered[0])]
+
+
+async def test_space_previews_instead_of_toggling(tmp_path, monkeypatch) -> None:
+    (tmp_path / "a.pdf").write_bytes(b"fake")
+
+    previewed: list[str] = []
+    monkeypatch.setattr(
+        "bibtui.widgets.modals.open_with_default_app",
+        lambda path: previewed.append(path),
+    )
+
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        modal, _ = await _open_modal(app, pilot, str(tmp_path))
+
+        sl = modal.query_one(SelectionList)
+        sl.focus()
+        sl.highlighted = 0
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.pause()
+
+        assert previewed == [str(modal._filtered[0])]
+        assert not sl.selected  # Space did not toggle the checkbox
 
 
 async def test_filter_narrows_list_and_preserves_selection(tmp_path) -> None:
@@ -89,7 +135,7 @@ async def test_filter_narrows_list_and_preserves_selection(tmp_path) -> None:
         sl = modal.query_one(SelectionList)
         sl.focus()
         sl.highlighted = 0
-        await pilot.press("space")
+        await pilot.press("x")
         await pilot.pause()
         selected_path = str(modal._filtered[0])
 
