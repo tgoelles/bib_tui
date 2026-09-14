@@ -1,5 +1,7 @@
 """Tests for the `n` New Entry chooser and its routing in bibtui.app."""
 
+import pytest
+
 from bibtui.app import BibTuiApp
 from bibtui.widgets.modals import NewEntryChooserModal, NewEntryModal
 
@@ -66,3 +68,49 @@ def test_choice_none_does_nothing(monkeypatch) -> None:
     app._on_new_entry_choice(None)
 
     assert pushed == []
+
+
+# ---------------------------------------------------------------------------
+# In-modal keybindings: mnemonic letters and the original digits both work
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "key, expected",
+    [
+        ("1", "blank"),
+        ("m", "blank"),
+        ("2", "doi"),
+        ("d", "doi"),
+        ("3", "pdf"),
+        ("p", "pdf"),
+        ("4", "paste"),
+        ("b", "paste"),
+    ],
+)
+async def test_chooser_key_dismisses_with_expected_choice(key, expected) -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        result: dict = {}
+        app.push_screen(NewEntryChooserModal(), lambda r: result.__setitem__("v", r))
+        await pilot.pause()
+
+        await pilot.press(key)
+        await pilot.pause()
+
+        assert result["v"] == expected
+
+
+async def test_chooser_escape_cancels() -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        result: dict = {"v": "unset"}
+        app.push_screen(NewEntryChooserModal(), lambda r: result.__setitem__("v", r))
+        await pilot.pause()
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert result["v"] is None

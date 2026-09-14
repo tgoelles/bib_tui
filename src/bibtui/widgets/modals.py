@@ -254,26 +254,23 @@ class NewEntryChooserModal(_BaseModal["str | None"]):
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel", show=True),
-        Binding("1", "choose('blank')", show=False),
-        Binding("2", "choose('doi')", show=False),
-        Binding("3", "choose('pdf')", show=False),
-        Binding("4", "choose('paste')", show=False),
+        Binding("1,m", "choose('blank')", show=False),
+        Binding("2,d", "choose('doi')", show=False),
+        Binding("3,p", "choose('pdf')", show=False),
+        Binding("4,b", "choose('paste')", show=False),
     ]
 
-    _OPTIONS: list[tuple[str, str, str]] = [
-        ("blank", "Fill out manually", "Pick an entry type, fill in the fields"),
-        ("doi", "Import by DOI", "Paste a DOI, fetch its metadata online"),
-        (
-            "pdf",
-            "Import from PDF",
-            "Pick one or more PDFs — finds the DOI, fetches metadata",
-        ),
-        ("paste", "Paste BibTeX", "Paste a raw BibTeX entry"),
+    # (result key, mnemonic letter, title, short description)
+    _OPTIONS: list[tuple[str, str, str, str]] = [
+        ("blank", "m", "Fill out manually", "Pick a type, fill in fields"),
+        ("doi", "d", "Import by DOI", "Fetch metadata from a DOI"),
+        ("pdf", "p", "Import from PDF", "Fetch metadata from PDF files"),
+        ("paste", "b", "Paste BibTeX", "Paste a raw BibTeX entry"),
     ]
 
     DEFAULT_CSS = """
     NewEntryChooserModal > Vertical {
-        width: 62;
+        width: 68;
     }
     NewEntryChooserModal ListView {
         height: auto;
@@ -288,8 +285,10 @@ class NewEntryChooserModal(_BaseModal["str | None"]):
         with Vertical():
             yield Label("[bold]New Entry[/bold]", classes="modal-title")
             with ListView(id="chooser-list"):
-                for _key, title, desc in self._OPTIONS:
-                    yield ListItem(Label(f"{title}  [dim]— {desc}[/dim]"))
+                for _key, letter, title, desc in self._OPTIONS:
+                    yield ListItem(
+                        Label(f"[bold]{letter}[/bold] · {title}  [dim]— {desc}[/dim]")
+                    )
             with Horizontal(classes="modal-buttons"):
                 yield Button("Cancel", id="btn-cancel")
 
@@ -1473,11 +1472,11 @@ _HELP_SECTIONS = [
         "Add new entry",
         [
             ("n", "New entry — choose how:"),
-            (None, "Fill out manually — pick a type, fill in the fields"),
-            (None, "Import by DOI — fetches metadata online"),
-            (None, "Import from PDF — pick one or more PDFs, finds a"),
-            (None, "  DOI/arXiv id, reviewed in a checklist before writing"),
-            (None, "Paste BibTeX — from clipboard"),
+            (None, "  m  Fill out manually — pick a type, fill in the fields"),
+            (None, "  d  Import by DOI — fetches metadata online"),
+            (None, "  p  Import from PDF — finds a DOI/arXiv id, reports the"),
+            (None, "     outcome per file before writing anything"),
+            (None, "  b  Paste BibTeX — from clipboard"),
             (None, "All methods reject duplicate cite keys."),
             ("ctrl+v", "Also auto-detects a pasted BibTeX entry anywhere"),
         ],
