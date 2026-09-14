@@ -16,7 +16,7 @@ from textual.command import DiscoveryHit, Hit, Hits, Provider
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Input, TextArea
 
-from bibtui import __version__
+from bibtui import DOCS_URL, __version__
 from bibtui.bib import parser
 from bibtui.bib.citekeys import (
     author_year_base,
@@ -150,6 +150,7 @@ class BibTuiApp(App):
         Binding("space", "open_pdf", "␣ Show PDF"),
         Binding("q", "quit", "Quit"),
         Binding("w", "save", "Write"),
+        Binding("d", "open_docs", "Docs"),
         Binding("?", "show_help", "Help"),
         # Hidden from the footer (still active — see the `?` help screen)
         Binding("m", "toggle_table_maximize", "Max table", show=False),
@@ -1366,6 +1367,10 @@ class BibTuiApp(App):
 
     def action_show_help(self) -> None:
         self.push_screen(HelpModal())
+
+    def action_open_docs(self) -> None:
+        webbrowser.open(DOCS_URL)
+        self.notify("Opening online documentation", timeout=3)
 
     def _copy_text(self, text: str, label: str) -> None:
         """Copy *text* to the clipboard and notify with *label*.

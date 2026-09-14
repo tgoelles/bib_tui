@@ -17,6 +17,7 @@ their own keys in the footer.
 | <kbd>v</kbd>   | Toggle field form / raw BibTeX view          |
 | <kbd>m</kbd>   | Maximize / restore the table pane            |
 | <kbd>&lt;</kbd> / <kbd>&gt;</kbd> | Grow / shrink the detail pane (5% steps, saved to config) |
+| <kbd>d</kbd>   | Open the online documentation in your browser |
 | <kbd>?</kbd>   | Show help                                     |
 
 ## Adding & removing entries

@@ -29,6 +29,7 @@ from textual.widgets import (
 from textual.widgets._selection_list import Selection
 from textual.widgets.option_list import Option
 
+from bibtui import DOCS_URL
 from bibtui.bib.citation_preview import available_csl_styles, default_csl_style_key
 from bibtui.bib.citekeys import author_year_base
 from bibtui.bib.models import COMMON_FIELDS, ENTRY_TYPES, BibEntry
@@ -1545,6 +1546,7 @@ _HELP_SECTIONS = [
         "Other",
         [
             ("?", "Show this help"),
+            ("d", "Open the online documentation in your browser"),
             ("ctrl+p / ⌘p", "Command palette (Settings + Library actions)"),
             ("maximize", "(palette) maximize focused pane"),
             ("Esc", "Clear search / close modal"),
@@ -1618,7 +1620,7 @@ class HelpModal(_BaseModal[None]):
         return (
             f"[bold]bibtui[/bold] v{version}  —  BibTeX TUI\n"
             "[dim]Author:[/dim] Thomas Gölles\n"
-            "[dim]Docs:[/dim] https://tgoelles.github.io/bib_tui/\n"
+            f"[dim]Docs:[/dim] {DOCS_URL}  [dim](press d to open)[/dim]\n"
             "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui"
         )
 

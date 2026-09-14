@@ -13,12 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - If the DOI already matches an entry in the library, no duplicate entry is created; if that entry has no PDF linked yet, this PDF gets linked to it (✓) instead of being silently skipped — including duplicate PDFs within the same selection.
   - If the exact same PDF (by content, not filename) is already sitting in the configured PDF folder under any name — including the entry already being linked to it — it's reused instead of being copied in again; matched PDFs are otherwise moved into the PDF folder and linked, the same as "Add PDF".
   - Files with no extractable text, or where CrossRef can't be reached, are reported per-file and never block the rest of the batch.
+- **Open the online documentation** — press <kbd>d</kbd> (shown in the footer, next to <kbd>?</kbd> Help) to open the docs site in your default browser. Also linked from the `?` help screen's about section.
 
 ### Changed
 
 - **Consolidated the four ways to add an entry behind a single <kbd>n</kbd>** — "New" now opens a small chooser instead of DOI import and PDF import each having their own top-level keybinding (previously <kbd>d</kbd> and <kbd>i</kbd>, now removed). Pick a way with <kbd>m</kbd> fill out manually, <kbd>d</kbd> import by DOI, <kbd>p</kbd> import from PDF, or <kbd>b</kbd> paste BibTeX (the original <kbd>1</kbd>–<kbd>4</kbd> also still work). Pasting BibTeX text is still auto-detected anywhere in the app too, in addition to being an explicit chooser option.
 - **Consistent PDF-list keybindings** — every list of PDFs to pick from now previews the highlighted one on <kbd>Space</kbd>, matching "Add PDF"'s existing convention: the "Import from PDF" file picker and "Add PDF" also both choose the highlighted PDF on <kbd>Enter</kbd>/<kbd>x</kbd> (the review screen's report list has nothing to choose — it's Space-to-preview only, with one "Import N Entries" action for everything that matched).
-- **Trimmed and reordered the footer** — it now shows, left to right: New, Edit, Keywords, State, Prio, Rating (<kbd>0</kbd>–<kbd>5</kbd>, grouped under one "Rating" label), Search, <kbd>Space</kbd> Show PDF, Quit, Write, Help, with the command palette hint still docked on the right. Max table, View, Browser, OpenAlex, Fetch PDF, and Add PDF are no longer shown in the footer — all still work exactly as before and remain listed in the <kbd>?</kbd> help screen.
+- **Trimmed and reordered the footer** — it now shows, left to right: New, Edit, Keywords, State, Prio, Rating (<kbd>0</kbd>–<kbd>5</kbd>, grouped under one "Rating" label), Search, <kbd>Space</kbd> Show PDF, Quit, Write, Docs, Help, with the command palette hint still docked on the right. Max table, View, Browser, OpenAlex, Fetch PDF, and Add PDF are no longer shown in the footer — all still work exactly as before and remain listed in the <kbd>?</kbd> help screen.
 
 ## [1.0.1] - 2026-09-14
 
