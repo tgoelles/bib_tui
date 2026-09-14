@@ -15,7 +15,7 @@ class _Recorder:
         self.exc = exc
         self.calls: list[tuple[list[str], bytes]] = []
 
-    def __call__(self, argv, *, input, check, capture_output, timeout):  # noqa: A002
+    def __call__(self, argv, *, input, check, stdout, stderr, timeout):  # noqa: A002
         self.calls.append((argv, input))
         if self.exc is not None and argv[0] in self.fail_on:
             raise self.exc
@@ -157,6 +157,36 @@ def test_swallows_timeout_expired(monkeypatch, on_platform) -> None:
     monkeypatch.setattr(clipboard.subprocess, "run", rec)
 
     assert clipboard.copy_to_os_clipboard("x") is False
+
+
+# ---------------------------------------------------------------------------
+# Regression: wl-copy hang (#capture_output forces a 5s timeout)
+# ---------------------------------------------------------------------------
+
+
+def test_does_not_capture_output(monkeypatch, on_platform) -> None:
+    """wl-copy forks a background process to keep serving the clipboard
+    (Wayland has no clipboard manager of its own); that background process
+    inherits captured pipes without closing them, so subprocess.run with
+    capture_output=True blocks reading for EOF until the full timeout
+    elapses even though wl-copy itself already succeeded instantly. Output
+    must be discarded (stdout=DEVNULL, stderr=DEVNULL), not captured, or
+    every copy silently costs a multi-second freeze."""
+    on_platform("linux")
+    _all_present(monkeypatch)
+    captured_kwargs: dict = {}
+
+    def _run(argv, **kwargs):
+        captured_kwargs.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+    monkeypatch.setattr(clipboard.subprocess, "run", _run)
+
+    clipboard.copy_to_os_clipboard("x")
+
+    assert captured_kwargs.get("capture_output") is None
+    assert captured_kwargs["stdout"] == subprocess.DEVNULL
+    assert captured_kwargs["stderr"] == subprocess.DEVNULL
 
 
 # ---------------------------------------------------------------------------

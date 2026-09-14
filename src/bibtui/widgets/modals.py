@@ -36,6 +36,7 @@ from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bibtui.bib.validate import validate_entry
 from bibtui.utils.config import Config
 from bibtui.utils.dates import DATE_ADDED_KEYS
+from bibtui.utils.keymap import SAVE
 from bibtui.utils.opener import open_with_default_app
 from bibtui.widgets.columns import DEFAULT_TABLE_COLUMNS, ColumnSpec
 
@@ -282,7 +283,7 @@ class _EntryFormModal(_BaseModal[BibEntry | None]):
     """
 
     BINDINGS = [
-        Binding("ctrl+s", "save", "Write", show=True),
+        Binding(SAVE, "save", "Write", show=True),
         Binding("escape", "cancel", "Cancel", show=True),
     ]
 
@@ -882,7 +883,7 @@ class KeywordsModal(_BaseModal["tuple[str, set[str]] | None"]):
     """Keyword picker: select from all bib-wide keywords, add new ones."""
 
     BINDINGS = [
-        Binding("ctrl+s", "save", "Write", show=True),
+        Binding(SAVE, "save", "Write", show=True),
         Binding("escape", "cancel", "Cancel", show=True),
     ]
 
@@ -1041,7 +1042,7 @@ class SettingsModal(_BaseModal["Config | None"]):
     """Settings dialog — currently just the PDF base directory."""
 
     BINDINGS = [
-        Binding("ctrl+s", "save", "Write", show=True),
+        Binding(SAVE, "save", "Write", show=True),
         Binding("escape", "cancel", "Cancel", show=True),
     ]
 
@@ -1209,7 +1210,7 @@ class ColumnConfigModal(_BaseModal["list[str] | None"]):
     """
 
     BINDINGS = [
-        Binding("ctrl+s", "save", "Write", show=True),
+        Binding(SAVE, "save", "Write", show=True),
         Binding("escape", "cancel", "Cancel", show=True),
     ]
 
@@ -1380,6 +1381,25 @@ _HELP_SECTIONS = [
         ],
     ),
     (
+        "Copy",
+        [
+            ("ctrl+c / ⌘c", "Copy selected text (or cite key if none focused)"),
+            (None, "Copy uses the OS clipboard tool, falling back to OSC 52"),
+            (None, "Default copy variant for entries: cite key"),
+            ("Shift+c", "Copy formatted citation (current citation style)"),
+            (None, "Alternative copy variant: rendered citation text"),
+            (None, "Citation styles are loaded from ~/.config/bibtui/csl"),
+            (None, "Add more styles: github.com/citation-style-language/styles"),
+            ("ctrl+y", "Copy current BibTeX entry"),
+            (None, "Also: ctrl+shift+c / ⌘⇧c (terminal-dependent)"),
+            (
+                None,
+                "⌘ shortcuts need a Kitty-protocol terminal — see Keybindings "
+                "in the online docs for details",
+            ),
+        ],
+    ),
+    (
         "Add new entry",
         [
             ("n", "Create a new entry (pick type, fill fields, add custom)"),
@@ -1429,7 +1449,7 @@ _HELP_SECTIONS = [
     (
         "Library actions",
         [
-            ("ctrl+p", "Open command palette"),
+            ("ctrl+p / ⌘p", "Open command palette"),
             ("[bold]Table: Configure columns[/bold]",),
             (None, "Choose which columns show and their order; saved to config."),
             ("[bold]Library: Fetch missing PDFs[/bold]",),
@@ -1451,19 +1471,11 @@ _HELP_SECTIONS = [
     (
         "Other",
         [
-            ("ctrl+c", "Copy selected text (or cite key if none focused)"),
-            (None, "Default copy variant for entries: cite key"),
-            ("Shift+c", "Copy formatted citation (current citation style)"),
-            (None, "Alternative copy variant: rendered citation text"),
-            ("ctrl+shift+c / ctrl+y", "Copy current BibTeX entry"),
-            (None, "Citation styles are loaded from ~/.config/bibtui/csl"),
-            (None, "Add more styles: github.com/citation-style-language/styles"),
             ("?", "Show this help"),
-            ("ctrl+p", "Command palette (Settings + Library actions)"),
+            ("ctrl+p / ⌘p", "Command palette (Settings + Library actions)"),
             ("maximize", "(palette) maximize focused pane"),
             ("Esc", "Clear search / close modal"),
-            (None, "Copy uses the OS clipboard tool, falling back to OSC 52"),
-            (None, "In all modals: Ctrl+S = Write/Save, Esc = Cancel"),
+            (None, "In all modals: Ctrl+S / ⌘S = Write/Save, Esc = Cancel"),
         ],
     ),
     (
@@ -1582,7 +1594,7 @@ class RawEditModal(_BaseModal[BibEntry | None]):
     """Edit a BibTeX entry as raw text."""
 
     BINDINGS = [
-        Binding("ctrl+s", "save", "Write", show=True),
+        Binding(SAVE, "save", "Write", show=True),
         Binding("escape", "cancel", "Cancel", show=True),
     ]
 
@@ -1644,7 +1656,7 @@ class PasteModal(_BaseModal["BibEntry | None"]):
     """Modal to import a BibTeX entry from pasted clipboard text."""
 
     BINDINGS = [
-        Binding("ctrl+s", "do_import", "Import", show=True),
+        Binding(SAVE, "do_import", "Import", show=True),
         Binding("escape", "cancel", "Cancel", show=True),
     ]
 
@@ -1707,7 +1719,7 @@ class AddPDFModal(_BaseModal["str | None"]):
     """Pick an existing PDF from the download directory, filter by name, and link it."""
 
     BINDINGS = [
-        Binding("ctrl+s", "add", "Add", show=True),
+        Binding(SAVE, "add", "Add", show=True),
         Binding("escape", "cancel", "Cancel", show=True),
     ]
 

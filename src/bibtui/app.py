@@ -37,6 +37,7 @@ from bibtui.utils.config import (
     load_config,
     save_config,
 )
+from bibtui.utils.keymap import COMMAND_PALETTE, COPY_ENTRY, COPY_KEY
 from bibtui.utils.opener import open_with_default_app
 from bibtui.utils.theme import get_omarchy_theme
 from bibtui.widgets.columns import DEFAULT_TABLE_COLUMNS, available_columns
@@ -149,10 +150,10 @@ class BibTuiApp(App):
         Binding("4", "set_rating('4')", "★★★★", show=False),
         Binding("5", "set_rating('5')", "★★★★★", show=False),
         # Copy
-        Binding("ctrl+c", "copy_key", "Copy key", show=False, priority=True),
+        Binding(COPY_KEY, "copy_key", "Copy key", show=False, priority=True),
         Binding("C", "copy_citation", "Copy citation", show=False),
         Binding(
-            "ctrl+shift+c",
+            COPY_ENTRY,
             "copy_entry",
             "Copy BibTeX",
             show=False,
@@ -165,6 +166,19 @@ class BibTuiApp(App):
         # Help
         Binding("?", "show_help", "Help"),
         Binding("escape", "clear_search", "Clear search", show=False),
+        # Command palette — Textual binds ctrl+p by default (App.COMMAND_PALETTE_BINDING);
+        # this explicit binding replaces that default so the Cmd alias also works. Textual
+        # only auto-adds its own default when no binding with this action exists yet, and
+        # overriding COMMAND_PALETTE_BINDING itself doesn't work here — it's registered
+        # through a code path that doesn't split comma-separated keys.
+        Binding(
+            COMMAND_PALETTE,
+            "command_palette",
+            "palette",
+            show=False,
+            priority=True,
+            tooltip="Open the command palette",
+        ),
     ]
 
     def __init__(self, bib_path: str | None, **kwargs):

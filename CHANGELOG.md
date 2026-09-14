@@ -7,14 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Cmd (⌘) aliases for Ctrl shortcuts** — copy key/entry, save in every modal, and the command palette now also fire on <kbd>⌘</kbd> in terminals that forward Cmd as a distinct key (Kitty, WezTerm, Ghostty, iTerm2 with the Kitty keyboard protocol enabled). Ctrl is unchanged and still works everywhere, including macOS Terminal.app and stock iTerm2, where Cmd shortcuts never reach bibtui at all — the terminal keeps them for itself. The key strings are now defined once in `bibtui.utils.keymap` instead of being duplicated as literals at each binding.
+
 ### Fixed
 
 - **PDF detected in the table but "PDF Actions" still only showed Fetch/Add (macOS)** — the entry-detail panel's PDF status icon and its action buttons (Open/Copy/Delete vs. Fetch/Add) checked only the exact path stored in the `.bib` file's `file` field, unlike the table's status column and every other "is a PDF linked?" check in the app, which also fall back to a search by entry key when the stored path doesn't resolve. The two could disagree whenever the exact stored path failed to resolve but the PDF was still findable — most commonly on macOS, where a filename's accented characters can be written to disk in a different Unicode normal form (NFD) than the one stored in the `.bib` file (NFC). The detail panel now uses the same lookup as the table, and that shared lookup itself now tolerates NFC/NFD filename differences directly.
 - **"Open PDF" (and the Add-PDF preview) could silently fail on Windows** — both always ran `xdg-open` on any non-macOS platform, but `xdg-open` doesn't exist on Windows. Opening a PDF now uses `os.startfile` on Windows, `open` on macOS, and `xdg-open` on Linux, from one shared helper.
+- **Copying froze bibtui for ~5 seconds on Wayland** — every copy (cite key, BibTeX entry, citation, PDF path) shelled out to `wl-copy` with its output captured, but `wl-copy` forks a background process to keep serving the clipboard (Wayland has no clipboard manager of its own) and that process inherits the captured pipes without closing them, so the app blocked waiting for output it was never going to get until the 5-second timeout ran out — even though `wl-copy` itself had already succeeded instantly. Output is now discarded instead of captured, so copying is immediate again.
 
 ### Documentation
 
 - Clarified in the README and installation guide that bibtui is actively tested on Linux and macOS; Windows support is believed to work (pure Python + Textual, which supports Windows Terminal) but hasn't been tested yet.
+- **Corrected the help screen and keybindings doc for `Ctrl+Shift+C`** — they previously implied it always works like other Ctrl shortcuts. In practice it's the least reliable of the copy shortcuts, for two separate reasons: most terminal emulators claim `Ctrl+Shift+C` as their own built-in "copy" command and never forward it to bibtui at all (e.g. Kitty's default keymap binds it to `copy_to_clipboard` outright — unrelated to Kitty *keyboard protocol* support), and on terminals that don't claim it, it still can't be told apart from plain `Ctrl+C` at the byte level, so it falls back to "copy cite key" instead of "copy BibTeX entry". `Ctrl+Y` is the alias for "copy BibTeX entry" that's guaranteed to reach bibtui everywhere and is now listed first.
+- **Copying now has its own section in the in-app `?` help screen** — previously scattered inside the catch-all "Other" section, low in the list. All copy shortcuts (cite key, citation, BibTeX entry) are now grouped under a dedicated **Copy** section placed right after **Core**, reflecting how central the feature is. The terminal-compatibility caveats for `⌘` and `Ctrl+Shift+C` are trimmed to a one-line pointer to the online Keybindings doc instead of the full explanation, to keep the in-app screen scannable.
 
 ## [1.0.0] - 2026-09-09
 
