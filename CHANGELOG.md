@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **PDF detected in the table but "PDF Actions" still only showed Fetch/Add (macOS)** — the entry-detail panel's PDF status icon and its action buttons (Open/Copy/Delete vs. Fetch/Add) checked only the exact path stored in the `.bib` file's `file` field, unlike the table's status column and every other "is a PDF linked?" check in the app, which also fall back to a search by entry key when the stored path doesn't resolve. The two could disagree whenever the exact stored path failed to resolve but the PDF was still findable — most commonly on macOS, where a filename's accented characters can be written to disk in a different Unicode normal form (NFD) than the one stored in the `.bib` file (NFC). The detail panel now uses the same lookup as the table, and that shared lookup itself now tolerates NFC/NFD filename differences directly.
+- **"Open PDF" (and the Add-PDF preview) could silently fail on Windows** — both always ran `xdg-open` on any non-macOS platform, but `xdg-open` doesn't exist on Windows. Opening a PDF now uses `os.startfile` on Windows, `open` on macOS, and `xdg-open` on Linux, from one shared helper.
+
+### Documentation
+
+- Clarified in the README and installation guide that bibtui is actively tested on Linux and macOS; Windows support is believed to work (pure Python + Textual, which supports Windows Terminal) but hasn't been tested yet.
+
+## [1.0.0] - 2026-09-09
+
+First stable release. bibtui has been in daily use for months; the feature set,
+key bindings and on-disk config format are now considered stable and will follow
+semantic versioning from here on.
+
+### Added
+
+- **Adjustable list/detail split** — press <kbd>&lt;</kbd> / <kbd>&gt;</kbd> to grow or shrink the detail pane in 5% steps (between 20% and 80%). The chosen split is saved to `~/.config/bibtui/config.toml` (`[ui].detail_panel_percent`) and restored on the next start. The narrow-terminal vertical layout and the maximized table view (<kbd>m</kbd>) are unaffected. Contributed by Paul Emsley ([@pemsley](https://github.com/pemsley)) in [#52](https://github.com/tgoelles/bib_tui/pull/52).
+
+### Fixed
+
+- **Copy now works in macOS Terminal.app, iTerm2 and tmux** — every copy action (cite key, BibTeX entry, formatted citation, PDF path) previously relied only on an OSC 52 terminal escape, which macOS Terminal.app ignores entirely and iTerm2/tmux ignore unless clipboard access is explicitly enabled, so copying silently did nothing while still showing a "Copied" message. bibtui now also writes to the OS clipboard through the native tool (`pbcopy` on macOS, `wl-copy`/`xclip`/`xsel` on Linux, `clip` on Windows) and keeps emitting OSC 52 for SSH sessions and terminals without a CLI clipboard tool, so between them a copy lands in every common setup. The stale `Ctrl+Y` "terminal-safe fallback" help entry (it was a duplicate of `Ctrl+Shift+C`, not a fallback) has been corrected.
+
+### Changed
+
+- **Installation no longer needs `--prerelease=allow`** — `bibtexparser` 2.0.0 now has a stable release on PyPI, so `uv tool install bibtui`, `uvx bibtui` and `pip install bibtui` just work. The `--prerelease` / `--pre` flag is no longer required and the `prerelease = "allow"` workaround has been removed from `pyproject.toml`.
+
+## [0.18.0] - 2026-08-28
+
+### Changed
+
+- **Omarchy theming now targets Omarchy 4** — Omarchy 4 moved its live theme from `~/.config/omarchy` to `~/.local/state/omarchy/current` and replaced the old palette format, which stopped bibtui's automatic desktop theming from working. bibtui now reads the Omarchy 4 `theme.name` and `colors.toml` and builds a matching theme directly from that palette — background, accent, light/dark mode (from the `mode` key) and the list/detail/modal surface colours all follow your desktop, still updating live within about two seconds when you switch themes. The previous name-to-builtin mapping is gone, so every Omarchy theme (including custom ones) is matched by its actual colours rather than only the handful that shared a name with a Textual builtin. Manual theme switching from the command palette is unchanged, and **Theme: Reset to auto** still hands control back to Omarchy.
+
+### Removed
+
+- **Omarchy 3 support** — the pre-4 layout (`~/.config/omarchy`, the `color0`–`color15` palette and the `light.mode` marker file) is no longer detected. On Omarchy 3 bibtui falls back to its default theme; switch themes manually from the command palette.
+
 ## [0.17.0] - 2026-07-14
 
 ### Added
