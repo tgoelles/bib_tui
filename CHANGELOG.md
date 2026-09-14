@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Consistent PDF-list keybindings** — every list of PDFs to pick from now previews the highlighted one on <kbd>Space</kbd>, matching "Add PDF"'s existing convention: the "Import from PDF" file picker and "Add PDF" also both choose the highlighted PDF on <kbd>Enter</kbd>/<kbd>x</kbd> (the review screen's report list has nothing to choose — it's Space-to-preview only, with one "Import N Entries" action for everything that matched).
 - **Trimmed and reordered the footer** — it now shows, left to right: New, Edit, Keywords, State, Prio, Rating (<kbd>0</kbd>–<kbd>5</kbd>, grouped under one "Rating" label), Search, <kbd>Space</kbd> Show PDF, Quit, Write, Docs, Help, with the command palette hint still docked on the right. Max table, View, Browser, OpenAlex, Fetch PDF, and Add PDF are no longer shown in the footer — all still work exactly as before and remain listed in the <kbd>?</kbd> help screen.
 
+### Fixed
+
+- **Auto-fetch failure after adding an entry read as if nothing had happened** — when "Auto-fetch PDF after import" is on (Settings) and the fetch fails right after a new entry is added (by DOI, PDF, `.bib` file, or paste), the failure screen said only "Could not fetch PDF for this entry." with the reasons, with no mention that the entry itself had already been saved successfully. It now leads with "Added '\<key>', but its PDF could not be fetched." before the same reasons, so it's clear the entry is safely in the library and only the PDF needs fetching by hand (<kbd>f</kbd>). Fetching a PDF for an existing entry (<kbd>f</kbd>, or via "Library: Fetch missing PDFs") is unaffected — it still reads "Could not fetch PDF for this entry.", since nothing was just added there.
+
 ## [1.0.1] - 2026-09-14
 
 ### Added

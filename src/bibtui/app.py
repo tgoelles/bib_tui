@@ -763,7 +763,7 @@ class BibTuiApp(App):
             return
         if not self._config.pdf_base_dir:
             return
-        self._do_fetch_pdf(entry, True)
+        self._do_fetch_pdf(entry, True, just_created=True)
 
     def action_open_url(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -839,7 +839,9 @@ class BibTuiApp(App):
         else:
             self._do_fetch_pdf(entry, True)
 
-    def _do_fetch_pdf(self, entry: BibEntry, confirmed: bool | None) -> None:
+    def _do_fetch_pdf(
+        self, entry: BibEntry, confirmed: bool | None, just_created: bool = False
+    ) -> None:
         if not confirmed:
             return
         self.push_screen(
@@ -849,6 +851,7 @@ class BibTuiApp(App):
                 self._config.unpaywall_email,
                 self._config.openalex_api_key,
                 overwrite=True,
+                just_created=just_created,
             ),
             self._on_fetch_pdf_done,
         )

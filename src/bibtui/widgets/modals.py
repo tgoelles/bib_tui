@@ -2026,6 +2026,7 @@ class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
         unpaywall_email: str = "",
         openalex_api_key: str = "",
         overwrite: bool = False,
+        just_created: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -2034,6 +2035,11 @@ class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
         self._email = unpaywall_email
         self._openalex_api_key = openalex_api_key
         self._overwrite = overwrite
+        # True when this fetch is the automatic one right after the entry
+        # was just added (see BibTuiApp._maybe_auto_fetch) — on failure the
+        # entry itself is still there, only the PDF is missing, so say so
+        # instead of a bare "could not fetch" that reads like nothing happened.
+        self._just_created = just_created
         self._saved_result: tuple[str, str] | None = None
 
     def compose(self) -> ComposeResult:
@@ -2088,7 +2094,11 @@ class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
         self.query_one("#btn-close", Button).disabled = False
 
     def _format_fetch_error(self, message: str) -> str:
-        title = "Could not fetch PDF for this entry."
+        title = (
+            f"Added '{self._entry.key}', but its PDF could not be fetched."
+            if self._just_created
+            else "Could not fetch PDF for this entry."
+        )
         lines = [line.strip() for line in message.splitlines() if line.strip()]
         if not lines:
             return title
