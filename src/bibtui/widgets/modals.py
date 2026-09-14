@@ -2506,23 +2506,23 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
 
 
 class PdfImportReviewModal(_BaseModal["dict | None"]):
-    """Scan PDFs for an identifier, fetch metadata, and let the user confirm.
+    """Scan PDFs for an identifier, fetch metadata, and report the outcome.
 
     Scanning (offline extraction + CrossRef lookups, one file at a time)
-    runs in a background thread. Once it finishes, the checklist shows two
-    kinds of checkable rows, both pre-checked: files that matched a DOI with
-    no existing entry (a new entry will be created) and files that matched
-    an existing entry which has no PDF linked yet (that PDF will be linked
-    to it, no new entry created). Files with no match, an ambiguous result,
-    a failed lookup, or that already have a linked PDF are listed read-only
-    below with the reason. Nothing is written until "Import Selected" is
-    pressed — whether one PDF was picked or several, from
-    :class:`PdfImportPickerModal`. Dismisses with ``{"new": [...], "relinked":
-    [...]}`` (new entries to append vs. existing entries that got a PDF
-    linked in place) or ``None`` if canceled or nothing was importable.
-
-    Space previews the highlighted row's source PDF; Enter/x toggle it —
-    same convention as :class:`PdfImportPickerModal`.
+    runs in a background thread. Once it finishes, every file is listed —
+    which PDF to try was already decided in :class:`PdfImportPickerModal`,
+    so this isn't a second yes/no per file — with a ✓/✗ mark: matched files
+    (a new entry will be created) and files that matched an existing entry
+    with no PDF yet (that PDF will be linked to it, no new entry created)
+    are ✓; anything ambiguous, unidentified, already present, or that failed
+    to look up is ✗ with the reason (an ambiguous row's candidate DOIs are
+    included, so you can copy one out and use "Import by DOI" yourself if
+    the right one isn't obvious). Space previews the highlighted row's
+    source PDF, success or failure. Nothing is written until "Import N
+    Entries" is pressed — one action for every ✓ row at once, no per-file
+    toggle. Dismisses with ``{"new": [...], "relinked": [...]}`` (new
+    entries to append vs. existing entries that got a PDF linked in place)
+    or ``None`` if canceled or nothing was importable.
     """
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
@@ -2539,7 +2539,7 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
         margin-top: 1;
         color: $text;
     }
-    PdfImportReviewModal SelectionList {
+    PdfImportReviewModal OptionList {
         height: 1fr;
         border: solid $panel;
         margin-top: 1;
@@ -2548,15 +2548,6 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
         color: $text-muted;
         height: auto;
         margin-top: 1;
-    }
-    PdfImportReviewModal #import-skipped {
-        height: auto;
-        max-height: 10;
-        overflow-y: auto;
-        color: $text-muted;
-        border: solid $panel;
-        margin-top: 1;
-        padding: 0 1;
     }
     """
 
@@ -2591,20 +2582,17 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
             )
             yield LoadingIndicator(id="import-loading")
             yield Static("Preparing…", id="import-progress")
-            yield PdfSelectionList(id="import-matched-list")
+            yield OptionList(id="import-list")
             yield Static(
-                "[dim]↓/↑ navigate · Space preview · Enter/x toggle[/dim]",
+                "[dim]↓/↑ navigate · Space preview[/dim]",
                 id="import-nav-hint",
             )
-            yield Static("", id="import-skipped")
             with Horizontal(classes="modal-buttons"):
-                yield Button(
-                    "Import Selected", variant="primary", id="btn-import", disabled=True
-                )
+                yield Button("Import", variant="primary", id="btn-import", disabled=True)
                 yield Button("Cancel", id="btn-cancel")
 
     def on_mount(self) -> None:
-        self.query_one(SelectionList).display = False
+        self.query_one(OptionList).display = False
         self._scan()
 
     @work(thread=True)
@@ -2634,65 +2622,70 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
     def _on_progress(self, message: str) -> None:
         self.query_one("#import-progress", Static).update(message)
 
-    def _on_scan_done(self, rows: list) -> None:
+    def _importable_rows(self) -> list:
         from bibtui.pdf.import_scan import ImportStatus
 
+        return [
+            r for r in self._rows if r.status in (ImportStatus.MATCHED, ImportStatus.LINK_EXISTING)
+        ]
+
+    def _row_text(self, row) -> Text:
+        from bibtui.pdf.import_scan import ImportStatus
+
+        if row.status == ImportStatus.MATCHED:
+            entry = row.entry
+            text = (
+                f"✓ {row.filename} → {entry.title_short} "
+                f"({entry.authors_short}, {entry.year or '?'})"
+            )
+            color = self.app.current_theme.success
+        elif row.status == ImportStatus.LINK_EXISTING:
+            text = f"✓ {row.filename} → link to existing entry '{row.entry.key}'"
+            color = self.app.current_theme.success
+        else:
+            label = self._STATUS_LABELS.get(str(row.status), str(row.status))
+            candidates = f" ({', '.join(row.candidates)})" if row.candidates else ""
+            text = f"✗ {row.filename} — {label}: {row.message}{candidates}"
+            color = self.app.current_theme.error
+        return Text(text, style=color)
+
+    def _on_scan_done(self, rows: list) -> None:
         self._scanning = False
         self._rows = rows
         self.query_one("#import-loading", LoadingIndicator).display = False
 
-        checkable_statuses = (ImportStatus.MATCHED, ImportStatus.LINK_EXISTING)
-        checkable = [(i, r) for i, r in enumerate(rows) if r.status in checkable_statuses]
-        skipped = [r for r in rows if r.status not in checkable_statuses]
+        ol = self.query_one(OptionList)
+        ol.display = True
+        for row in rows:
+            ol.add_option(Option(self._row_text(row)))
 
-        sl = self.query_one(SelectionList)
-        sl.display = True
-        for index, row in checkable:
-            entry = row.entry
-            if row.status == ImportStatus.MATCHED:
-                label = (
-                    f"{row.filename} → {entry.title_short} "
-                    f"({entry.authors_short}, {entry.year or '?'})"
-                )
-            else:
-                label = f"{row.filename} → link to existing entry '{entry.key}' (no PDF yet)"
-            sl.add_option(Selection(label, index, True))
-
+        importable = self._importable_rows()
+        skipped = len(rows) - len(importable)
         self.query_one("#import-progress", Static).update(
             f"Scanned {len(rows)} file{'s' if len(rows) != 1 else ''}: "
-            f"{len(checkable)} matched, {len(skipped)} skipped."
+            f"{len(importable)} to import, {skipped} skipped."
         )
-        self.query_one("#import-skipped", Static).update(self._format_skipped(skipped))
-        self.query_one("#btn-import", Button).disabled = not checkable
 
-    def _format_skipped(self, skipped: list) -> str:
-        if not skipped:
-            return "[dim]No skipped files.[/dim]"
-        from collections import defaultdict
+        btn = self.query_one("#btn-import", Button)
+        btn.disabled = not importable
+        if importable:
+            noun = "Entry" if len(importable) == 1 else "Entries"
+            btn.label = f"Import {len(importable)} {noun}"
 
-        by_status: dict[str, list] = defaultdict(list)
-        for row in skipped:
-            by_status[str(row.status)].append(row)
-
-        lines = []
-        for status, label in self._STATUS_LABELS.items():
-            rows = by_status.get(status)
-            if not rows:
-                continue
-            lines.append(f"[bold]{label} ({len(rows)})[/bold]")
-            for row in rows:
-                lines.append(f"  {row.filename} — {row.message}")
-        return "\n".join(lines)
+    def on_key(self, event: events.Key) -> None:
+        """Space previews the highlighted row's source PDF."""
+        ol = self.query_one(OptionList)
+        if self.focused is ol and event.key == "space":
+            self._preview_highlighted()
+            event.stop()
 
     def _preview_highlighted(self) -> None:
-        sl = self.query_one(SelectionList)
-        idx = sl.highlighted
-        if idx is None:
+        ol = self.query_one(OptionList)
+        idx = ol.highlighted
+        if idx is None or idx >= len(self._rows):
             return
-        row_index = sl.get_option_at_index(idx).value
-        row = self._rows[row_index]
         try:
-            open_with_default_app(row.path)
+            open_with_default_app(self._rows[idx].path)
         except Exception as e:
             self.app.notify(f"Could not open: {e}", severity="error", timeout=5)
 
@@ -2705,9 +2698,9 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
     def _confirm(self) -> None:
         if self._scanning:
             return
-        selected_indices = sorted(self.query_one(SelectionList).selected)
-        if not selected_indices:
-            self.app.notify("Select at least one entry to import.", severity="warning")
+        importable = self._importable_rows()
+        if not importable:
+            self.dismiss(None)
             return
 
         from bibtui.pdf.fetcher import FetchError, add_pdf
@@ -2718,11 +2711,10 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
         relinked_entries: list[BibEntry] = []
         errors: list[str] = []
         reused_count = 0
-        for idx in selected_indices:
-            row = self._rows[idx]
-            if row.entry is None:
-                continue
+        for row in importable:
             entry = row.entry
+            if entry is None:
+                continue
             if self._base_dir:
                 try:
                     src = Path(row.path)
