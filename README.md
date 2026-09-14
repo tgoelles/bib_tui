@@ -33,9 +33,6 @@ uvx bibtui myrefs.bib
 uv tool install bibtui
 ```
 
-> **Why `--prerelease=allow`?** bibtui depends on `bibtexparser` v2, still in
-> beta on PyPI. Once it ships a stable v2, the flag is no longer needed.
-
 ## What you can do
 
 - **Find anything, instantly** — search title, author, journal, keywords and
