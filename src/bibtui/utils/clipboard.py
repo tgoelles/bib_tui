@@ -43,7 +43,15 @@ def copy_to_os_clipboard(text: str) -> bool:
                 argv,
                 input=payload,
                 check=True,
-                capture_output=True,
+                # Not capture_output=True: wl-copy forks a background process
+                # to keep serving the clipboard (Wayland has no clipboard
+                # manager of its own), and that process inherits captured
+                # pipes without closing them. subprocess.run then blocks
+                # waiting for EOF on stdout/stderr until it hits `timeout`,
+                # even though wl-copy itself already succeeded instantly.
+                # We only need the return code, so discard output instead.
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 timeout=_TIMEOUT,
             )
             return True
