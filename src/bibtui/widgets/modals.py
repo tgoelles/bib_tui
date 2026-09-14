@@ -1381,6 +1381,25 @@ _HELP_SECTIONS = [
         ],
     ),
     (
+        "Copy",
+        [
+            ("ctrl+c / ⌘c", "Copy selected text (or cite key if none focused)"),
+            (None, "Copy uses the OS clipboard tool, falling back to OSC 52"),
+            (None, "Default copy variant for entries: cite key"),
+            ("Shift+c", "Copy formatted citation (current citation style)"),
+            (None, "Alternative copy variant: rendered citation text"),
+            (None, "Citation styles are loaded from ~/.config/bibtui/csl"),
+            (None, "Add more styles: github.com/citation-style-language/styles"),
+            ("ctrl+y", "Copy current BibTeX entry"),
+            (None, "Also: ctrl+shift+c / ⌘⇧c (terminal-dependent)"),
+            (
+                None,
+                "⌘ shortcuts need a Kitty-protocol terminal — see Keybindings "
+                "in the online docs for details",
+            ),
+        ],
+    ),
+    (
         "Add new entry",
         [
             ("n", "Create a new entry (pick type, fill fields, add custom)"),
@@ -1452,24 +1471,11 @@ _HELP_SECTIONS = [
     (
         "Other",
         [
-            ("ctrl+c / ⌘c", "Copy selected text (or cite key if none focused)"),
-            (None, "Default copy variant for entries: cite key"),
-            ("Shift+c", "Copy formatted citation (current citation style)"),
-            (None, "Alternative copy variant: rendered citation text"),
-            ("ctrl+shift+c / ⌘⇧c / ctrl+y", "Copy current BibTeX entry"),
-            (None, "Citation styles are loaded from ~/.config/bibtui/csl"),
-            (None, "Add more styles: github.com/citation-style-language/styles"),
             ("?", "Show this help"),
             ("ctrl+p / ⌘p", "Command palette (Settings + Library actions)"),
             ("maximize", "(palette) maximize focused pane"),
             ("Esc", "Clear search / close modal"),
-            (None, "Copy uses the OS clipboard tool, falling back to OSC 52"),
             (None, "In all modals: Ctrl+S / ⌘S = Write/Save, Esc = Cancel"),
-            (
-                None,
-                "⌘ shortcuts need a terminal that forwards Cmd (Kitty, WezTerm, "
-                "Ghostty, iTerm2 with the Kitty keyboard protocol) — Ctrl always works",
-            ),
         ],
     ),
     (

@@ -53,7 +53,7 @@ their own keys in the footer.
 | -------------------------------------------- | --------------------------------------------- |
 | <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>⌘</kbd>+<kbd>C</kbd>                | Copy selected text, or the cite key            |
 | <kbd>Shift</kbd>+<kbd>C</kbd>              | Copy the formatted citation (current CSL style)|
-| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> / <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> | Copy the full BibTeX entry       |
+| <kbd>Ctrl</kbd>+<kbd>Y</kbd> | Copy the full BibTeX entry (also bound to <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> / <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>, but most terminals reserve those for their own copy command — see below) |
 
 Copies go to the OS clipboard via the native tool (`pbcopy`, `wl-copy`/`xclip`/`xsel`,
 `clip`) and also as an OSC 52 escape for SSH sessions.
@@ -69,10 +69,24 @@ Copies go to the OS clipboard via the native tool (`pbcopy`, `wl-copy`/`xclip`/`
 
     <kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>⌘</kbd>+<kbd>S</kbd> writes/saves and <kbd>Esc</kbd> cancels.
 
-!!! note "About the ⌘ shortcuts"
+!!! note "About the ⌘ and Shift+C-family shortcuts"
 
-    Ctrl always works. The ⌘ (Cmd) alternative only reaches bibtui in terminals
-    that forward it as a distinct key — Kitty, WezTerm, Ghostty, or iTerm2 with
-    the Kitty keyboard protocol enabled. In macOS Terminal.app and stock iTerm2,
-    Cmd shortcuts are handled by the terminal itself and never reach bibtui, so
-    Ctrl is what you'll actually use there.
+    Plain Ctrl shortcuts (<kbd>Ctrl</kbd>+<kbd>C</kbd>, <kbd>Ctrl</kbd>+<kbd>S</kbd>, <kbd>Ctrl</kbd>+<kbd>P</kbd>, <kbd>Ctrl</kbd>+<kbd>Y</kbd>) always work.
+    The ⌘ (Cmd) alternative only reaches bibtui in terminals that forward it as
+    a distinct key — Kitty, WezTerm, Ghostty, or iTerm2 with the Kitty keyboard
+    protocol enabled. In macOS Terminal.app and stock iTerm2, Cmd shortcuts are
+    handled by the terminal itself and never reach bibtui, so Ctrl is what
+    you'll actually use there.
+
+    <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> and <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> are a step less reliable still: most
+    terminal emulators claim that exact combination as their own built-in
+    "copy selected text" shortcut and never forward it to any app at all —
+    for example Kitty's default keymap binds `kitty_mod+c` (`kitty_mod`
+    defaults to Ctrl+Shift) to `copy_to_clipboard`, so bibtui never even
+    sees the keypress there. This is unrelated to Kitty *keyboard protocol*
+    support — it happens at the terminal's own keybinding layer, before any
+    protocol negotiation. Where the terminal doesn't claim it outright,
+    older/simpler terminals still can't tell Ctrl+Shift+C apart from plain
+    Ctrl+C at the byte level, so it falls back to "copy cite key" instead.
+    Either way, **use <kbd>Ctrl</kbd>+<kbd>Y</kbd>** for "copy BibTeX entry" — it's the one
+    guaranteed to reach bibtui everywhere.

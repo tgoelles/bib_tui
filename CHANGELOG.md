@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - Clarified in the README and installation guide that bibtui is actively tested on Linux and macOS; Windows support is believed to work (pure Python + Textual, which supports Windows Terminal) but hasn't been tested yet.
+- **Corrected the help screen and keybindings doc for `Ctrl+Shift+C`** — they previously implied it always works like other Ctrl shortcuts. In practice it's the least reliable of the copy shortcuts, for two separate reasons: most terminal emulators claim `Ctrl+Shift+C` as their own built-in "copy" command and never forward it to bibtui at all (e.g. Kitty's default keymap binds it to `copy_to_clipboard` outright — unrelated to Kitty *keyboard protocol* support), and on terminals that don't claim it, it still can't be told apart from plain `Ctrl+C` at the byte level, so it falls back to "copy cite key" instead of "copy BibTeX entry". `Ctrl+Y` is the alias for "copy BibTeX entry" that's guaranteed to reach bibtui everywhere and is now listed first.
+- **Copying now has its own section in the in-app `?` help screen** — previously scattered inside the catch-all "Other" section, low in the list. All copy shortcuts (cite key, citation, BibTeX entry) are now grouped under a dedicated **Copy** section placed right after **Core**, reflecting how central the feature is. The terminal-compatibility caveats for `⌘` and `Ctrl+Shift+C` are trimmed to a one-line pointer to the online Keybindings doc instead of the full explanation, to keep the in-app screen scannable.
 
 ## [1.0.0] - 2026-09-09
 
