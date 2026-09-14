@@ -495,21 +495,14 @@ class BibTuiApp(App):
                 severity="warning",
             )
             return
-        self.push_screen(PdfImportPickerModal(), self._on_pdf_import_picked)
+        self.push_screen(
+            PdfImportPickerModal(self._config.pdf_download_dir),
+            self._on_pdf_import_picked,
+        )
 
-    def _on_pdf_import_picked(self, result: tuple[str, bool] | None) -> None:
-        if result is None:
-            return
-        path, is_folder = result
-        if is_folder:
-            paths = sorted(str(p) for p in Path(path).rglob("*.pdf"))
-        else:
-            paths = [path]
-
+    def _on_pdf_import_picked(self, paths: list[str] | None) -> None:
         if not paths:
-            self.notify("No PDF files found.", severity="warning", timeout=4)
             return
-
         self.push_screen(
             PdfImportReviewModal(
                 paths, self._existing_dois(), self._config.pdf_base_dir

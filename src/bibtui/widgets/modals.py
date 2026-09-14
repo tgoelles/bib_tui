@@ -266,7 +266,7 @@ class NewEntryChooserModal(_BaseModal["str | None"]):
         (
             "pdf",
             "Import from PDF",
-            "Point at a PDF or folder — finds the DOI, fetches metadata",
+            "Pick one or more PDFs — finds the DOI, fetches metadata",
         ),
         ("paste", "Paste BibTeX", "Paste a raw BibTeX entry"),
     ]
@@ -1475,8 +1475,8 @@ _HELP_SECTIONS = [
             ("n", "New entry — choose how:"),
             (None, "Fill out manually — pick a type, fill in the fields"),
             (None, "Import by DOI — fetches metadata online"),
-            (None, "Import from PDF — finds a DOI/arXiv id in a file or"),
-            (None, "  folder, reviewed in a checklist before writing"),
+            (None, "Import from PDF — pick one or more PDFs, finds a"),
+            (None, "  DOI/arXiv id, reviewed in a checklist before writing"),
             (None, "Paste BibTeX — from clipboard"),
             (None, "All methods reject duplicate cite keys."),
             ("ctrl+v", "Also auto-detects a pasted BibTeX entry anywhere"),
@@ -2272,74 +2272,213 @@ class BatchFetchPDFModal(_BaseModal["dict | None"]):
         self.query_one("#btn-cancel", Button).disabled = True
 
 
-class PdfImportDirectoryTree(DirectoryTree):
-    """DirectoryTree that shows only directories and .pdf files."""
+class PdfImportPickerModal(_BaseModal["list[str] | None"]):
+    """Pick one or more existing PDFs to import, filtered by name.
 
-    def filter_paths(self, paths: Iterable[Path]) -> Iterable[Path]:
-        return [p for p in paths if p.is_dir() or p.suffix.lower() == ".pdf"]
-
-
-class PdfImportPickerModal(_BaseModal["tuple[str, bool] | None"]):
-    """Browse the filesystem and pick a PDF file or a folder of PDFs to import.
-
-    Dismisses with ``(path, is_folder)`` — selecting a ``.pdf`` file yields
-    ``is_folder=False``; the "Import Folder" button uses the currently
-    highlighted directory (or the parent of a highlighted file) and yields
-    ``is_folder=True``.
+    Same browsing model as :class:`AddPDFModal` (list the configured download
+    directory, filter by typing, ``Space``/``Enter`` act on the highlighted
+    row) but as a checklist so several files can be picked at once, since
+    there's no single entry to attach them to yet — that happens per-file in
+    the review step after metadata is fetched. Submitting an existing
+    directory path in the filter re-points the listing at that folder
+    (e.g. an old downloads folder or a migrated Papers/Zotero export)
+    instead of only ever showing the configured download directory.
     """
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel", show=True)]
+    BINDINGS = [
+        Binding(SAVE, "import_selected", "Import", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
 
     DEFAULT_CSS = """
     PdfImportPickerModal > Vertical {
-        width: 90;
-        height: 82%;
+        width: 80;
+        height: 34;
     }
-    PdfImportPickerModal PdfImportDirectoryTree {
+    PdfImportPickerModal Input {
+        margin-bottom: 1;
+    }
+    PdfImportPickerModal SelectionList {
         height: 1fr;
         border: solid $panel;
         margin-bottom: 1;
     }
     PdfImportPickerModal #pip-hint {
         color: $text-muted;
-        height: 1;
         margin-bottom: 1;
     }
+    PdfImportPickerModal #pip-nav-hint {
+        color: $text-muted;
+        height: auto;
+        margin-bottom: 1;
+    }
+    PdfImportPickerModal #pip-error {
+        color: $error;
+    }
     """
+
+    def __init__(self, download_dir: str, **kwargs):
+        super().__init__(**kwargs)
+        self._download_dir = download_dir or str(Path.home() / "Downloads")
+        self._all_pdfs: list[Path] = []
+        self._filtered: list[Path] = []
+        self._selected: set[str] = set()
 
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label("[bold]Import from PDF[/bold]", classes="modal-title")
-            yield PdfImportDirectoryTree(Path.home(), id="pip-tree")
-            yield Static(
-                "[dim]Select a .pdf file to import it, "
-                "or highlight a folder and press \"Import Folder\"[/dim]",
-                id="pip-hint",
+            yield Static("", id="pip-hint")
+            yield Input(
+                placeholder="type to filter, or paste a file/folder path…",
+                id="pip-filter",
             )
+            yield SelectionList(id="pip-list")
+            yield Static(
+                "[dim]↓/↑ navigate · Space/Enter toggle · o preview[/dim]",
+                id="pip-nav-hint",
+            )
+            yield Static("", id="pip-error")
             with Horizontal(classes="modal-buttons"):
-                yield Button("Import Folder", variant="primary", id="btn-import-folder")
+                yield Button("Import", variant="primary", id="btn-import")
                 yield Button("Cancel", id="btn-cancel")
 
-    @on(DirectoryTree.FileSelected, "#pip-tree")
-    def on_file_selected(self, event: DirectoryTree.FileSelected) -> None:
-        self.dismiss((str(event.path), False))
+    def on_mount(self) -> None:
+        self._scan()
+        self.call_after_refresh(self.query_one("#pip-filter", Input).focus)
+
+    def _scan(self) -> None:
+        dl = Path(self._download_dir).expanduser()
+        hint = self.query_one("#pip-hint", Static)
+        if not dl.is_dir():
+            hint.update(
+                f"[dim]Folder not found: {dl}  ·  paste a file or folder path below[/dim]"
+            )
+            self._all_pdfs = []
+        else:
+            pdfs = sorted(
+                dl.glob("*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True
+            )
+            self._all_pdfs = pdfs
+            hint.update(
+                f"[dim]{dl}  ·  {len(pdfs)} PDF{'s' if len(pdfs) != 1 else ''}  ·  "
+                "paste another folder path to browse elsewhere[/dim]"
+            )
+        self._filtered = list(self._all_pdfs)
+        self._rebuild_list()
+
+    def _sync_from_list(self) -> None:
+        """Pull the checkbox state of currently shown rows into self._selected."""
+        sl = self.query_one(SelectionList)
+        selected_now = set(sl.selected)
+        for p in self._filtered:
+            path = str(p)
+            if path in selected_now:
+                self._selected.add(path)
+            else:
+                self._selected.discard(path)
+
+    def _rebuild_list(self) -> None:
+        sl = self.query_one(SelectionList)
+        sl.clear_options()
+        for p in self._filtered:
+            stat = p.stat()
+            size = stat.st_size
+            size_str = (
+                f"{size / 1048576:.1f} MB"
+                if size >= 1048576
+                else f"{size / 1024:.0f} KB"
+            )
+            age = _format_age(stat.st_mtime)
+            label = f"{p.name}  [dim]{size_str}  {age}[/dim]"
+            sl.add_option(Selection(label, str(p), str(p) in self._selected))
+
+    @on(Input.Changed, "#pip-filter")
+    def _on_filter(self, event: Input.Changed) -> None:
+        self._sync_from_list()
+        q = event.value.strip().lower()
+        self._filtered = (
+            [p for p in self._all_pdfs if q in p.name.lower()]
+            if q
+            else list(self._all_pdfs)
+        )
+        self._rebuild_list()
+
+    def on_key(self, event: events.Key) -> None:
+        """Down in the Input moves focus to the list; Up from the first item
+        returns focus; `o` on the list previews the highlighted PDF."""
+        sl = self.query_one(SelectionList)
+        inp = self.query_one("#pip-filter", Input)
+        if self.focused is inp and event.key == "down" and self._filtered:
+            sl.focus()
+            event.stop()
+        elif self.focused is sl and event.key == "up" and (sl.highlighted or 0) == 0:
+            inp.focus()
+            event.stop()
+        elif self.focused is sl and event.key == "o":
+            self._preview_highlighted()
+            event.stop()
+
+    def _preview_highlighted(self) -> None:
+        sl = self.query_one(SelectionList)
+        idx = sl.highlighted
+        if idx is None or idx >= len(self._filtered):
+            return
+        try:
+            open_with_default_app(str(self._filtered[idx]))
+        except Exception as e:
+            self.query_one("#pip-error", Static).update(f"Could not open: {e}")
+
+    @on(Input.Submitted, "#pip-filter")
+    def _on_filter_submitted(self, _: Input.Submitted) -> None:
+        val = self.query_one("#pip-filter", Input).value.strip()
+        if not val:
+            return
+        error = self.query_one("#pip-error", Static)
+        error.update("")
+
+        expanded = Path(val).expanduser()
+        if expanded.is_dir():
+            self._download_dir = str(expanded)
+            self.query_one("#pip-filter", Input).value = ""
+            self._scan()
+            return
+
+        if expanded.is_file() and expanded.suffix.lower() == ".pdf":
+            if expanded not in self._all_pdfs:
+                self._all_pdfs.insert(0, expanded)
+            self._selected.add(str(expanded))
+            self.query_one("#pip-filter", Input).value = ""
+            self._filtered = list(self._all_pdfs)
+            self._rebuild_list()
+            return
+
+        self._sync_from_list()
+        if len(self._filtered) == 1:
+            path = str(self._filtered[0])
+            if path in self._selected:
+                self._selected.discard(path)
+            else:
+                self._selected.add(path)
+            self._rebuild_list()
+            return
+
+        error.update("No matching file or folder — refine the filter or pick from the list.")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
             self.dismiss(None)
-        elif event.button.id == "btn-import-folder":
-            self._import_current_folder()
+        elif event.button.id == "btn-import":
+            self._confirm()
 
-    def _import_current_folder(self) -> None:
-        tree = self.query_one("#pip-tree", PdfImportDirectoryTree)
-        node = tree.cursor_node
-        if node is None or node.data is None:
-            self.app.notify("Highlight a folder first.", severity="warning")
+    def _confirm(self) -> None:
+        self._sync_from_list()
+        if not self._selected:
+            self.query_one("#pip-error", Static).update("Select at least one PDF.")
             return
-        path = node.data.path
-        if not path.is_dir():
-            path = path.parent
-        self.dismiss((str(path), True))
+        self.dismiss(sorted(self._selected))
+
+    def action_import_selected(self) -> None:
+        self._confirm()
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -2352,8 +2491,8 @@ class PdfImportReviewModal(_BaseModal["list[BibEntry] | None"]):
     runs in a background thread. Once it finishes, matched files are shown
     pre-checked in a checklist; files with no match, an ambiguous result,
     or a failed lookup are listed read-only below with the reason. Nothing
-    is written to the library until "Import Selected" is pressed — the
-    same modal serves both the single-file and folder entry points.
+    is written to the library until "Import Selected" is pressed — whether
+    one PDF was picked or several, from :class:`PdfImportPickerModal`.
     """
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]

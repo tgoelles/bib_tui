@@ -23,7 +23,7 @@ their own keys in the footer.
 
 | Key                              | Action                                |
 | -------------------------------- | ------------------------------------- |
-| <kbd>n</kbd>                     | New entry — choose: fill out manually, import by DOI, import from PDF (single file or folder), or paste BibTeX |
+| <kbd>n</kbd>                     | New entry — choose: fill out manually, import by DOI, import from PDF (pick one or more files), or paste BibTeX |
 | <kbd>Ctrl</kbd>+<kbd>V</kbd>     | Also auto-detects a pasted BibTeX entry anywhere |
 | <kbd>Delete</kbd> / <kbd>⌫</kbd> | Delete the selected entry (confirm)   |
 

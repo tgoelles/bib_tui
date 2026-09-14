@@ -93,71 +93,58 @@ def test_action_import_pdf_requires_pdf_base_dir(monkeypatch) -> None:
     assert notifications and "base directory" in notifications[0].lower()
 
 
+def test_action_import_pdf_passes_download_dir_to_picker(monkeypatch, tmp_path) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app._config = Config(pdf_base_dir=str(tmp_path), pdf_download_dir="/some/downloads")
+    pushed = []
+    monkeypatch.setattr(
+        app, "push_screen", lambda screen, callback=None: pushed.append(screen)
+    )
+
+    app.action_import_pdf()
+
+    assert len(pushed) == 1
+    assert pushed[0]._download_dir == "/some/downloads"
+
+
 # ---------------------------------------------------------------------------
 # _on_pdf_import_picked
 # ---------------------------------------------------------------------------
 
 
-def test_on_pdf_import_picked_single_file(monkeypatch, tmp_path) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
-    app._config = Config(pdf_base_dir=str(tmp_path))
-    app._entries = []
-    pushed = []
-    monkeypatch.setattr(
-        app, "push_screen", lambda screen, callback=None: pushed.append(screen)
-    )
-
-    pdf = tmp_path / "paper.pdf"
-    pdf.write_bytes(b"fake")
-
-    app._on_pdf_import_picked((str(pdf), False))
-
-    assert len(pushed) == 1
-    assert pushed[0]._paths == [str(pdf)]
-
-
-def test_on_pdf_import_picked_folder_scans_recursively(monkeypatch, tmp_path) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
-    app._config = Config(pdf_base_dir=str(tmp_path))
-    app._entries = []
-    pushed = []
-    monkeypatch.setattr(
-        app, "push_screen", lambda screen, callback=None: pushed.append(screen)
-    )
-
-    (tmp_path / "sub").mkdir()
-    (tmp_path / "a.pdf").write_bytes(b"fake")
-    (tmp_path / "sub" / "b.pdf").write_bytes(b"fake")
-    (tmp_path / "not_a_pdf.txt").write_text("x")
-
-    app._on_pdf_import_picked((str(tmp_path), True))
-
-    assert len(pushed) == 1
-    assert sorted(pushed[0]._paths) == sorted(
-        [str(tmp_path / "a.pdf"), str(tmp_path / "sub" / "b.pdf")]
-    )
-
-
-def test_on_pdf_import_picked_empty_folder_notifies_and_does_not_push(
+def test_on_pdf_import_picked_pushes_review_with_selected_paths(
     monkeypatch, tmp_path
 ) -> None:
     app = BibTuiApp("tests/bib_examples/MyCollection.bib")
     app._config = Config(pdf_base_dir=str(tmp_path))
     app._entries = []
     pushed = []
-    monkeypatch.setattr(app, "push_screen", lambda *a, **k: pushed.append(a))
-    notifications = []
     monkeypatch.setattr(
-        app, "notify", lambda message, **kwargs: notifications.append(message)
+        app, "push_screen", lambda screen, callback=None: pushed.append(screen)
     )
 
-    app._on_pdf_import_picked((str(tmp_path), True))
+    pdf1 = tmp_path / "a.pdf"
+    pdf2 = tmp_path / "b.pdf"
+    pdf1.write_bytes(b"fake")
+    pdf2.write_bytes(b"fake")
+
+    app._on_pdf_import_picked([str(pdf1), str(pdf2)])
+
+    assert len(pushed) == 1
+    assert pushed[0]._paths == [str(pdf1), str(pdf2)]
+
+
+def test_on_pdf_import_picked_empty_list_does_not_push(monkeypatch) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    pushed = []
+    monkeypatch.setattr(app, "push_screen", lambda *a, **k: pushed.append(a))
+
+    app._on_pdf_import_picked([])
 
     assert pushed == []
-    assert notifications and "no pdf files found" in notifications[0].lower()
 
 
-def test_on_pdf_import_picked_none_result_does_nothing(monkeypatch, tmp_path) -> None:
+def test_on_pdf_import_picked_none_result_does_nothing(monkeypatch) -> None:
     app = BibTuiApp("tests/bib_examples/MyCollection.bib")
     pushed = []
     monkeypatch.setattr(app, "push_screen", lambda *a, **k: pushed.append(a))
