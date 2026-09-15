@@ -75,12 +75,12 @@ def test_title_short_truncates_long_title() -> None:
 
 def test_url_icon_with_url() -> None:
     e = BibEntry(key="k", entry_type="article", url="https://example.com")
-    assert e.url_icon == "🔗"
+    assert e.url_icon == "↗"
 
 
 def test_url_icon_without_url() -> None:
     e = BibEntry(key="k", entry_type="article")
-    assert e.url_icon == "  "
+    assert e.url_icon == " "
 
 
 # ---------------------------------------------------------------------------

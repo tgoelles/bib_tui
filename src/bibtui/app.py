@@ -16,7 +16,7 @@ from textual.command import DiscoveryHit, Hit, Hits, Provider
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Input, TextArea
 
-from bibtui import __version__
+from bibtui import DOCS_URL, __version__
 from bibtui.bib import parser
 from bibtui.bib.citekeys import (
     author_year_base,
@@ -29,6 +29,7 @@ from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabre
 from bibtui.utils import update_check
 from bibtui.utils.clipboard import copy_to_os_clipboard
 from bibtui.utils.dates import extract_date_added, now_date_added_value
+from bibtui.utils.doi import normalize_doi
 from bibtui.utils.config import (
     CONFIG_PATH,
     Config,
@@ -46,6 +47,7 @@ from bibtui.widgets.entry_list import EntryList
 from bibtui.widgets.modals import (
     AddPDFModal,
     BatchFetchPDFModal,
+    BibFileImportReviewModal,
     ColumnConfigModal,
     ConfirmModal,
     DOIModal,
@@ -54,10 +56,15 @@ from bibtui.widgets.modals import (
     FilePickerModal,
     FirstRunModal,
     HelpModal,
+    ImportBibPickerModal,
     KeywordsModal,
     LibraryFetchConfirmModal,
+    NewEntryChooserModal,
     NewEntryModal,
     PasteModal,
+    PdfActionsModal,
+    PdfImportPickerModal,
+    PdfImportReviewModal,
     RawEditModal,
     SettingsModal,
 )
@@ -121,34 +128,42 @@ class BibTuiApp(App):
 
     CSS_PATH = "bibtui.tcss"
 
+    # Footer order follows BINDINGS declaration order, so the block below is
+    # laid out left-to-right exactly as it should appear: new/edit, entry
+    # state (read state, priority, rating), search, PDF preview, quit/write,
+    # help — everything else stays bound but hidden from the footer to keep
+    # it scannable (still reachable by key, the in-app `?` help, or the
+    # command palette, which the Footer always shows on the right regardless
+    # of this list).
+    _RATING_GROUP = Binding.Group("Rating")
+
     BINDINGS = [
-        # Core
+        # Footer (visible)
+        Binding("n", "new_entry", "New"),
+        Binding("e", "edit_entry", "Edit"),
+        Binding("k", "edit_keywords", "Keywords"),
+        Binding("r", "cycle_read_state", "State"),
+        Binding("u", "cycle_priority", "Urgency"),
+        Binding("0", "set_rating('0')", "Unrated", group=_RATING_GROUP),
+        Binding("1", "set_rating('1')", "★", group=_RATING_GROUP),
+        Binding("2", "set_rating('2')", "★★", group=_RATING_GROUP),
+        Binding("3", "set_rating('3')", "★★★", group=_RATING_GROUP),
+        Binding("4", "set_rating('4')", "★★★★", group=_RATING_GROUP),
+        Binding("5", "set_rating('5')", "★★★★★", group=_RATING_GROUP),
+        Binding("s", "focus_search", "Search"),
+        Binding("p", "pdf_actions_menu", "PDF"),
+        Binding("space", "open_pdf", "␣ Show PDF"),
         Binding("q", "quit", "Quit"),
         Binding("w", "save", "Write"),
-        Binding("s", "focus_search", "Search"),
-        Binding("e", "edit_entry", "Edit"),
-        Binding("n", "new_entry", "New"),
-        Binding("d", "doi_import", "From DOI"),
-        Binding("k", "edit_keywords", "Keywords"),
-        Binding("m", "toggle_table_maximize", "Max table"),
-        Binding("v", "toggle_view", "View"),
+        Binding("ctrl+d", "open_docs", "Docs"),
+        Binding("?", "show_help", "Help"),
+        # Hidden from the footer (still active — see the `?` help screen)
+        Binding("m", "toggle_table_maximize", "Max table", show=False),
+        Binding("v", "toggle_view", "View", show=False),
         Binding("greater_than_sign", "adjust_split(-5)", "Shrink detail", show=False),
         Binding("less_than_sign", "adjust_split(5)", "Grow detail", show=False),
-        # Entry state
-        Binding("r", "cycle_read_state", "State"),
-        Binding("p", "cycle_priority", "Prio"),
-        Binding("space", "open_pdf", "␣ Show PDF"),
-        Binding("b", "open_url", "Browser"),
-        Binding("B", "open_openalex", "OpenAlex"),
-        Binding("f", "fetch_pdf", "Fetch PDF"),
-        Binding("a", "add_pdf", "Add PDF"),
-        # Rating (hidden from footer)
-        Binding("0", "set_rating('0')", "Unrated", show=False),
-        Binding("1", "set_rating('1')", "★", show=False),
-        Binding("2", "set_rating('2')", "★★", show=False),
-        Binding("3", "set_rating('3')", "★★★", show=False),
-        Binding("4", "set_rating('4')", "★★★★", show=False),
-        Binding("5", "set_rating('5')", "★★★★★", show=False),
+        Binding("b", "open_url", "Browser", show=False),
+        Binding("B", "open_openalex", "OpenAlex", show=False),
         # Copy
         Binding(COPY_KEY, "copy_key", "Copy key", show=False, priority=True),
         Binding("C", "copy_citation", "Copy citation", show=False),
@@ -163,14 +178,13 @@ class BibTuiApp(App):
         # Delete
         Binding("delete", "delete_entry", "Delete", show=False),
         Binding("backspace", "delete_entry", "Delete", show=False),
-        # Help
-        Binding("?", "show_help", "Help"),
         Binding("escape", "clear_search", "Clear search", show=False),
         # Command palette — Textual binds ctrl+p by default (App.COMMAND_PALETTE_BINDING);
         # this explicit binding replaces that default so the Cmd alias also works. Textual
         # only auto-adds its own default when no binding with this action exists yet, and
         # overriding COMMAND_PALETTE_BINDING itself doesn't work here — it's registered
-        # through a code path that doesn't split comma-separated keys.
+        # through a code path that doesn't split comma-separated keys. The Footer shows
+        # its own "palette" hint on the right regardless of this binding's show flag.
         Binding(
             COMMAND_PALETTE,
             "command_palette",
@@ -458,7 +472,19 @@ class BibTuiApp(App):
         self.notify("Entry updated. Press [w] to write.", timeout=3)
 
     def action_new_entry(self) -> None:
-        self.push_screen(NewEntryModal(), self._on_new_entry_done)
+        self.push_screen(NewEntryChooserModal(), self._on_new_entry_choice)
+
+    def _on_new_entry_choice(self, choice: str | None) -> None:
+        if choice == "blank":
+            self.push_screen(NewEntryModal(), self._on_new_entry_done)
+        elif choice == "doi":
+            self.action_doi_import()
+        elif choice == "pdf":
+            self.action_import_pdf()
+        elif choice == "bibfile":
+            self.action_import_bib_file()
+        elif choice == "paste":
+            self.action_paste_import()
 
     def _on_new_entry_done(self, result: BibEntry | None) -> None:
         if result is None:
@@ -475,6 +501,123 @@ class BibTuiApp(App):
 
     def action_doi_import(self) -> None:
         self.push_screen(DOIModal(), self._on_doi_done)
+
+    def action_import_pdf(self) -> None:
+        if not self._config.pdf_base_dir:
+            self.notify(
+                "PDF base directory not set. Open Settings (Ctrl+P → Settings).",
+                severity="warning",
+            )
+            return
+        self.push_screen(
+            PdfImportPickerModal(self._config.pdf_download_dir),
+            self._on_pdf_import_picked,
+        )
+
+    def _on_pdf_import_picked(self, paths: list[str] | None) -> None:
+        if not paths:
+            return
+        self.push_screen(
+            PdfImportReviewModal(
+                paths, self._existing_entries_by_doi(), self._config.pdf_base_dir
+            ),
+            self._on_pdf_import_review_done,
+        )
+
+    def _existing_entries_by_doi(self) -> dict[str, BibEntry]:
+        """Map normalized DOI to the matching entry already in the library.
+
+        Values are the live entry objects (not copies) so PDF-import can
+        link a PDF to an already-existing entry in place — see
+        ``_on_pdf_import_review_done`` and ``PdfImportReviewModal``.
+        """
+        return {normalize_doi(e.doi): e for e in self._entries if e.doi.strip()}
+
+    def _on_pdf_import_review_done(self, result: dict | None) -> None:
+        if not result:
+            return
+        new_entries = result.get("new") or []
+        relinked_entries = result.get("relinked") or []
+
+        if new_entries:
+            self._finalize_imported_entries(new_entries)
+
+        if relinked_entries:
+            self._dirty = True
+            el = self.query_one(EntryList)
+            el.refresh_entries(self._entries)
+            self.query_one(EntryDetail).show_entry(el.selected_entry)
+            noun = "entry" if len(relinked_entries) == 1 else "entries"
+            self.notify(
+                f"Linked PDF to {len(relinked_entries)} existing {noun}.", timeout=4
+            )
+
+    def action_import_bib_file(self) -> None:
+        self.push_screen(ImportBibPickerModal(), self._on_bib_file_picked)
+
+    def _on_bib_file_picked(self, path: str | None) -> None:
+        if path is None:
+            return
+        self._load_bib_file(path)
+
+    @work(thread=True)
+    def _load_bib_file(self, path: str) -> None:
+        """Parse *path* off the UI thread — matches every other import flow
+        (``PdfImportReviewModal._scan``, ``FetchPDFModal``,
+        ``BatchFetchPDFModal``), so a large merge file doesn't visibly freeze
+        the UI while parsing.
+        """
+        try:
+            entries = parser.load(path)
+        except Exception as exc:  # noqa: BLE001 — bibtexparser errors vary widely
+            self.call_from_thread(self._on_bib_file_parsed, path, None, str(exc))
+            return
+        self.call_from_thread(self._on_bib_file_parsed, path, entries, None)
+
+    def _on_bib_file_parsed(
+        self, path: str, entries: list[BibEntry] | None, error: str | None
+    ) -> None:
+        filename = os.path.basename(path)
+        if error is not None:
+            self.notify(f"Could not parse {filename}: {error}", severity="error", timeout=6)
+            return
+
+        if not entries:
+            self.notify(f"No entries found in {filename}.", severity="warning", timeout=4)
+            return
+
+        if len(entries) == 1:
+            self._import_single_bib_entry(entries[0])
+            return
+
+        self.push_screen(
+            BibFileImportReviewModal(entries, self._existing_entries_by_doi(), path),
+            self._on_bib_file_review_done,
+        )
+
+    def _import_single_bib_entry(self, entry: BibEntry) -> None:
+        """Fast path for a file with exactly one entry — the common case of
+        a citation downloaded from a journal page. No review screen: the
+        file the user picked already *is* the one thing to review, same
+        reasoning "Import by DOI" relies on.
+        """
+        doi = entry.doi.strip()
+        if doi:
+            existing = self._existing_entries_by_doi().get(normalize_doi(doi))
+            if existing is not None:
+                self.notify(
+                    f"Already in library as '{existing.key}'.",
+                    severity="warning",
+                    timeout=4,
+                )
+                return
+
+        self._finalize_imported_entry(entry)
+
+    def _on_bib_file_review_done(self, new_entries: list[BibEntry] | None) -> None:
+        if not new_entries:
+            return
+        self._finalize_imported_entries(new_entries)
 
     def action_delete_entry(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -533,12 +676,17 @@ class BibTuiApp(App):
             (f"BibTeX key '{base_key}' already exists and all suffixes a-z are used."),
         )
 
-    def _finalize_imported_entry(self, entry: BibEntry) -> None:
-        old_key = entry.key
+    def _append_imported_entry(self, entry: BibEntry) -> str | None:
+        """Resolve a unique key, stamp date-added, and append *entry*.
+
+        Returns an error message (and leaves ``self._entries`` untouched) if
+        the entry couldn't be resolved; otherwise returns ``None``. Does not
+        refresh the table, notify, or trigger auto-fetch — callers handle
+        that once, either for a single entry or for a whole batch.
+        """
         resolved_key, error = self._resolve_import_key(entry)
         if error:
-            self.notify(error, severity="error", timeout=5)
-            return
+            return error
 
         entry.key = resolved_key or entry.key
         # Stamp every newly added entry with a date-added timestamp if it has
@@ -547,6 +695,15 @@ class BibTuiApp(App):
             entry.raw_fields["date-added"] = now_date_added_value()
         self._entries.append(entry)
         self._dirty = True
+        return None
+
+    def _finalize_imported_entry(self, entry: BibEntry) -> None:
+        old_key = entry.key
+        error = self._append_imported_entry(entry)
+        if error:
+            self.notify(error, severity="error", timeout=5)
+            return
+
         el = self.query_one(EntryList)
         el.refresh_entries(self._entries)
         self.call_after_refresh(self._jump_to_entry, entry)
@@ -560,6 +717,47 @@ class BibTuiApp(App):
             self.notify(f"Added: {entry.key}", timeout=3)
 
         self._maybe_auto_fetch(entry)
+
+    def _finalize_imported_entries(self, entries: list[BibEntry]) -> None:
+        """Batch sibling of ``_finalize_imported_entry`` for PDF import.
+
+        Unlike the single-entry path, this never triggers
+        ``_maybe_auto_fetch`` — every entry here already has its PDF linked
+        from the source file, and auto-fetch has no "already has a file"
+        guard, so calling it would immediately refetch and overwrite the
+        PDF just attached.
+        """
+        added = 0
+        renamed = 0
+        errors: list[str] = []
+        last_entry: BibEntry | None = None
+
+        for entry in entries:
+            old_key = entry.key
+            error = self._append_imported_entry(entry)
+            if error:
+                errors.append(f"{old_key}: {error}")
+                continue
+            added += 1
+            if entry.key != old_key:
+                renamed += 1
+            last_entry = entry
+
+        if added:
+            el = self.query_one(EntryList)
+            el.refresh_entries(self._entries)
+            if last_entry is not None:
+                self.call_after_refresh(self._jump_to_entry, last_entry)
+
+        noun = "entry" if added == 1 else "entries"
+        summary = f"Imported {added} {noun}"
+        if renamed:
+            summary += f" ({renamed} renamed due to key conflicts)"
+        if errors:
+            summary += f", {len(errors)} skipped"
+        self.notify(summary, timeout=5)
+        if errors:
+            self.notify("\n".join(errors), severity="warning", timeout=8)
 
     def _jump_to_entry(self, result: BibEntry) -> None:
         """Move cursor to the given entry after the table has been rendered."""
@@ -579,7 +777,7 @@ class BibTuiApp(App):
             return
         if not self._config.pdf_base_dir:
             return
-        self._do_fetch_pdf(entry, True)
+        self._do_fetch_pdf(entry, True, just_created=True)
 
     def action_open_url(self) -> None:
         entry = self.query_one(EntryList).selected_entry
@@ -618,6 +816,32 @@ class BibTuiApp(App):
         else:
             self.notify("Opening OpenAlex (DOI search)", timeout=3)
 
+    def action_pdf_actions_menu(self) -> None:
+        """`p`: open the PDF actions chooser for the selected entry — the
+        single entry point for Open/Fetch/Add/Copy PDF/Copy path/Delete,
+        mirroring how `n` is the single entry point for adding an entry."""
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            self.notify("No entry selected.", severity="warning")
+            return
+        self.push_screen(
+            PdfActionsModal(entry, self._config.pdf_base_dir),
+            self._on_pdf_actions_choice,
+        )
+
+    def _on_pdf_actions_choice(self, choice: str | None) -> None:
+        actions = {
+            "open": self.action_open_pdf,
+            "fetch": self.action_fetch_pdf,
+            "add": self.action_add_pdf,
+            "copy_file": self.action_pdf_copy_file,
+            "copy_path": self.action_pdf_copy_path,
+            "delete": self.action_pdf_delete,
+        }
+        action = actions.get(choice) if choice else None
+        if action is not None:
+            action()
+
     def action_fetch_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry
         if entry is None:
@@ -655,7 +879,9 @@ class BibTuiApp(App):
         else:
             self._do_fetch_pdf(entry, True)
 
-    def _do_fetch_pdf(self, entry: BibEntry, confirmed: bool | None) -> None:
+    def _do_fetch_pdf(
+        self, entry: BibEntry, confirmed: bool | None, just_created: bool = False
+    ) -> None:
         if not confirmed:
             return
         self.push_screen(
@@ -665,6 +891,7 @@ class BibTuiApp(App):
                 self._config.unpaywall_email,
                 self._config.openalex_api_key,
                 overwrite=True,
+                just_created=just_created,
             ),
             self._on_fetch_pdf_done,
         )
@@ -1239,6 +1466,10 @@ class BibTuiApp(App):
 
     def action_show_help(self) -> None:
         self.push_screen(HelpModal())
+
+    def action_open_docs(self) -> None:
+        webbrowser.open(DOCS_URL)
+        self.notify("Opening online documentation", timeout=3)
 
     def _copy_text(self, text: str, label: str) -> None:
         """Copy *text* to the clipboard and notify with *label*.

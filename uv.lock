@@ -190,6 +190,7 @@ dependencies = [
     { name = "httpx" },
     { name = "packaging" },
     { name = "pyalex" },
+    { name = "pypdf" },
     { name = "textual" },
     { name = "tomli-w" },
 ]
@@ -215,6 +216,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.2,<1.0" },
     { name = "packaging", specifier = ">=24.0" },
     { name = "pyalex", specifier = ">=0.21" },
+    { name = "pypdf", specifier = ">=5.0.0" },
     { name = "textual", specifier = ">=8.0.0" },
     { name = "tomli-w", specifier = ">=1.0.0" },
 ]
@@ -1203,6 +1205,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/9e/26/d1015444da4d952a1ca487a236b522eb979766f0295a0bd0c5fc089989a9/pymdown_extensions-10.21.3.tar.gz", hash = "sha256:72cfcf55f07aea0d4af2c4f11dd4e52466ddfb1bb819673146398e0bd3a77354", size = 854140, upload-time = "2026-05-13T12:57:32.267Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/85/545a951eecc270fcd688288c600017e2050a1aacb56c711d208586d3e470/pymdown_extensions-10.21.3-py3-none-any.whl", hash = "sha256:d7a5d08014fc571e80ca21dd6f854e31f94c489800350564d55d15b3c41e76b6", size = 269002, upload-time = "2026-05-13T12:57:30.296Z" },
+]
+
+[[package]]
+name = "pypdf"
+version = "6.18.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/c2/e537e78a8282b51ed47031566be118debbc34c04782a9afd8739672eb07d/pypdf-6.18.1.tar.gz", hash = "sha256:2441fc839053745638d9b9ddb38ed66beed8d611f47a3036c9838fc4e3074dea", size = 7027577, upload-time = "2026-09-11T10:10:07.616Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/13/645df3995075112cb3cce15e8797c205f0f88fb50acc11012b84b071bc22/pypdf-6.18.1-py3-none-any.whl", hash = "sha256:ee93a2665670ecf57ee81d197a4ca548f3dc15f9cefc56e59b8140866aaa3de5", size = 394327, upload-time = "2026-09-11T10:10:06.103Z" },
 ]
 
 [[package]]

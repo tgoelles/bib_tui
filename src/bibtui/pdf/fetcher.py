@@ -10,6 +10,7 @@ Tries strategies in order:
 Raises FetchError if none of the strategies succeed.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -24,6 +25,7 @@ from urllib.parse import urlparse
 import pyalex  # type: ignore[import-untyped]
 
 from bibtui.bib.models import BibEntry
+from bibtui.utils.doi import normalize_doi
 
 
 class FetchError(Exception):
@@ -66,8 +68,57 @@ def pdf_filename(entry: BibEntry) -> str:
     return f"{key}.pdf"
 
 
+def _sha256_file(path: Path, chunk_size: int = 1 << 20) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        while chunk := f.read(chunk_size):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def find_duplicate_pdf(src: Path, base_dir: str) -> Path | None:
+    """Return an existing PDF in *base_dir* with identical content to *src*.
+
+    Detects the *same file* rather than the same filename: a PDF downloaded
+    a second time under a different name (or re-encountered while importing
+    an old downloads folder) is recognised even though nothing about its
+    path matches. Comparing file size before hashing means a whole library
+    isn't re-hashed for every lookup — only same-size candidates are hashed.
+    Returns ``None`` if *base_dir* doesn't exist or no match is found.
+    """
+    base = Path(base_dir)
+    if not base.is_dir():
+        return None
+
+    try:
+        src_resolved = src.resolve()
+        src_size = src_resolved.stat().st_size
+    except OSError:
+        return None
+
+    src_hash: str | None = None
+    for candidate in base.glob("*.pdf"):
+        try:
+            if candidate.resolve() == src_resolved:
+                return candidate
+            if candidate.stat().st_size != src_size:
+                continue
+            if src_hash is None:
+                src_hash = _sha256_file(src_resolved)
+            if _sha256_file(candidate) == src_hash:
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
 def add_pdf(src: Path, entry: BibEntry, base_dir: str) -> Path:
-    """Move an existing PDF to the canonical location for *entry*.
+    """Link an existing PDF to *entry*, moving it into the canonical location.
+
+    If a PDF with identical content already sits in *base_dir* — under any
+    filename, including *src* itself already being there — that existing
+    file is reused instead of being moved or duplicated under a second name;
+    *src* is left untouched on disk in that case.
 
     Parameters
     ----------
@@ -82,7 +133,9 @@ def add_pdf(src: Path, entry: BibEntry, base_dir: str) -> Path:
     Returns
     -------
     Path
-        The destination path the file was moved to.
+        The path of the PDF now associated with *entry* — either *src*
+        moved to the canonical destination, or a pre-existing duplicate
+        already in *base_dir*.
 
     Raises
     ------
@@ -100,6 +153,11 @@ def add_pdf(src: Path, entry: BibEntry, base_dir: str) -> Path:
         raise FetchError(f"File not found: {src}")
     if src.suffix.lower() != ".pdf":
         raise FetchError(f"Not a PDF file: {src.name}")
+
+    duplicate = find_duplicate_pdf(src, base_dir)
+    if duplicate is not None:
+        return duplicate
+
     dest = Path(base_dir) / pdf_filename(entry)
     if dest.exists() and dest.resolve() != src:
         raise FetchError(f"Destination already exists: {dest}")
@@ -299,13 +357,6 @@ def _try_copernicus(entry: BibEntry, dest_path: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def _normalized_doi(doi: str) -> str:
-    """Normalize DOI for provider lookups."""
-    norm = doi.strip()
-    norm = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", norm, flags=re.IGNORECASE)
-    return norm
-
-
 def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
     """Try OpenAlex lookup and download a direct PDF URL.
 
@@ -323,7 +374,7 @@ def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
         works: list[dict[str, Any]] = []
 
         if entry.doi:
-            lookup_doi = _normalized_doi(entry.doi)
+            lookup_doi = normalize_doi(entry.doi, lower=False)
             works = cast(
                 list[dict[str, Any]],
                 pyalex.Works()

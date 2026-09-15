@@ -1,5 +1,6 @@
 import copy
 import re
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TypeVar
@@ -29,13 +30,16 @@ from textual.widgets import (
 from textual.widgets._selection_list import Selection
 from textual.widgets.option_list import Option
 
+from bibtui import DOCS_URL
 from bibtui.bib.citation_preview import available_csl_styles, default_csl_style_key
 from bibtui.bib.citekeys import author_year_base
 from bibtui.bib.models import COMMON_FIELDS, ENTRY_TYPES, BibEntry
 from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bibtui.bib.validate import validate_entry
+from bibtui.pdf.paths import pdf_link_state
 from bibtui.utils.config import Config
 from bibtui.utils.dates import DATE_ADDED_KEYS
+from bibtui.utils.doi import normalize_doi
 from bibtui.utils.keymap import SAVE
 from bibtui.utils.opener import open_with_default_app
 from bibtui.widgets.columns import DEFAULT_TABLE_COLUMNS, ColumnSpec
@@ -67,8 +71,6 @@ class _BaseModal(ModalScreen[_ModalResult]):
 
 def _format_age(mtime: float) -> str:
     """Human-readable age string for a file modification time."""
-    import time
-
     age = time.time() - mtime
     if age < 60:
         return "just now"
@@ -77,6 +79,201 @@ def _format_age(mtime: float) -> str:
     if age < 86400:
         return f"{int(age / 3600)} hr ago"
     return f"{int(age / 86400)} days ago"
+
+
+def _report_row_text(app, ok: bool, body: str) -> Text:
+    """A ✓/✗ styled report-list row, shared by :class:`PdfImportReviewModal`
+    and :class:`BibFileImportReviewModal`: ✓ in the current theme's success
+    color, ✗ in its error color, in front of whatever text describes the row."""
+    mark = "✓" if ok else "✗"
+    color = app.current_theme.success if ok else app.current_theme.error
+    return Text(f"{mark} {body}", style=color)
+
+
+def _import_button_label(n: int) -> str:
+    """"Import N Entries" button label, shared by both import-review modals."""
+    if not n:
+        return "Import"
+    return f"Import {n} {'Entry' if n == 1 else 'Entries'}"
+
+
+def _file_row_label(path: Path) -> str:
+    """Row label for a file-picker list: ``name  size  age``, shared by every
+    picker that lists files from a directory (:class:`AddPDFModal`,
+    :class:`PdfImportPickerModal`, :class:`ImportBibPickerModal`)."""
+    stat = path.stat()
+    size = stat.st_size
+    size_str = (
+        f"{size / 1048576:.1f} MB" if size >= 1048576 else f"{size / 1024:.0f} KB"
+    )
+    return f"{path.name}  [dim]{size_str}  {_format_age(stat.st_mtime)}[/dim]"
+
+
+class _FileBrowseMixin:
+    """Shared browse/filter/choose machinery for a single-file ``ListView``
+    picker: list a directory (falling back to ``~/Downloads`` when unset),
+    filter by typing, preview the highlighted row on Space, and choose it on
+    Enter/`x`. Used by :class:`AddPDFModal` (pick a PDF for one entry) and
+    :class:`ImportBibPickerModal` (pick a `.bib` file to import) — the two
+    "choose a single file" pickers in the app; :class:`PdfImportPickerModal`
+    is a checklist instead and doesn't fit this shape.
+
+    A subclass sets ``_ID_PREFIX`` (its widgets' id prefix, e.g. ``"add"``
+    for ``#add-filter``/``#add-hint``/``#add-error``), ``_GLOB`` (e.g.
+    ``"*.pdf"``) and ``_NOUN`` (e.g. ``"PDF"``, used in "3 PDFs"), composes a
+    bare ``ListView`` plus those three widgets, and implements
+    :meth:`_choose_path` for what "choosing" a file actually does. Because
+    ``@on`` selectors are literal strings, each subclass still declares thin
+    ``@on``-decorated wrappers for its own widget ids that delegate to the
+    shared ``_filter_changed``/``_filter_submitted``/``_list_selected``
+    methods below.
+    """
+
+    # Screen's own AUTO_FOCUS defaults to "*" (first focusable widget —
+    # here, the filter Input, since it's composed before the list). Textual
+    # applies that during _compose(), before on_mount()'s _focus_initial()
+    # runs, so without this the Input would visibly flash focused for one
+    # frame before focus jumps to the list. Disabling it here makes
+    # _focus_initial() the *only* thing that ever sets initial focus.
+    AUTO_FOCUS = ""
+
+    _ID_PREFIX: str = ""
+    _GLOB: str = "*"
+    _NOUN: str = "file"
+
+    _download_dir: str
+    _all_files: list[Path]
+    _filtered: list[Path]
+
+    def _wid(self, suffix: str) -> str:
+        return f"#{self._ID_PREFIX}-{suffix}"
+
+    def _scan(self) -> None:
+        dl = Path(self._download_dir).expanduser()
+        hint = self.query_one(self._wid("hint"), Static)
+        if not dl.is_dir():
+            hint.update(
+                f"[dim]Folder not found: {dl}  ·  paste a file or folder path below[/dim]"
+            )
+            self._all_files = []
+        else:
+            files = sorted(
+                dl.glob(self._GLOB), key=lambda p: p.stat().st_mtime, reverse=True
+            )
+            self._all_files = files
+            hint.update(
+                f"[dim]{dl}  ·  {len(files)} {self._NOUN}{'s' if len(files) != 1 else ''}"
+                "  ·  paste another folder path to browse elsewhere[/dim]"
+            )
+        self._filtered = list(self._all_files)
+        self._refresh_list()
+
+    def _refresh_list(self) -> None:
+        lv = self.query_one(ListView)
+        lv.clear()
+        for p in self._filtered:
+            lv.append(ListItem(Label(_file_row_label(p))))
+
+    def _filter_changed(self, event: Input.Changed) -> None:
+        q = event.value.strip().lower()
+        self._filtered = (
+            [p for p in self._all_files if q in p.name.lower()]
+            if q
+            else list(self._all_files)
+        )
+        self._refresh_list()
+
+    def on_mount(self) -> None:
+        self._scan()
+        self._focus_initial()
+
+    def _focus_initial(self) -> None:
+        """Default focus is the first row in the list — so Enter/`x` chooses
+        immediately, the common case — not the filter input. `s` jumps to
+        the filter from the list, matching the main view's Search key.
+        Falls back to the filter when there's nothing to list yet."""
+        lv = self.query_one(ListView)
+        if self._filtered:
+            lv.index = 0
+            self.call_after_refresh(lv.focus)
+        else:
+            self.call_after_refresh(self.query_one(self._wid("filter"), Input).focus)
+
+    def on_key(self, event: events.Key) -> None:
+        """Down in the Input moves focus to the list; Up from the first item
+        or `s` returns focus to the filter; Space previews, `x` chooses
+        (same as Enter)."""
+        lv = self.query_one(ListView)
+        inp = self.query_one(self._wid("filter"), Input)
+        if self.focused is inp and event.key == "down" and self._filtered:
+            lv.focus()
+            event.stop()
+        elif self.focused is lv and event.key == "up" and (lv.index or 0) == 0:
+            inp.focus()
+            event.stop()
+        elif self.focused is lv and event.key == "s":
+            inp.focus()
+            event.stop()
+        elif self.focused is lv and event.key == "space":
+            self._preview_selected()
+            event.stop()
+        elif self.focused is lv and event.key == "x":
+            self._confirm()
+            event.stop()
+
+    def _preview_selected(self) -> None:
+        lv = self.query_one(ListView)
+        idx = lv.index
+        if idx is None or idx >= len(self._filtered):
+            return
+        try:
+            open_with_default_app(str(self._filtered[idx]))
+        except Exception as e:
+            self.query_one(self._wid("error"), Static).update(f"Could not open: {e}")
+
+    def _filter_submitted(self, event: Input.Submitted) -> None:
+        val = event.value.strip()
+        if val:
+            expanded = Path(val).expanduser()
+            if expanded.is_dir():
+                self._download_dir = str(expanded)
+                self.query_one(self._wid("filter"), Input).value = ""
+                self.query_one(self._wid("error"), Static).update("")
+                self._scan()
+                return
+        self._confirm()
+
+    def _list_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one(ListView).index
+        if idx is not None and idx < len(self._filtered):
+            self._choose_path(self._filtered[idx])
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id and event.button.id.startswith("btn-"):
+            self._confirm()
+
+    def _confirm(self) -> None:
+        lv = self.query_one(ListView)
+        idx = lv.index
+        if self._filtered and idx is not None and idx < len(self._filtered):
+            self._choose_path(self._filtered[idx])
+        else:
+            val = self.query_one(self._wid("filter"), Input).value.strip()
+            if val:
+                self._choose_path(Path(val).expanduser())
+            else:
+                self.query_one(self._wid("error"), Static).update(
+                    "Select a file or enter a path."
+                )
+
+    def _choose_path(self, path: Path) -> None:
+        """Subclasses decide what "choosing" a file means."""
+        raise NotImplementedError
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
 
 class ConfirmModal(_BaseModal[bool]):
@@ -238,6 +435,77 @@ class DOIModal(_BaseModal[BibEntry | None]):
 
     def _confirm(self, entry: BibEntry) -> None:
         self.dismiss(entry)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class NewEntryChooserModal(_BaseModal["str | None"]):
+    """First step of `n`: pick how the new entry should be created.
+
+    Dismisses with one of ``"blank"``, ``"doi"``, ``"pdf"``, ``"bibfile"``,
+    ``"paste"``, or ``None`` if canceled. Kept as a single entry point
+    (rather than separate top-level keybindings per method) so there's one
+    obvious place to start adding a reference from.
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("1,m", "choose('blank')", show=False),
+        Binding("2,d", "choose('doi')", show=False),
+        Binding("3,p", "choose('pdf')", show=False),
+        Binding("4,v", "choose('paste')", show=False),
+        Binding("5,b", "choose('bibfile')", show=False),
+    ]
+
+    # (result key, mnemonic letter, title, short description)
+    _OPTIONS: list[tuple[str, str, str, str]] = [
+        ("doi", "d", "Import by DOI", "Fetch metadata from a DOI"),
+        ("pdf", "p", "Import from PDF", "Fetch metadata from PDF files"),
+        ("bibfile", "b", "Import .bib File", "Pick a downloaded .bib file"),
+        ("paste", "v", "Paste BibTeX", "Paste a raw BibTeX entry"),
+        ("blank", "m", "Fill out manually", "Pick a type, fill in fields"),
+    ]
+
+    DEFAULT_CSS = """
+    NewEntryChooserModal > Vertical {
+        width: 68;
+    }
+    NewEntryChooserModal ListView {
+        height: auto;
+        border: solid $panel;
+    }
+    NewEntryChooserModal ListItem {
+        padding: 0 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]New Entry[/bold]", classes="modal-title")
+            with ListView(id="chooser-list"):
+                for _key, letter, title, desc in self._OPTIONS:
+                    yield ListItem(
+                        Label(f"[bold]{letter}[/bold] · {title}  [dim]— {desc}[/dim]")
+                    )
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.call_after_refresh(self.query_one(ListView).focus)
+
+    @on(ListView.Selected, "#chooser-list")
+    def _on_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one(ListView).index
+        if idx is not None and idx < len(self._OPTIONS):
+            self.dismiss(self._OPTIONS[idx][0])
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+
+    def action_choose(self, key: str) -> None:
+        self.dismiss(key)
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -926,9 +1194,10 @@ class KeywordsModal(_BaseModal["tuple[str, set[str]] | None"]):
             yield Input(
                 placeholder="Filter or type new keyword + Enter to add…", id="kw-filter"
             )
-            yield SelectionList(id="kw-list")
+            yield PreviewSelectionList(id="kw-list")
             yield Static(
-                "[dim]Esc close · Enter add new  |  ↓/↑ navigate · Space toggle · ⌫ delete everywhere[/dim]",
+                "[dim]Esc close · Enter add new (in filter)  |  ↓/↑ navigate · "
+                "Enter/x toggle · ⌫ delete everywhere[/dim]",
                 id="kw-hints",
             )
             with Horizontal(classes="modal-buttons"):
@@ -1117,7 +1386,7 @@ class SettingsModal(_BaseModal["Config | None"]):
 
             yield Label("PDF download directory")
             yield Static(
-                "[dim]PDFs listed when you press [bold]a[/bold] to add an existing PDF. Defaults to ~/Downloads.[/dim]"
+                "[dim]PDFs listed when you press [bold]p[/bold] then [bold]a[/bold] to add an existing PDF. Defaults to ~/Downloads.[/dim]"
             )
             yield Input(
                 value=self._config.pdf_download_dir,
@@ -1402,10 +1671,16 @@ _HELP_SECTIONS = [
     (
         "Add new entry",
         [
-            ("n", "Create a new entry (pick type, fill fields, add custom)"),
-            ("d", "Import entry by DOI (fetches metadata online)"),
-            ("ctrl+v", "Paste a raw BibTeX entry from clipboard"),
+            ("n", "New entry — choose how:"),
+            (None, "  m  Fill out manually — pick a type, fill in the fields"),
+            (None, "  d  Import by DOI — fetches metadata online"),
+            (None, "  p  Import from PDF — finds a DOI/arXiv id, reports the"),
+            (None, "     outcome per file before writing anything"),
+            (None, "  b  Import .bib File — one entry is added directly;"),
+            (None, "     several show a report, DOI duplicates are skipped"),
+            (None, "  v  Paste BibTeX — from clipboard"),
             (None, "All methods reject duplicate cite keys."),
+            ("ctrl+v", "Also auto-detects a pasted BibTeX entry anywhere"),
         ],
     ),
     (
@@ -1417,8 +1692,8 @@ _HELP_SECTIONS = [
     (
         "Keywords modal",
         [
-            ("Enter", "Add typed keyword"),
-            ("Space", "Toggle selected keyword on/off"),
+            ("Enter", "Add the typed keyword (while the filter is focused)"),
+            ("Enter / x", "Toggle the highlighted keyword (while the list is focused)"),
             ("⌫", "Delete highlighted keyword from all entries"),
             ("↓ / ↑", "Move between filter and list"),
         ],
@@ -1427,12 +1702,23 @@ _HELP_SECTIONS = [
         "Entry state",
         [
             ("r", "Cycle read state"),
-            ("p", "Cycle priority"),
+            ("u", "Cycle urgency"),
             ("␣", "Show PDF"),
             ("b", "Open URL in browser (validates http/https)"),
             ("Shift+b", "Search OpenAlex (title first, then DOI)"),
-            ("f", "Fetch PDF and link it to the entry"),
-            ("a", "Add an existing PDF to the library and link it"),
+        ],
+    ),
+    (
+        "PDF actions",
+        [
+            ("p", "PDF actions — choose:"),
+            (None, "  o  Open — open the linked PDF"),
+            (None, "  f  Fetch — download the open-access PDF automatically"),
+            (None, "  a  Add — link an existing PDF from disk"),
+            (None, "  c  Copy PDF — copy the file to the clipboard"),
+            (None, "  p  Copy path — copy the file's path as text"),
+            (None, "  d  Delete — remove the file and unlink it"),
+            (None, "Actions that don't apply to the entry's current PDF state are grayed out."),
         ],
     ),
     (
@@ -1472,6 +1758,7 @@ _HELP_SECTIONS = [
         "Other",
         [
             ("?", "Show this help"),
+            ("ctrl+d", "Open the online documentation in your browser"),
             ("ctrl+p / ⌘p", "Command palette (Settings + Library actions)"),
             ("maximize", "(palette) maximize focused pane"),
             ("Esc", "Clear search / close modal"),
@@ -1489,7 +1776,7 @@ _HELP_SECTIONS = [
             ),
             (
                 "Default cols: [bold]◉[/bold] state  [bold]![/bold] prio  "
-                "[bold]◫[/bold] PDF  [bold]🔗[/bold] URL  Type  Year  "
+                "[bold]◫[/bold] PDF  [bold]↗[/bold] URL  Type  Year  "
                 "Author  Journal  Title  Added  [bold]★[/bold]",
             ),
             (
@@ -1545,7 +1832,7 @@ class HelpModal(_BaseModal[None]):
         return (
             f"[bold]bibtui[/bold] v{version}  —  BibTeX TUI\n"
             "[dim]Author:[/dim] Thomas Gölles\n"
-            "[dim]Docs:[/dim] https://tgoelles.github.io/bib_tui/\n"
+            f"[dim]Docs:[/dim] {DOCS_URL}  [dim](press ctrl+d to open)[/dim]\n"
             "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui"
         )
 
@@ -1715,8 +2002,125 @@ class PasteModal(_BaseModal["BibEntry | None"]):
         self.dismiss(None)
 
 
-class AddPDFModal(_BaseModal["str | None"]):
+class PdfActionsModal(_BaseModal["str | None"]):
+    """`p`: pick a PDF action for the selected entry.
+
+    Modeled on :class:`NewEntryChooserModal` — a ``ListView`` of
+    ``letter · Title — desc`` rows, chosen instantly by pressing the letter
+    (no separate confirm step). All six rows are always listed, in the same
+    order, so the menu always looks the same; the ones not valid for the
+    entry's current PDF state (:func:`bibtui.pdf.paths.pdf_link_state`) are
+    dimmed and inert — matching how the old button panel always showed all
+    six buttons and just disabled the inapplicable ones, rather than the
+    set of buttons itself changing shape. Dismisses with the chosen action's
+    key, or ``None`` if canceled — the caller
+    (``BibTuiApp._on_pdf_actions_choice``) dispatches to the existing
+    ``action_*`` methods, unchanged.
+    """
+
+    # (result key, mnemonic letter, title, desc, states it applies to)
+    _ALL_ACTIONS: list[tuple[str, str, str, str, set[str]]] = [
+        ("open", "o", "Open PDF", "Open the linked PDF file", {"found"}),
+        (
+            "fetch",
+            "f",
+            "Fetch PDF",
+            "Download the open-access PDF automatically",
+            {"none", "missing"},
+        ),
+        ("add", "a", "Add PDF", "Link an existing PDF from disk", {"none", "missing"}),
+        (
+            "copy_file",
+            "c",
+            "Copy PDF File",
+            "Copy the file to the clipboard",
+            {"found"},
+        ),
+        ("copy_path", "p", "Copy PDF Path", "Copy the file's path as text", {"found"}),
+        ("delete", "d", "Delete PDF", "Remove the file and unlink it", {"found", "missing"}),
+    ]
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("o", "choose('open')", show=False),
+        Binding("f", "choose('fetch')", show=False),
+        Binding("a", "choose('add')", show=False),
+        Binding("c", "choose('copy_file')", show=False),
+        Binding("p", "choose('copy_path')", show=False),
+        Binding("d", "choose('delete')", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    PdfActionsModal > Vertical {
+        width: 68;
+    }
+    PdfActionsModal ListView {
+        height: auto;
+        border: solid $panel;
+    }
+    PdfActionsModal ListItem {
+        padding: 0 1;
+    }
+    """
+
+    def __init__(self, entry: BibEntry, pdf_base_dir: str, **kwargs):
+        super().__init__(**kwargs)
+        self._entry = entry
+        state = pdf_link_state(entry.file, entry.key, pdf_base_dir)
+        self._available: set[str] = {
+            opt[0] for opt in self._ALL_ACTIONS if state in opt[4]
+        }
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label(
+                f"[bold]PDF Actions[/bold]  [dim]{self._entry.key}[/dim]",
+                classes="modal-title",
+            )
+            with ListView(id="pdf-actions-list"):
+                for key, letter, title, desc, _states in self._ALL_ACTIONS:
+                    if key in self._available:
+                        text = f"[bold]{letter}[/bold] · {title}  [dim]— {desc}[/dim]"
+                    else:
+                        # Grayed out, not just its desc — the whole row reads
+                        # as inert, like a disabled button. `[dim]` rides on
+                        # whatever the active theme resolves, so this stays
+                        # theme-aware without a hardcoded color.
+                        text = f"[dim]{letter} · {title}  — {desc}[/dim]"
+                    yield ListItem(Label(text))
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.call_after_refresh(self.query_one(ListView).focus)
+
+    @on(ListView.Selected, "#pdf-actions-list")
+    def _on_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one(ListView).index
+        if idx is not None and idx < len(self._ALL_ACTIONS):
+            self.action_choose(self._ALL_ACTIONS[idx][0])
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+
+    def action_choose(self, key: str) -> None:
+        # A letter (or Enter on a row) for an action not valid right now
+        # (e.g. `o` while the PDF isn't linked) is a silent no-op — same
+        # effect as a disabled button, since that row is grayed out.
+        if key in self._available:
+            self.dismiss(key)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class AddPDFModal(_FileBrowseMixin, _BaseModal["str | None"]):
     """Pick an existing PDF from the download directory, filter by name, and link it."""
+
+    _ID_PREFIX = "add"
+    _GLOB = "*.pdf"
+    _NOUN = "PDF"
 
     BINDINGS = [
         Binding(SAVE, "add", "Add", show=True),
@@ -1760,11 +2164,9 @@ class AddPDFModal(_BaseModal["str | None"]):
         super().__init__(**kwargs)
         self._entry = entry
         self._base_dir = base_dir
-        from pathlib import Path
-
         self._download_dir = download_dir or str(Path.home() / "Downloads")
-        self._all_pdfs: list = []
-        self._filtered: list = []
+        self._all_files: list[Path] = []
+        self._filtered: list[Path] = []
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -1773,10 +2175,13 @@ class AddPDFModal(_BaseModal["str | None"]):
                 classes="modal-title",
             )
             yield Static("", id="add-hint")
-            yield Input(placeholder="type to filter…", id="add-filter")
+            yield Input(
+                placeholder="type to filter, or paste a file/folder path…",
+                id="add-filter",
+            )
             yield ListView(id="add-list")
             yield Static(
-                "[dim]↓/↑ navigate · Space preview [/dim]",
+                "[dim]↓/↑ navigate · Space preview · Enter/x add · s search[/dim]",
                 id="add-preview-hint",
             )
             yield Static("", id="add-error")
@@ -1784,131 +2189,31 @@ class AddPDFModal(_BaseModal["str | None"]):
                 yield Button("Add", variant="primary", id="btn-add")
                 yield Button("Cancel", id="btn-cancel")
 
-    def on_mount(self) -> None:
-        self._scan()
-        self.call_after_refresh(self.query_one("#add-filter", Input).focus)
-
-    def _scan(self) -> None:
-        from pathlib import Path
-
-        dl = Path(self._download_dir).expanduser()
-        hint = self.query_one("#add-hint", Static)
-        if not dl.is_dir():
-            hint.update(
-                f"[dim]Download dir not found: {dl}  ·  enter a path manually[/dim]"
-            )
-            self._all_pdfs = []
-        else:
-            pdfs = sorted(
-                dl.glob("*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True
-            )
-            self._all_pdfs = pdfs
-            hint.update(
-                f"[dim]{dl}  ·  {len(pdfs)} PDF{'s' if len(pdfs) != 1 else ''}[/dim]"
-            )
-        self._filtered = list(self._all_pdfs)
-        self._refresh_list()
-
-    def _refresh_list(self) -> None:
-        lv = self.query_one(ListView)
-        lv.clear()
-        for p in self._filtered:
-            stat = p.stat()
-            size = stat.st_size
-            size_str = (
-                f"{size / 1048576:.1f} MB"
-                if size >= 1048576
-                else f"{size / 1024:.0f} KB"
-            )
-            age = _format_age(stat.st_mtime)
-            lv.append(ListItem(Label(f"{p.name}  [dim]{size_str}  {age}[/dim]")))
-
     @on(Input.Changed, "#add-filter")
     def _on_filter(self, event: Input.Changed) -> None:
-        q = event.value.strip().lower()
-        self._filtered = (
-            [p for p in self._all_pdfs if q in p.name.lower()]
-            if q
-            else list(self._all_pdfs)
-        )
-        self._refresh_list()
-
-    def on_key(self, event: events.Key) -> None:
-        """Down in the Input moves focus to the list; Up from the first item returns focus."""
-        lv = self.query_one(ListView)
-        inp = self.query_one("#add-filter", Input)
-        if self.focused is inp and event.key == "down" and self._filtered:
-            lv.focus()
-            event.stop()
-        elif self.focused is lv and event.key == "up" and (lv.index or 0) == 0:
-            inp.focus()
-            event.stop()
-        elif self.focused is lv and event.key == "space":
-            self._preview_selected()
-            event.stop()
-
-    def _preview_selected(self) -> None:
-        lv = self.query_one(ListView)
-        idx = lv.index
-        if idx is None or idx >= len(self._filtered):
-            return
-        path = self._filtered[idx]
-        try:
-            open_with_default_app(str(path))
-        except Exception as e:
-            self.query_one("#add-error", Static).update(f"Could not open: {e}")
+        self._filter_changed(event)
 
     @on(Input.Submitted, "#add-filter")
-    def _on_filter_submitted(self, _: Input.Submitted) -> None:
-        self._confirm()
+    def _on_filter_submitted(self, event: Input.Submitted) -> None:
+        self._filter_submitted(event)
 
     @on(ListView.Selected)
     def _on_list_selected(self, event: ListView.Selected) -> None:
-        idx = self.query_one(ListView).index
-        if idx is not None and idx < len(self._filtered):
-            self._add_path(self._filtered[idx])
+        self._list_selected(event)
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-cancel":
-            self.dismiss(None)
-        elif event.button.id == "btn-add":
-            self._confirm()
-
-    def _confirm(self) -> None:
-        from pathlib import Path
-
-        lv = self.query_one(ListView)
-        idx = lv.index
-        if self._filtered and idx is not None and idx < len(self._filtered):
-            self._add_path(self._filtered[idx])
-        else:
-            # Fallback: treat the filter text as a custom path
-            val = self.query_one("#add-filter", Input).value.strip()
-            if val:
-                self._add_path(Path(val))
-            else:
-                self.query_one("#add-error", Static).update(
-                    "Select a file or enter a path."
-                )
-
-    def _add_path(self, src) -> None:
-        from pathlib import Path
-
+    def _choose_path(self, path: Path) -> None:
         from bibtui.pdf.fetcher import FetchError, add_pdf
 
         error = self.query_one("#add-error", Static)
         error.update("")
         try:
-            dest = add_pdf(Path(src), self._entry, self._base_dir)
+            dest = add_pdf(path, self._entry, self._base_dir)
             self.dismiss(str(dest))
         except FetchError as exc:
             error.update(str(exc))
 
     def action_add(self) -> None:
         self._confirm()
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
 
 
 class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
@@ -1943,6 +2248,7 @@ class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
         unpaywall_email: str = "",
         openalex_api_key: str = "",
         overwrite: bool = False,
+        just_created: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -1951,6 +2257,11 @@ class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
         self._email = unpaywall_email
         self._openalex_api_key = openalex_api_key
         self._overwrite = overwrite
+        # True when this fetch is the automatic one right after the entry
+        # was just added (see BibTuiApp._maybe_auto_fetch) — on failure the
+        # entry itself is still there, only the PDF is missing, so say so
+        # instead of a bare "could not fetch" that reads like nothing happened.
+        self._just_created = just_created
         self._saved_result: tuple[str, str] | None = None
 
     def compose(self) -> ComposeResult:
@@ -2005,7 +2316,11 @@ class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
         self.query_one("#btn-close", Button).disabled = False
 
     def _format_fetch_error(self, message: str) -> str:
-        title = "Could not fetch PDF for this entry."
+        title = (
+            f"Added '{self._entry.key}', but its PDF could not be fetched."
+            if self._just_created
+            else "Could not fetch PDF for this entry."
+        )
         lines = [line.strip() for line in message.splitlines() if line.strip()]
         if not lines:
             return title
@@ -2198,6 +2513,659 @@ class BatchFetchPDFModal(_BaseModal["dict | None"]):
         self.query_one("#btn-cancel", Button).disabled = True
 
 
+class PreviewSelectionList(SelectionList):
+    """A SelectionList where Space previews the highlighted row instead of
+    toggling it, and Enter/`x` toggle instead — the checklist counterpart of
+    every single-choice picker's Space-previews/Enter-or-x-chooses
+    convention (:class:`AddPDFModal` and friends). Space delegates to the
+    screen's ``_preview_highlighted`` if it defines one; on a screen that
+    doesn't (nothing to preview — e.g. :class:`KeywordsModal`), Space is
+    simply a no-op rather than falling back to plain ``SelectionList``'s
+    default of toggling on Space.
+    """
+
+    BINDINGS = [
+        Binding("space", "preview", "Preview", show=False),
+        Binding("x", "select", "Toggle", show=False),
+    ]
+
+    def action_preview(self) -> None:
+        preview = getattr(self.screen, "_preview_highlighted", None)
+        if callable(preview):
+            preview()
+
+
+class PdfImportPickerModal(_BaseModal["list[str] | None"]):
+    """Pick one or more existing PDFs to import, filtered by name.
+
+    Same browsing model as :class:`AddPDFModal` (list the configured download
+    directory, filter by typing, ``Space`` previews the highlighted row) but
+    as a checklist — ``Enter``/``x`` toggle a row instead of choosing it
+    outright — so several files can be picked at once, since
+    there's no single entry to attach them to yet — that happens per-file in
+    the review step after metadata is fetched. Submitting an existing
+    directory path in the filter re-points the listing at that folder
+    (e.g. an old downloads folder or a migrated Papers/Zotero export)
+    instead of only ever showing the configured download directory.
+    """
+
+    # See _FileBrowseMixin's AUTO_FOCUS for why this is disabled: without
+    # it, the filter Input (composed before the list) would flash focused
+    # for one frame before _focus_initial() moves focus to the list.
+    AUTO_FOCUS = ""
+
+    BINDINGS = [
+        Binding(SAVE, "import_selected", "Import", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
+
+    DEFAULT_CSS = """
+    PdfImportPickerModal > Vertical {
+        width: 80;
+        height: 34;
+    }
+    PdfImportPickerModal Input {
+        margin-bottom: 1;
+    }
+    PdfImportPickerModal SelectionList {
+        height: 1fr;
+        border: solid $panel;
+        margin-bottom: 1;
+    }
+    PdfImportPickerModal #pip-hint {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+    PdfImportPickerModal #pip-nav-hint {
+        color: $text-muted;
+        height: auto;
+        margin-bottom: 1;
+    }
+    PdfImportPickerModal #pip-error {
+        color: $error;
+    }
+    """
+
+    def __init__(self, download_dir: str, **kwargs):
+        super().__init__(**kwargs)
+        self._download_dir = download_dir or str(Path.home() / "Downloads")
+        self._all_files: list[Path] = []
+        self._filtered: list[Path] = []
+        self._selected: set[str] = set()
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Import from PDF[/bold]", classes="modal-title")
+            yield Static("", id="pip-hint")
+            yield Input(
+                placeholder="type to filter, or paste a file/folder path…",
+                id="pip-filter",
+            )
+            yield PreviewSelectionList(id="pip-list")
+            yield Static(
+                "[dim]↓/↑ navigate · Space preview · Enter/x toggle · s search[/dim]",
+                id="pip-nav-hint",
+            )
+            yield Static("", id="pip-error")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Import", variant="primary", id="btn-import")
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self._scan()
+        self._focus_initial()
+
+    def _focus_initial(self) -> None:
+        """Default focus is the first row in the list, not the filter — same
+        convention as every other file picker in the app. `s` jumps back to
+        the filter from the list, matching the main view's Search key."""
+        sl = self.query_one(SelectionList)
+        if self._filtered:
+            sl.highlighted = 0
+            self.call_after_refresh(sl.focus)
+        else:
+            self.call_after_refresh(self.query_one("#pip-filter", Input).focus)
+
+    def _scan(self) -> None:
+        dl = Path(self._download_dir).expanduser()
+        hint = self.query_one("#pip-hint", Static)
+        if not dl.is_dir():
+            hint.update(
+                f"[dim]Folder not found: {dl}  ·  paste a file or folder path below[/dim]"
+            )
+            self._all_files = []
+        else:
+            pdfs = sorted(
+                dl.glob("*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True
+            )
+            self._all_files = pdfs
+            hint.update(
+                f"[dim]{dl}  ·  {len(pdfs)} PDF{'s' if len(pdfs) != 1 else ''}  ·  "
+                "paste another folder path to browse elsewhere[/dim]"
+            )
+        self._filtered = list(self._all_files)
+        self._rebuild_list()
+
+    def _sync_from_list(self) -> None:
+        """Pull the checkbox state of currently shown rows into self._selected."""
+        sl = self.query_one(SelectionList)
+        selected_now = set(sl.selected)
+        for p in self._filtered:
+            path = str(p)
+            if path in selected_now:
+                self._selected.add(path)
+            else:
+                self._selected.discard(path)
+
+    def _rebuild_list(self) -> None:
+        sl = self.query_one(SelectionList)
+        sl.clear_options()
+        for p in self._filtered:
+            label = _file_row_label(p)
+            sl.add_option(Selection(label, str(p), str(p) in self._selected))
+
+    @on(Input.Changed, "#pip-filter")
+    def _on_filter(self, event: Input.Changed) -> None:
+        self._sync_from_list()
+        q = event.value.strip().lower()
+        self._filtered = (
+            [p for p in self._all_files if q in p.name.lower()]
+            if q
+            else list(self._all_files)
+        )
+        self._rebuild_list()
+
+    def on_key(self, event: events.Key) -> None:
+        """Down in the Input moves focus to the list; Up from the first item
+        or `s` returns focus to the filter."""
+        sl = self.query_one(SelectionList)
+        inp = self.query_one("#pip-filter", Input)
+        if self.focused is inp and event.key == "down" and self._filtered:
+            sl.focus()
+            event.stop()
+        elif self.focused is sl and event.key == "up" and (sl.highlighted or 0) == 0:
+            inp.focus()
+            event.stop()
+        elif self.focused is sl and event.key == "s":
+            inp.focus()
+            event.stop()
+
+    def _preview_highlighted(self) -> None:
+        sl = self.query_one(SelectionList)
+        idx = sl.highlighted
+        if idx is None or idx >= len(self._filtered):
+            return
+        try:
+            open_with_default_app(str(self._filtered[idx]))
+        except Exception as e:
+            self.query_one("#pip-error", Static).update(f"Could not open: {e}")
+
+    @on(Input.Submitted, "#pip-filter")
+    def _on_filter_submitted(self, _: Input.Submitted) -> None:
+        val = self.query_one("#pip-filter", Input).value.strip()
+        if not val:
+            return
+        error = self.query_one("#pip-error", Static)
+        error.update("")
+
+        expanded = Path(val).expanduser()
+        if expanded.is_dir():
+            self._download_dir = str(expanded)
+            self.query_one("#pip-filter", Input).value = ""
+            self._scan()
+            return
+
+        if expanded.is_file() and expanded.suffix.lower() == ".pdf":
+            if expanded not in self._all_files:
+                self._all_files.insert(0, expanded)
+            self._selected.add(str(expanded))
+            self.query_one("#pip-filter", Input).value = ""
+            self._filtered = list(self._all_files)
+            self._rebuild_list()
+            return
+
+        self._sync_from_list()
+        if len(self._filtered) == 1:
+            path = str(self._filtered[0])
+            if path in self._selected:
+                self._selected.discard(path)
+            else:
+                self._selected.add(path)
+            self._rebuild_list()
+            return
+
+        error.update("No matching file or folder — refine the filter or pick from the list.")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-import":
+            self._confirm()
+
+    def _confirm(self) -> None:
+        self._sync_from_list()
+        if not self._selected:
+            self.query_one("#pip-error", Static).update("Select at least one PDF.")
+            return
+        self.dismiss(sorted(self._selected))
+
+    def action_import_selected(self) -> None:
+        self._confirm()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class PdfImportReviewModal(_BaseModal["dict | None"]):
+    """Scan PDFs for an identifier, fetch metadata, and report the outcome.
+
+    Scanning (offline extraction + CrossRef lookups, one file at a time)
+    runs in a background thread. Once it finishes, every file is listed —
+    which PDF to try was already decided in :class:`PdfImportPickerModal`,
+    so this isn't a second yes/no per file — with a ✓/✗ mark: matched files
+    (a new entry will be created) and files that matched an existing entry
+    with no PDF yet (that PDF will be linked to it, no new entry created)
+    are ✓; anything ambiguous, unidentified, already present, or that failed
+    to look up is ✗ with the reason (an ambiguous row's candidate DOIs are
+    included, so you can copy one out and use "Import by DOI" yourself if
+    the right one isn't obvious). Space previews the highlighted row's
+    source PDF, success or failure. Nothing is written until "Import N
+    Entries" is pressed — one action for every ✓ row at once, no per-file
+    toggle. Dismisses with ``{"new": [...], "relinked": [...]}`` (new
+    entries to append vs. existing entries that got a PDF linked in place)
+    or ``None`` if canceled or nothing was importable.
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    DEFAULT_CSS = """
+    PdfImportReviewModal > Vertical {
+        width: 96;
+        height: 88%;
+    }
+    PdfImportReviewModal LoadingIndicator {
+        height: 3;
+    }
+    PdfImportReviewModal #import-progress {
+        margin-top: 1;
+        color: $text;
+    }
+    PdfImportReviewModal OptionList {
+        height: 1fr;
+        border: solid $panel;
+        margin-top: 1;
+    }
+    PdfImportReviewModal #import-nav-hint {
+        color: $text-muted;
+        height: auto;
+        margin-top: 1;
+    }
+    """
+
+    _STATUS_LABELS = {
+        "already_present": "Already present",
+        "no_identifier": "No identifier found",
+        "ambiguous": "Ambiguous",
+        "lookup_failed": "Lookup failed",
+    }
+
+    # Pause between PDFs that actually hit CrossRef, so a large folder
+    # doesn't fire dozens of back-to-back anonymous-pool requests. Skipped
+    # for rows resolved without a network call (no identifier, ambiguous,
+    # already present, or matched a library entry by DOI alone) and after
+    # the last file (nothing left to protect).
+    _CROSSREF_PAUSE_SECONDS = 0.2
+
+    def __init__(
+        self,
+        paths: list[str],
+        existing_by_doi: dict[str, BibEntry],
+        base_dir: str,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self._paths = paths
+        self._existing_by_doi = existing_by_doi
+        self._base_dir = base_dir
+        self._cancel_requested = False
+        self._scanning = True
+        self._rows: list = []
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label(
+                f"[bold]Import from PDF[/bold]  [dim]{len(self._paths)} file"
+                f"{'s' if len(self._paths) != 1 else ''}[/dim]",
+                classes="modal-title",
+            )
+            yield LoadingIndicator(id="import-loading")
+            yield Static("Preparing…", id="import-progress")
+            yield OptionList(id="import-list")
+            yield Static(
+                "[dim]↓/↑ navigate · Space preview[/dim]",
+                id="import-nav-hint",
+            )
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Import", variant="primary", id="btn-import", disabled=True)
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one(OptionList).display = False
+        self._scan()
+
+    @work(thread=True)
+    def _scan(self) -> None:
+        from bibtui.pdf.import_scan import ImportStatus, process_pdf
+
+        seen_in_batch: set[str] = set()
+        rows = []
+        total = len(self._paths)
+        for index, path in enumerate(self._paths, start=1):
+            if self._cancel_requested:
+                break
+            self.app.call_from_thread(
+                self._on_progress, f"[{index}/{total}] {Path(path).name}"
+            )
+            row = process_pdf(path, self._existing_by_doi, seen_in_batch)
+            if (
+                row.status in (ImportStatus.MATCHED, ImportStatus.LINK_EXISTING)
+                and row.entry
+                and row.entry.doi
+            ):
+                seen_in_batch.add(normalize_doi(row.entry.doi))
+            rows.append(row)
+            hit_crossref = row.status in (ImportStatus.MATCHED, ImportStatus.LOOKUP_FAILED)
+            if hit_crossref and index < total and not self._cancel_requested:
+                time.sleep(self._CROSSREF_PAUSE_SECONDS)
+        self.app.call_from_thread(self._on_scan_done, rows)
+
+    def _on_progress(self, message: str) -> None:
+        self.query_one("#import-progress", Static).update(message)
+
+    def _importable_rows(self) -> list:
+        from bibtui.pdf.import_scan import ImportStatus
+
+        return [
+            r for r in self._rows if r.status in (ImportStatus.MATCHED, ImportStatus.LINK_EXISTING)
+        ]
+
+    def _row_text(self, row) -> Text:
+        from bibtui.pdf.import_scan import ImportStatus
+
+        if row.status == ImportStatus.MATCHED:
+            entry = row.entry
+            body = (
+                f"{row.filename} → {entry.title_short} "
+                f"({entry.authors_short}, {entry.year or '?'})"
+            )
+            return _report_row_text(self.app, True, body)
+        if row.status == ImportStatus.LINK_EXISTING:
+            body = f"{row.filename} → link to existing entry '{row.entry.key}'"
+            return _report_row_text(self.app, True, body)
+        label = self._STATUS_LABELS.get(str(row.status), str(row.status))
+        candidates = f" ({', '.join(row.candidates)})" if row.candidates else ""
+        body = f"{row.filename} — {label}: {row.message}{candidates}"
+        return _report_row_text(self.app, False, body)
+
+    def _on_scan_done(self, rows: list) -> None:
+        self._scanning = False
+        self._rows = rows
+        self.query_one("#import-loading", LoadingIndicator).display = False
+
+        ol = self.query_one(OptionList)
+        ol.display = True
+        for row in rows:
+            ol.add_option(Option(self._row_text(row)))
+
+        importable = self._importable_rows()
+        skipped = len(rows) - len(importable)
+        self.query_one("#import-progress", Static).update(
+            f"Scanned {len(rows)} file{'s' if len(rows) != 1 else ''}: "
+            f"{len(importable)} to import, {skipped} skipped."
+        )
+
+        btn = self.query_one("#btn-import", Button)
+        btn.disabled = not importable
+        btn.label = _import_button_label(len(importable))
+
+    def on_key(self, event: events.Key) -> None:
+        """Space previews the highlighted row's source PDF."""
+        ol = self.query_one(OptionList)
+        if self.focused is ol and event.key == "space":
+            self._preview_highlighted()
+            event.stop()
+
+    def _preview_highlighted(self) -> None:
+        ol = self.query_one(OptionList)
+        idx = ol.highlighted
+        if idx is None or idx >= len(self._rows):
+            return
+        try:
+            open_with_default_app(self._rows[idx].path)
+        except Exception as e:
+            self.app.notify(f"Could not open: {e}", severity="error", timeout=5)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.action_cancel()
+        elif event.button.id == "btn-import":
+            self._confirm()
+
+    def _confirm(self) -> None:
+        if self._scanning:
+            return
+        importable = self._importable_rows()
+        if not importable:
+            self.dismiss(None)
+            return
+
+        from bibtui.pdf.fetcher import FetchError, add_pdf
+        from bibtui.pdf.import_scan import ImportStatus
+        from bibtui.pdf.paths import format_jabref_path
+
+        new_entries: list[BibEntry] = []
+        relinked_entries: list[BibEntry] = []
+        errors: list[str] = []
+        reused_count = 0
+        for row in importable:
+            entry = row.entry
+            if entry is None:
+                continue
+            if self._base_dir:
+                try:
+                    src = Path(row.path)
+                    dest = add_pdf(src, entry, self._base_dir)
+                    # add_pdf reuses an identical PDF already in the library
+                    # instead of moving src there a second time under a new
+                    # name — src still being on disk afterwards is how we
+                    # tell that happened, without add_pdf needing to say so
+                    # explicitly (every other caller just wants the path).
+                    if src.exists():
+                        reused_count += 1
+                    entry.file = format_jabref_path(str(dest), self._base_dir)
+                except FetchError as exc:
+                    errors.append(f"{row.filename}: {exc}")
+                    continue
+            if row.status == ImportStatus.LINK_EXISTING:
+                # `entry` is the same object already in the library (see
+                # process_pdf) — mutating .file above already updated it in
+                # place; the caller just needs to know to refresh, not append.
+                relinked_entries.append(entry)
+            else:
+                new_entries.append(entry)
+
+        if reused_count:
+            noun = "PDF was" if reused_count == 1 else "PDFs were"
+            self.app.notify(
+                f"{reused_count} {noun} already in your library — "
+                "linked to the existing file instead of copying it again.",
+                timeout=5,
+            )
+        if errors:
+            self.app.notify(
+                "Some PDFs could not be linked:\n" + "\n".join(errors),
+                severity="warning",
+                timeout=8,
+            )
+
+        if not new_entries and not relinked_entries:
+            self.dismiss(None)
+            return
+        self.dismiss({"new": new_entries, "relinked": relinked_entries})
+
+    def action_cancel(self) -> None:
+        if self._scanning:
+            self._cancel_requested = True
+            self.query_one("#import-progress", Static).update("Stopping…")
+            return
+        self.dismiss(None)
+
+
+class BibFileImportReviewModal(_BaseModal["list[BibEntry] | None"]):
+    """Report the outcome of parsing a multi-entry .bib file and commit it.
+
+    Parsing already happened synchronously (:func:`bibtui.bib.parser.load`)
+    before this modal opens — unlike the PDF import review screen there's no
+    background work here. Each parsed entry is marked ✓ (no DOI, or a DOI
+    not already in the library — will be added) or ✗ (its DOI already
+    matches a library entry, including a duplicate DOI within this same
+    file — skipped). Duplicate detection is DOI-only, matching "Import from
+    PDF": an entry with no DOI is always ✓, never auto-skipped. Dismisses
+    with the list of ✓ entries to append, or ``None`` if none are new or
+    the user cancels — nothing is written until "Import N Entries".
+
+    Like :class:`PdfImportReviewModal`, Space previews a file — here there's
+    only one file (the `.bib` file itself, the same one on every row), not
+    one per row, but the keybinding is kept consistent rather than dropped.
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
+
+    DEFAULT_CSS = """
+    BibFileImportReviewModal > Vertical {
+        width: 96;
+        height: 88%;
+    }
+    BibFileImportReviewModal #bfi-summary {
+        margin-top: 1;
+        color: $text;
+    }
+    BibFileImportReviewModal OptionList {
+        height: 1fr;
+        border: solid $panel;
+        margin-top: 1;
+    }
+    BibFileImportReviewModal #bfi-nav-hint {
+        color: $text-muted;
+        height: auto;
+        margin-top: 1;
+    }
+    """
+
+    def __init__(
+        self,
+        entries: list[BibEntry],
+        existing_by_doi: dict[str, BibEntry],
+        path: str = "",
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self._path = path
+        self._new_entries: list[BibEntry] = []
+        self._rows: list[tuple[BibEntry, str | None]] = []  # (entry, skip-reason)
+        seen_in_batch: set[str] = set()
+
+        for entry in entries:
+            doi = (entry.doi or "").strip()
+            normalized = normalize_doi(doi) if doi else ""
+            reason: str | None = None
+            if normalized:
+                if normalized in existing_by_doi:
+                    reason = f"Already in library as '{existing_by_doi[normalized].key}'"
+                elif normalized in seen_in_batch:
+                    reason = "Duplicate of another entry in this file"
+            if reason is None:
+                if normalized:
+                    seen_in_batch.add(normalized)
+                self._new_entries.append(entry)
+            self._rows.append((entry, reason))
+
+    def compose(self) -> ComposeResult:
+        total = len(self._rows)
+        with Vertical():
+            yield Label(
+                f"[bold]Import .bib File[/bold]  [dim]{total} entr"
+                f"{'y' if total == 1 else 'ies'}[/dim]",
+                classes="modal-title",
+            )
+            yield Static(self._summary_text(), id="bfi-summary")
+            yield OptionList(id="bfi-list")
+            yield Static(
+                "[dim]↓/↑ navigate · Space preview the .bib file[/dim]",
+                id="bfi-nav-hint",
+            )
+            with Horizontal(classes="modal-buttons"):
+                yield Button(
+                    _import_button_label(len(self._new_entries)),
+                    variant="primary",
+                    id="btn-import",
+                    disabled=not self._new_entries,
+                )
+                yield Button("Cancel", id="btn-cancel")
+
+    def _summary_text(self) -> str:
+        total = len(self._rows)
+        new = len(self._new_entries)
+        skipped = total - new
+        return (
+            f"{total} entr{'y' if total == 1 else 'ies'} found: "
+            f"{new} new, {skipped} already in your library."
+        )
+
+    def on_mount(self) -> None:
+        ol = self.query_one(OptionList)
+        for entry, reason in self._rows:
+            ol.add_option(Option(self._row_text(entry, reason)))
+
+    def _row_text(self, entry: BibEntry, reason: str | None) -> Text:
+        if reason is None:
+            body = (
+                f"{entry.key} → {entry.title_short} "
+                f"({entry.authors_short}, {entry.year or '?'})"
+            )
+            return _report_row_text(self.app, True, body)
+        return _report_row_text(self.app, False, f"{entry.key} — {reason}")
+
+    def on_key(self, event: events.Key) -> None:
+        """Space previews the source .bib file, regardless of which row is
+        highlighted — matching PdfImportReviewModal's Space-to-preview
+        convention, even though here every row shares the same one file."""
+        ol = self.query_one(OptionList)
+        if self.focused is ol and event.key == "space":
+            self._preview_source()
+            event.stop()
+
+    def _preview_source(self) -> None:
+        if not self._path:
+            return
+        try:
+            open_with_default_app(self._path)
+        except Exception as e:
+            self.app.notify(f"Could not open: {e}", severity="error", timeout=5)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-import":
+            self._confirm()
+
+    def _confirm(self) -> None:
+        self.dismiss(self._new_entries or None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class FirstRunModal(_BaseModal[bool]):
     """One-time welcome notice — shown only on the very first launch."""
 
@@ -2321,3 +3289,99 @@ class FilePickerModal(_BaseModal["str | None"]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class ImportBibPickerModal(_FileBrowseMixin, _BaseModal["str | None"]):
+    """Pick a single .bib file to import, filtered by name.
+
+    Shares :class:`AddPDFModal`'s browsing model via :class:`_FileBrowseMixin`
+    — list a download directory, filter by typing, ``Space`` previews the
+    highlighted row, ``Enter``/``x`` choose it, submitting an existing
+    directory path in the filter re-points the listing at that folder — the
+    .bib counterpart of "choosing a single PDF".
+    """
+
+    _ID_PREFIX = "ibp"
+    _GLOB = "*.bib"
+    _NOUN = ".bib file"
+
+    BINDINGS = [
+        Binding(SAVE, "choose", "Choose", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
+
+    DEFAULT_CSS = """
+    ImportBibPickerModal > Vertical {
+        width: 80;
+        height: 30;
+    }
+    ImportBibPickerModal Input {
+        margin-bottom: 1;
+    }
+    ImportBibPickerModal ListView {
+        height: 1fr;
+        border: solid $panel;
+        margin-bottom: 1;
+    }
+    ImportBibPickerModal #ibp-hint {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+    ImportBibPickerModal #ibp-nav-hint {
+        color: $text-muted;
+        height: auto;
+        margin-bottom: 1;
+    }
+    ImportBibPickerModal #ibp-error {
+        color: $error;
+    }
+    """
+
+    def __init__(self, download_dir: str = "", **kwargs):
+        super().__init__(**kwargs)
+        self._download_dir = download_dir or str(Path.home() / "Downloads")
+        self._all_files: list[Path] = []
+        self._filtered: list[Path] = []
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Import .bib File[/bold]", classes="modal-title")
+            yield Static("", id="ibp-hint")
+            yield Input(
+                placeholder="type to filter, or paste a file/folder path…",
+                id="ibp-filter",
+            )
+            yield ListView(id="ibp-list")
+            yield Static(
+                "[dim]↓/↑ navigate · Space preview · Enter/x choose · s search[/dim]",
+                id="ibp-nav-hint",
+            )
+            yield Static("", id="ibp-error")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Choose", variant="primary", id="btn-choose")
+                yield Button("Cancel", id="btn-cancel")
+
+    @on(Input.Changed, "#ibp-filter")
+    def _on_filter(self, event: Input.Changed) -> None:
+        self._filter_changed(event)
+
+    @on(Input.Submitted, "#ibp-filter")
+    def _on_filter_submitted(self, event: Input.Submitted) -> None:
+        self._filter_submitted(event)
+
+    @on(ListView.Selected)
+    def _on_list_selected(self, event: ListView.Selected) -> None:
+        self._list_selected(event)
+
+    def _choose_path(self, path: Path) -> None:
+        error = self.query_one("#ibp-error", Static)
+        if not path.is_file():
+            error.update(f"File not found: {path}")
+            return
+        if path.suffix.lower() != ".bib":
+            error.update(f"Not a .bib file: {path.name}")
+            return
+        self.dismiss(str(path))
+
+    def action_choose(self) -> None:
+        self._confirm()

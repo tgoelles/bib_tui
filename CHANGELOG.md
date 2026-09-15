@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Import from PDF files** — from the <kbd>n</kbd> "New Entry" menu, choose "Import from PDF" and pick one or more files (e.g. an old downloads folder or a migrated Papers/Zotero library). Each PDF is scanned for a DOI or arXiv id (document metadata first, then its first two pages of text) and its metadata fetched via CrossRef, same as "Import by DOI". Nothing is written until you confirm: a report lists every file ✓/✗ with the reason for any failure, <kbd>Space</kbd> previews a file, and one click imports every ✓ row. Matching an existing library entry links the PDF to it instead of duplicating; an identical PDF already on disk (by content, not filename) is reused rather than copied again.
+- **Import a `.bib` file** — <kbd>n</kbd> then <kbd>b</kbd>, pick a file such as a journal's "download citation" export. A single-entry file is added directly, like DOI import; a multi-entry file shows the same kind of ✓/✗ report (duplicates matched by DOI) before you commit.
+- **Open the online documentation** — <kbd>Ctrl</kbd>+<kbd>d</kbd>, also linked from the `?` help screen.
+
+### Changed
+
+- **Adding an entry is now one key, `n`, with a mnemonic chooser** — <kbd>d</kbd> DOI, <kbd>p</kbd> PDF, <kbd>b</kbd> `.bib` file, <kbd>v</kbd> paste, <kbd>m</kbd> manual — replacing the old separate top-level DOI/PDF-import keys.
+- **PDF actions are now one key, `p`**, with the same chooser style — Open/Fetch/Add/Copy PDF/Copy path/Delete, one letter each, unavailable ones grayed out rather than hidden. <kbd>Space</kbd> still opens the PDF directly. The detail pane's old PDF-actions button panel is gone, replaced by a compact status label. This freed up <kbd>p</kbd> from "cycle priority", which moved to <kbd>u</kbd> — and **"Priority" is renamed "Urgency"** throughout the UI (the `.bib` field itself is unchanged, still `priority`/`prio1-3`, for JabRef compatibility).
+- **Trimmed and reordered the footer** to New, Edit, Keywords, State, Urgency, Rating, Search, PDF, Show PDF, Quit, Write, Docs, Help — everything else (Max table, View, Browser, OpenAlex, …) still works, just via <kbd>?</kbd> help or the command palette.
+- **One consistent keyboard convention across every list-picker in the app** (PDF/`.bib` pickers, the keywords editor): <kbd>Space</kbd> always previews, <kbd>Enter</kbd>/<kbd>x</kbd> always chooses or toggles. Pickers now also open with the first row already focused, so Enter/x acts immediately — press <kbd>s</kbd> to jump to the filter instead, mirroring the main view's Search key. The keywords editor is the one exception, still opening in its filter box, since typing a new keyword is the more common first move there.
+
+### Fixed
+
+- **Auto-fetch failure after adding an entry read as if nothing had happened** — it now leads with "Added '\<key>', but its PDF could not be fetched." so it's clear the entry itself was saved; unaffected when fetching for an already-existing entry.
+- **Import from PDF is more accurate and gentler on CrossRef** — old-style arXiv ids (pre-2007, e.g. `hep-th/9711200`) are now recognized; a corrupt/unreadable file is no longer misreported as "scanned PDF?"; lookups now pause briefly between files that actually hit the network.
+- **The URL indicator (`↗`) could render as invisible in some terminals** — it used to be the 🔗 emoji, which needs color-emoji font support many terminals lack; now a plain Unicode arrow, like every other status icon.
+
 ## [1.0.1] - 2026-09-14
 
 ### Added

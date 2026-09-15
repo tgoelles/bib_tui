@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from bibtui.bib.models import READ_STATES, BibEntry
-from bibtui.pdf.paths import find_pdf_for_entry
+from bibtui.pdf.paths import pdf_link_state
 from bibtui.utils.dates import DATE_ADDED_KEYS, extract_date_added, format_bib_date
 
 
@@ -45,10 +45,11 @@ def _journal_value(entry: BibEntry) -> str:
     return entry.journal or entry.raw_fields.get("booktitle", "")
 
 
+_PDF_STATE_ICONS = {"none": " ", "found": "■", "missing": "□"}
+
+
 def _file_icon(entry: BibEntry, pdf_base_dir: str) -> str:
-    if not entry.file:
-        return " "
-    return "■" if find_pdf_for_entry(entry.file, entry.key, pdf_base_dir) else "□"
+    return _PDF_STATE_ICONS[pdf_link_state(entry.file, entry.key, pdf_base_dir)]
 
 
 def _date_added(entry: BibEntry) -> str:
@@ -73,7 +74,7 @@ _BUILTINS: tuple[ColumnSpec, ...] = (
     ColumnSpec(
         key="priority",
         label="!",
-        name="Priority",
+        name="Urgency",
         width=1,
         render=lambda e, _b: e.priority_icon,
         sort_key=lambda e: e.priority if e.priority > 0 else 99,
@@ -90,9 +91,9 @@ _BUILTINS: tuple[ColumnSpec, ...] = (
     ),
     ColumnSpec(
         key="url",
-        label="🔗",
+        label="↗",
         name="URL",
-        width=2,
+        width=1,
         render=lambda e, _b: e.url_icon,
         sort_key=lambda e: 0 if e.url else 1,
         dynamic=True,

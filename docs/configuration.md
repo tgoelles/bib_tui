@@ -21,7 +21,7 @@ Open the command palette with <kbd>Ctrl</kbd>+<kbd>P</kbd> and choose
 | **PDF base directory**        | Where fetched and attached PDFs are stored, and where links resolve.   |
 | **Unpaywall email**           | Used only for rate-limiting Unpaywall requests — no account needed.    |
 | **OpenAlex API key**          | Optional. OpenAlex is always free; a free API key raises your daily request limit. |
-| **PDF download directory**    | The folder bibtui browses when you attach an existing PDF (<kbd>a</kbd>). |
+| **PDF download directory**    | The folder bibtui browses when you attach an existing PDF (<kbd>p</kbd> then <kbd>a</kbd>). |
 | **Auto-fetch PDF on import**  | When on, bibtui automatically fetches the PDF after you import an entry by DOI or paste (if it has a DOI/URL and a PDF directory is set). |
 | **Check for updates on startup** | When on, bibtui checks PyPI once a day for a newer release.         |
 | **Default citation style**    | The default CSL style for the citation preview and <kbd>Shift</kbd>+<kbd>C</kbd>. |
@@ -35,7 +35,7 @@ command palette with <kbd>Ctrl</kbd>+<kbd>P</kbd> and choose
 **Table: Configure columns**.
 
 The panel lists every available column. Alongside the built-in columns (read
-state, priority, PDF, URL, type, year, author, journal, title, added, rating)
+state, urgency, PDF, URL, type, year, author, journal, title, added, rating)
 and an optional **cite key** column, it offers a column for **any BibTeX field
 found in your library** — bibtui discovers these by scanning the whole `.bib`
 file, so fields like `doi`, `keywords`, `volume`, or `publisher` can all become

@@ -3,6 +3,85 @@ from bibtui.bib.models import BibEntry
 from bibtui.utils.config import Config
 from bibtui.widgets.entry_detail import EntryDetail
 from bibtui.widgets.entry_list import EntryList
+from bibtui.widgets.modals import PdfActionsModal
+
+# ---------------------------------------------------------------------------
+# action_pdf_actions_menu / _on_pdf_actions_choice — the `p` chooser
+# ---------------------------------------------------------------------------
+
+
+def test_action_pdf_actions_menu_requires_selected_entry(monkeypatch) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    pushed = []
+    notes: list[str] = []
+
+    class DummyList:
+        selected_entry = None
+
+    monkeypatch.setattr(app, "query_one", lambda selector: DummyList())
+    monkeypatch.setattr(app, "push_screen", lambda *a, **k: pushed.append(a))
+    monkeypatch.setattr(app, "notify", lambda message, **kwargs: notes.append(message))
+
+    app.action_pdf_actions_menu()
+
+    assert pushed == []
+    assert notes and "No entry selected" in notes[-1]
+
+
+def test_action_pdf_actions_menu_pushes_modal_with_entry_and_base_dir(
+    monkeypatch, tmp_path
+) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app._config = Config(pdf_base_dir=str(tmp_path))
+    entry = BibEntry(key="Smith2023", entry_type="article")
+
+    class DummyList:
+        selected_entry = entry
+
+    monkeypatch.setattr(app, "query_one", lambda selector: DummyList())
+    pushed = []
+    monkeypatch.setattr(
+        app, "push_screen", lambda screen, callback=None: pushed.append(screen)
+    )
+
+    app.action_pdf_actions_menu()
+
+    assert len(pushed) == 1
+    assert isinstance(pushed[0], PdfActionsModal)
+    assert pushed[0]._entry is entry
+
+
+def test_on_pdf_actions_choice_dispatches_to_each_action(monkeypatch) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    calls: list[str] = []
+    for name in (
+        "action_open_pdf",
+        "action_fetch_pdf",
+        "action_add_pdf",
+        "action_pdf_copy_file",
+        "action_pdf_copy_path",
+        "action_pdf_delete",
+    ):
+        monkeypatch.setattr(app, name, lambda _n=name: calls.append(_n))
+
+    for choice, expected in [
+        ("open", "action_open_pdf"),
+        ("fetch", "action_fetch_pdf"),
+        ("add", "action_add_pdf"),
+        ("copy_file", "action_pdf_copy_file"),
+        ("copy_path", "action_pdf_copy_path"),
+        ("delete", "action_pdf_delete"),
+    ]:
+        app._on_pdf_actions_choice(choice)
+        assert calls == [expected]
+        calls.clear()
+
+
+def test_on_pdf_actions_choice_none_is_a_noop(monkeypatch) -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    monkeypatch.setattr(app, "action_open_pdf", lambda: (_ for _ in ()).throw(AssertionError))
+
+    app._on_pdf_actions_choice(None)  # must not raise / must not call anything
 
 
 def test_action_pdf_copy_path(monkeypatch, tmp_path) -> None:

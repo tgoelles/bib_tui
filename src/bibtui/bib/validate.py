@@ -89,6 +89,12 @@ def _normalize_pages(value: str) -> str:
 
 
 def _normalize_doi(value: str) -> str:
+    """Auto-fix a DOI field's value before it's written back to the user's
+    ``.bib``. Deliberately separate from :func:`bibtui.utils.doi.normalize_doi`
+    (used for DOI *comparison*, e.g. duplicate detection): this one also
+    strips a ``doi:`` scheme prefix and surrounding whitespace, and — like
+    that one — never lowercases, since this result is written to disk, not
+    just compared."""
     return _DOI_URL_PREFIX_RE.sub("", value).strip()
 
 

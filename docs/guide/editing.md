@@ -23,7 +23,7 @@ so you can never be trapped editing a messy entry.
 !!! note "Keywords, rating and read state aren't in the form"
 
     Keywords are managed separately in the [keywords picker](keywords.md)
-    (<kbd>k</kbd>), and the rating, read state and priority have their own
+    (<kbd>k</kbd>), and the rating, read state and urgency have their own
     shortcuts — so the edit form leaves them out and never disturbs them.
 
 ## Deleting an entry

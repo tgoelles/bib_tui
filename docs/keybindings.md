@@ -17,15 +17,15 @@ their own keys in the footer.
 | <kbd>v</kbd>   | Toggle field form / raw BibTeX view          |
 | <kbd>m</kbd>   | Maximize / restore the table pane            |
 | <kbd>&lt;</kbd> / <kbd>&gt;</kbd> | Grow / shrink the detail pane (5% steps, saved to config) |
+| <kbd>Ctrl</kbd>+<kbd>d</kbd> | Open the online documentation in your browser |
 | <kbd>?</kbd>   | Show help                                     |
 
 ## Adding & removing entries
 
 | Key                              | Action                                |
 | -------------------------------- | ------------------------------------- |
-| <kbd>n</kbd>                     | Create a new entry (pick type, add fields) |
-| <kbd>d</kbd>                     | Import entry by DOI                    |
-| <kbd>Ctrl</kbd>+<kbd>V</kbd>     | Paste a raw BibTeX entry              |
+| <kbd>n</kbd>                     | New entry — then <kbd>d</kbd> import by DOI, <kbd>p</kbd> import from PDF (pick one or more files), <kbd>b</kbd> import a `.bib` file, <kbd>v</kbd> paste BibTeX, or <kbd>m</kbd> fill out manually |
+| <kbd>Ctrl</kbd>+<kbd>V</kbd>     | Also auto-detects a pasted BibTeX entry anywhere |
 | <kbd>Delete</kbd> / <kbd>⌫</kbd> | Delete the selected entry (confirm)   |
 
 ## Entry state
@@ -33,19 +33,18 @@ their own keys in the footer.
 | Key                          | Action                                        |
 | ---------------------------- | --------------------------------------------- |
 | <kbd>r</kbd>                 | Cycle read state (to-read → skimmed → read)   |
-| <kbd>p</kbd>                 | Cycle priority (high → medium → low)          |
+| <kbd>u</kbd>                 | Cycle urgency (high → medium → low)           |
 | <kbd>1</kbd>–<kbd>5</kbd>    | Set star rating                               |
 | <kbd>0</kbd>                 | Clear rating                                  |
-| <kbd>Space</kbd>             | Open the linked PDF                            |
 | <kbd>b</kbd>                 | Open the entry's URL in a browser             |
 | <kbd>Shift</kbd>+<kbd>B</kbd>| Search OpenAlex for the entry                 |
 
-## PDFs
+## PDF actions
 
-| Key            | Action                                            |
-| -------------- | ------------------------------------------------- |
-| <kbd>f</kbd>   | Fetch the PDF and link it to the entry            |
-| <kbd>a</kbd>   | Attach an existing PDF from your Downloads folder |
+| Key              | Action                                            |
+| ---------------- | -------------------------------------------------- |
+| <kbd>Space</kbd> | Open the linked PDF directly                       |
+| <kbd>p</kbd>     | PDF actions — <kbd>o</kbd> open, <kbd>f</kbd> fetch, <kbd>a</kbd> add, <kbd>c</kbd> copy PDF, <kbd>p</kbd> copy path, <kbd>d</kbd> delete (all six are always listed; the ones that don't apply to the entry's current PDF state are grayed out) |
 
 ## Copying
 

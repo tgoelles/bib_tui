@@ -13,8 +13,9 @@ Select an entry and press <kbd>k</kbd> to open the keywords editor.
 - The list shows **every keyword in your library**, with the ones on the current
   entry checked.
 - Type in the filter box to narrow the list, or to enter a brand-new keyword.
-- <kbd>Space</kbd> toggles the highlighted keyword on or off for this entry.
-- <kbd>Enter</kbd> adds the keyword you typed.
+- <kbd>Enter</kbd> or <kbd>x</kbd> toggles the highlighted keyword on or off for
+  this entry.
+- <kbd>Enter</kbd> in the filter box adds the keyword you typed instead.
 - <kbd>↑</kbd> / <kbd>↓</kbd> move between the filter and the list.
 - <kbd>⌫</kbd> on a highlighted keyword deletes it **from every entry** — a quick
   way to clean up a typo or merge a duplicate tag.
@@ -32,9 +33,9 @@ Keywords pair naturally with bibtui's lightweight reading-status fields, which
 all live in your `.bib` file:
 
 - **Read state** — cycle to-read → skimmed → read with <kbd>r</kbd>.
-- **Priority** — cycle high → medium → low with <kbd>p</kbd>.
+- **Urgency** — cycle high → medium → low with <kbd>u</kbd>.
 - **Star rating** — press <kbd>1</kbd>–<kbd>5</kbd>, or <kbd>0</kbd> to clear.
 
-Combine them with search and sorting to answer questions like "what high-priority
-papers on sea ice have I not read yet?" — tag with `k:`, sort by priority, and
+Combine them with search and sorting to answer questions like "what high-urgency
+papers on sea ice have I not read yet?" — tag with `k:`, sort by urgency, and
 scan the read-state column.
