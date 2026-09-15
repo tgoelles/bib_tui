@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saved filters** — press <kbd>f</kbd> to save, pick, edit or delete a named filter you can jump back to, à la Papers2 smart collections. See [Saved filters](https://tgoelles.github.io/bib_tui/guide/search/#saved-filters).
+- **Richer search syntax** — open-ended/comparison year filters (`y:2010-`, `y:>2010`, …), quoted values (`k:"sea ice"`), and `r:`/`pr:` read-state/urgency prefixes. See [Searching your library](https://tgoelles.github.io/bib_tui/guide/search/).
 - **Import from PDF files** — from the <kbd>n</kbd> "New Entry" menu, choose "Import from PDF" and pick one or more files (e.g. an old downloads folder or a migrated Papers/Zotero library). Each PDF is scanned for a DOI or arXiv id (document metadata first, then its first two pages of text) and its metadata fetched via CrossRef, same as "Import by DOI". Nothing is written until you confirm: a report lists every file ✓/✗ with the reason for any failure, <kbd>Space</kbd> previews a file, and one click imports every ✓ row. Matching an existing library entry links the PDF to it instead of duplicating; an identical PDF already on disk (by content, not filename) is reused rather than copied again.
 - **Import a `.bib` file** — <kbd>n</kbd> then <kbd>b</kbd>, pick a file such as a journal's "download citation" export. A single-entry file is added directly, like DOI import; a multi-entry file shows the same kind of ✓/✗ report (duplicates matched by DOI) before you commit.
 - **Open the online documentation** — <kbd>Ctrl</kbd>+<kbd>d</kbd>, also linked from the `?` help screen.

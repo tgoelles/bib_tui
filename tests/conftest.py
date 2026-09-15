@@ -8,10 +8,20 @@ pilot session. Originally duplicated between ``test_pdf_import_app.py`` and
 have to re-copy it.
 """
 
+import pytest
 from textual.widgets import DataTable
 
 from bibtui.widgets.entry_detail import EntryDetail
 from bibtui.widgets.entry_list import EntryList
+
+
+@pytest.fixture(autouse=True)
+def _isolated_filters_path(tmp_path, monkeypatch):
+    """Point every test at its own filters.toml, never the real
+    ~/.config/bibtui/filters.toml on the developer's machine — its active
+    filter would otherwise silently narrow the entries any ``BibTuiApp(...)``
+    loads in a test that doesn't override this itself."""
+    monkeypatch.setattr("bibtui.utils.filters.FILTERS_PATH", tmp_path / "filters.toml")
 
 
 class DummyDataTable:

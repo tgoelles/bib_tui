@@ -1,9 +1,11 @@
+import shlex
+
 from rich.text import Text
 from textual import events, on
 from textual.app import ComposeResult
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import DataTable, Input
+from textual.widgets import DataTable, Input, Static
 from textual.widgets._data_table import ColumnKey
 
 from bibtui.bib.models import BibEntry
@@ -32,20 +34,49 @@ _FIELD_PREFIXES: dict[str, str] = {
     "c": "citekey",
     "citekey": "citekey",
     "key": "citekey",
+    "r": "read_state",
+    "state": "read_state",
+    "read": "read_state",
+    "pr": "priority",
+    "priority": "priority",
+    "urgency": "priority",
 }
+
+
+def _tokenize(query: str) -> list[str]:
+    """Split a query string into whitespace-separated tokens, honoring quotes.
+
+    ``shlex.split`` (with its default whitespace-splitting mode) lets
+    ``k:"sea ice"`` keep its embedded space as one token's value while still
+    leaving ``:`` untouched, so field prefixes are unaffected. An unbalanced
+    quote — the normal state of things while the user is still typing —
+    raises ``ValueError`` in shlex; fall back to a plain split rather than
+    losing the query.
+
+    ``comments=False`` is already ``shlex.split``'s default — unlike a raw
+    ``shlex.shlex`` instance, the convenience function disables ``#``
+    comment-stripping unless asked for — but it's passed explicitly here so
+    a search for a citekey or title containing ``#`` is visibly safe rather
+    than relying on a default a future stdlib change (or a future edit)
+    could flip.
+    """
+    try:
+        return shlex.split(query, comments=False)
+    except ValueError:
+        return query.split()
 
 
 def _parse_query(query: str) -> tuple[list[tuple[str, str]], list[str]]:
     """Split a query into field filters and free-text terms.
 
-    Each space-separated token is either ``prefix:value`` (field filter) or a
-    plain word (searched across all fields).  Multiple tokens are ANDed.
-    The keyword ``AND`` (case-insensitive) is ignored, allowing queries like
+    Each token is either ``prefix:value`` (field filter) or a plain word
+    (searched across all fields). Multiple tokens are ANDed. The keyword
+    ``AND`` (case-insensitive) is ignored, allowing queries like
     ``j:nature AND y:2025``.
     """
     filters: list[tuple[str, str]] = []
     free_terms: list[str] = []
-    for token in query.split():
+    for token in _tokenize(query):
         if token.upper() == "AND":
             continue
         if ":" in token:
@@ -56,6 +87,47 @@ def _parse_query(query: str) -> tuple[list[tuple[str, str]], list[str]]:
                 continue
         free_terms.append(token.lower())
     return filters, free_terms
+
+
+def _year_matches(entry_year: str, value: str) -> bool:
+    """Match a ``y:`` filter value against an entry's year.
+
+    Supports an exact/substring match (``2010``), a closed range
+    (``2010-2020``), an open range (``2010-`` = 2010 or later, ``-2010`` = up
+    to 2010), and comparisons (``>2010``, ``>=2010``, ``<2010``, ``<=2010``).
+    A non-numeric entry year never satisfies a range or comparison — only
+    the plain substring form can match it.
+    """
+    for op, op_len in ((">=", 2), ("<=", 2), (">", 1), ("<", 1)):
+        if value.startswith(op):
+            bound_str = value[op_len:]
+            if not bound_str.isdigit() or not entry_year.isdigit():
+                return False
+            bound, year = int(bound_str), int(entry_year)
+            if op == ">=":
+                return year >= bound
+            if op == "<=":
+                return year <= bound
+            if op == ">":
+                return year > bound
+            return year < bound
+
+    if "-" in value:
+        y_min_str, _, y_max_str = value.partition("-")
+        if entry_year.isdigit():
+            year = int(entry_year)
+            try:
+                if y_min_str and y_max_str:
+                    return int(y_min_str) <= year <= int(y_max_str)
+                if y_min_str:  # "2010-" → 2010 or later
+                    return year >= int(y_min_str)
+                if y_max_str:  # "-2010" → up to 2010
+                    return year <= int(y_max_str)
+            except ValueError:
+                pass
+        return value in entry_year
+
+    return value in entry_year
 
 
 def _entry_matches(
@@ -72,20 +144,8 @@ def _entry_matches(
             if value not in entry.keywords.lower():
                 return False
         elif field == "year":
-            if "-" in value:
-                # Range: y:2010-2020
-                parts = value.split("-", 1)
-                try:
-                    y_min, y_max = int(parts[0]), int(parts[1])
-                    y = int(entry.year) if entry.year.isdigit() else 0
-                    if not (y_min <= y <= y_max):
-                        return False
-                except ValueError:
-                    if value not in entry.year:
-                        return False
-            else:
-                if value not in entry.year:
-                    return False
+            if not _year_matches(entry.year, value):
+                return False
         elif field == "journal":
             journal = (entry.journal or entry.raw_fields.get("booktitle", "")).lower()
             if value not in journal:
@@ -96,6 +156,14 @@ def _entry_matches(
         elif field == "citekey":
             if value not in entry.key.lower():
                 return False
+        elif field == "read_state":
+            # Exact match, not substring: "read" and "to-read" are distinct
+            # states and a substring match would conflate them.
+            if value != entry.read_state.lower():
+                return False
+        elif field == "priority":
+            if value != entry.priority_label.lower():
+                return False
     for term in free_terms:
         if not (
             term in entry.title.lower()
@@ -105,6 +173,17 @@ def _entry_matches(
         ):
             return False
     return True
+
+
+def matches_query(entry, query: str) -> bool:
+    """Return whether *entry* matches a full query string.
+
+    Thin wrapper around :func:`_parse_query` + :func:`_entry_matches` so
+    saved filter presets (:mod:`bibtui.utils.filters`) and the live search
+    box share exactly one implementation of the query syntax.
+    """
+    filters, free_terms = _parse_query(query)
+    return _entry_matches(entry, filters, free_terms)
 
 
 class EntryList(Widget):
@@ -129,11 +208,18 @@ class EntryList(Widget):
     EntryList DataTable {
         height: 1fr;
     }
+    EntryList #preset-bar {
+        height: 1;
+        color: $accent;
+        padding: 0 1;
+    }
     """
 
     BORDER_TITLE = "Entries"
 
     search_text: reactive[str] = reactive("")
+
+    _DEFAULT_SEARCH_PLACEHOLDER = "Search… (a:smith j:nature y:2025 k:ice c:smith2020)"
 
     def __init__(
         self,
@@ -154,13 +240,18 @@ class EntryList(Widget):
         self._sort_spec_key: str | None = None
         self._sort_reverse: bool = False
         self._pdf_base_dir: str = ""
+        # Saved filter preset layered underneath the live search box — see
+        # `_apply_filters`. Empty name means no preset is active.
+        self._preset_name: str = ""
+        self._preset_query: str = ""
 
     def set_pdf_base_dir(self, base_dir: str) -> None:
         self._pdf_base_dir = base_dir
 
     def compose(self) -> ComposeResult:
+        yield Static("", id="preset-bar")
         yield Input(
-            placeholder="Search… (a:smith j:nature y:2025 k:ice c:smith2020)",
+            placeholder=self._DEFAULT_SEARCH_PLACEHOLDER,
             id="search-input",
         )
         yield DataTable(id="entry-table", cursor_type="row")
@@ -170,6 +261,7 @@ class EntryList(Widget):
         self._add_columns(table)
         self._populate_table(self._all_entries)
         self._update_title_width()
+        self._update_preset_bar()
 
     def _add_columns(self, table: DataTable) -> None:
         """(Re)create the DataTable columns from ``self._specs``."""
@@ -255,21 +347,50 @@ class EntryList(Widget):
                 table.columns[key].label = Text(spec.label)
         table.refresh()
 
-    # ── Search ────────────────────────────────────────────────────────────
+    # ── Search & filter presets ──────────────────────────────────────────
 
-    @on(Input.Changed, "#search-input")
-    def on_search_changed(self, event: Input.Changed) -> None:
-        query = event.value.strip()
-        if not query:
-            base = self._all_entries
-        else:
-            filters, free_terms = _parse_query(query)
-            base = [
-                e for e in self._all_entries if _entry_matches(e, filters, free_terms)
-            ]
+    def _apply_filters(self) -> None:
+        """Recompute visible rows: the active preset query, then the search box.
+
+        The two layer as a plain AND — the preset narrows the library down
+        to a working set (e.g. "Project X"), and the search box then
+        refines further within it, exactly like typing two ANDed terms.
+        """
+        base = self._all_entries
+        if self._preset_query:
+            base = [e for e in base if matches_query(e, self._preset_query)]
+        search = self.query_one("#search-input", Input).value.strip()
+        if search:
+            base = [e for e in base if matches_query(e, search)]
         self._populate_table(base)
         if self._sort_key is not None:
             self._apply_sort()
+        self._update_preset_bar()
+
+    def _update_preset_bar(self) -> None:
+        """Show/hide and refresh the one-line active-preset indicator."""
+        bar = self.query_one("#preset-bar", Static)
+        if not self._preset_name:
+            bar.display = False
+            return
+        bar.display = True
+        bar.update(
+            f"Filter: [bold]{self._preset_name}[/bold]  "
+            f"[dim]{self._preset_query}[/dim]  "
+            f"{len(self._filtered)} / {len(self._all_entries)}"
+        )
+
+    def _update_search_placeholder(self) -> None:
+        search = self.query_one("#search-input", Input)
+        search.placeholder = (
+            f"Search within {self._preset_name}…"
+            if self._preset_name
+            else self._DEFAULT_SEARCH_PLACEHOLDER
+        )
+
+    @on(Input.Changed, "#search-input")
+    def on_search_changed(self, event: Input.Changed) -> None:
+        self._apply_filters()
 
     @on(Input.Submitted, "#search-input")
     def on_search_submitted(self, event: Input.Submitted) -> None:
@@ -279,7 +400,7 @@ class EntryList(Widget):
     def on_key(self, event: events.Key) -> None:
         """Allow arrow keys to move the table cursor while search is focused."""
         table = self.query_one(DataTable)
-        search = self.query_one(Input)
+        search = self.query_one("#search-input", Input)
         if self.app.focused is search:
             if event.key == "down":
                 table.action_cursor_down()
@@ -314,14 +435,27 @@ class EntryList(Widget):
         self._restore_cursor(table, selected_key)
 
     def _reload_rows(self) -> None:
-        """Repopulate rows honoring the current search filter and sort."""
-        search = self.query_one(Input).value.strip()
-        if search:
-            self.on_search_changed(Input.Changed(self.query_one(Input), search))
-        else:
-            self._populate_table(self._all_entries)
-            if self._sort_key is not None:
-                self._apply_sort()
+        """Repopulate rows honoring the active preset, search filter and sort."""
+        self._apply_filters()
+
+    def set_preset(self, name: str, query: str) -> None:
+        """Activate a saved filter preset, or clear it when *name* is empty."""
+        selected_before = self.selected_entry
+        selected_key = selected_before.key if selected_before is not None else None
+        self._preset_name = name
+        self._preset_query = query if name else ""
+        self._update_search_placeholder()
+        self._apply_filters()
+        self._restore_cursor(self.query_one(DataTable), selected_key)
+
+    @property
+    def active_preset(self) -> tuple[str, str]:
+        """The active preset as ``(name, query)``; ``("", "")`` when none is active."""
+        return self._preset_name, self._preset_query
+
+    @property
+    def search_query(self) -> str:
+        return self.query_one("#search-input", Input).value.strip()
 
     def _restore_cursor(self, table: DataTable, selected_key: str | None) -> None:
         if selected_key is None:
