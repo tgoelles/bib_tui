@@ -1642,6 +1642,7 @@ _HELP_SECTIONS = [
             ("q", "Quit"),
             ("w", "Write"),
             ("s", "Search"),
+            ("f", "Filters — pick, save, edit or delete a saved filter"),
             ("e", "Edit entry (field form or raw BibTeX)"),
             ("k", "Edit keywords"),
             ("m", "Maximize/restore table pane"),
@@ -1697,6 +1698,28 @@ _HELP_SECTIONS = [
             ("Enter / x", "Toggle the highlighted keyword (while the list is focused)"),
             ("⌫", "Delete highlighted keyword from all entries"),
             ("↓ / ↑", "Move between filter and list"),
+        ],
+    ),
+    (
+        "Filters modal",
+        [
+            ("0", "Select 'All entries' (clears the active filter)"),
+            ("1 – 9", "Jump straight to that saved filter"),
+            ("Enter", "Select the highlighted row"),
+            ("w", "Write the current search as a new (or updated) filter"),
+            ("e", "Edit the highlighted filter's name/query"),
+            ("d", "Delete the highlighted filter (confirmation required)"),
+            (None, "Deleting always drops back to 'All entries', even if"),
+            (None, "the deleted filter wasn't the active one."),
+            (None, "'All entries' (row 0) can't be deleted."),
+            (None, "The active filter is marked ● and highlighted on open."),
+            (
+                None,
+                "A filter narrows the library; the search box then refines "
+                "further within it.",
+            ),
+            (None, "Esc in the main view clears only the search — the active"),
+            (None, "filter stays on until you pick a different one here."),
         ],
     ),
     (
@@ -1841,23 +1864,41 @@ class HelpModal(_BaseModal[None]):
 [bold]── Plain text ────────────────────────[/bold]
   Searches title, author, keywords, and key.
   Multiple tokens are ANDed (AND keyword optional).
+  Quote a value to include a space: [dim]k:"sea ice"[/dim]
 
 [bold]── Field prefixes ────────────────────[/bold]
-  [bold]a:[/bold] / [bold]author:[/bold]    filter by author
-  [bold]t:[/bold] / [bold]title:[/bold]     filter by title
-  [bold]j:[/bold] / [bold]journal:[/bold]   filter by journal
-  [bold]k:[/bold] / [bold]kw:[/bold]        filter by keyword
-  [bold]y:[/bold] / [bold]year:[/bold]      filter by year or range
-  [bold]u:[/bold] / [bold]url:[/bold]       filter by URL
-  [bold]c:[/bold] / [bold]citekey:[/bold]   filter by cite key
+  [bold]a:[/bold] / [bold]author:[/bold]      filter by author
+  [bold]t:[/bold] / [bold]title:[/bold]       filter by title
+  [bold]j:[/bold] / [bold]journal:[/bold]     filter by journal
+  [bold]k:[/bold] / [bold]kw:[/bold]          filter by keyword
+  [bold]y:[/bold] / [bold]year:[/bold]        filter by year, range or comparison
+  [bold]u:[/bold] / [bold]url:[/bold]         filter by URL
+  [bold]c:[/bold] / [bold]citekey:[/bold]     filter by cite key
+  [bold]r:[/bold] / [bold]state:[/bold]       filter by read state
+  [bold]pr:[/bold] / [bold]urgency:[/bold]    filter by urgency
+
+[bold]── Year filters ──────────────────────[/bold]
+  [dim]y:2015-2023[/dim]                closed range
+  [dim]y:2015-[/dim]                    2015 or later
+  [dim]y:-2015[/dim]                    up to 2015
+  [dim]y:>2015[/dim] / [dim]y:>=2015[/dim]        greater than / or equal
+  [dim]y:<2015[/dim] / [dim]y:<=2015[/dim]        less than / or equal
 
 [bold]── Examples ──────────────────────────[/bold]
   [dim]glacier[/dim]                    all fields
   [dim]a:smith t:glacier[/dim]          combined
   [dim]j:nature AND y:2025[/dim]        journal + year
-  [dim]y:2015-2023[/dim]                year range
   [dim]k:ice a:jones[/dim]              keyword + author
-  [dim]c:smith2020[/dim]                exact cite key search"""
+  [dim]c:smith2020[/dim]                exact cite key search
+  [dim]r:to-read[/dim]                  entries still to read
+  [dim]pr:high[/dim]                    high-urgency entries
+
+[bold]── Saved filters ─────────────────────[/bold]
+  Press [bold]f[/bold] to open Filters — a permanent, named search you can
+  jump back to. Type a search, press [bold]f[/bold] then [bold]w[/bold] to
+  write it as a filter, then pick it by number any time. The search box
+  then refines further inside the active filter; Esc clears only the
+  search, not the filter."""
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -2209,6 +2250,13 @@ class FilterPresetModal(_BaseModal["str | None"]):
     refreshing the list in place — they do not dismiss the modal, so
     managing several presets in one visit doesn't need reopening it, and a
     later Esc never rolls any of it back.
+
+    Deleting always drops back to "All entries" — both the highlighted row
+    and, through the *reset_to_all* callback, the live entry list and title
+    if a filter was actually applied — rather than leaving a just-deleted
+    filter's results on screen. "All entries" itself (row 0) isn't a real
+    preset and can't be deleted; trying to shows a notification instead of
+    silently doing nothing.
     """
 
     BINDINGS = [
@@ -2252,12 +2300,14 @@ class FilterPresetModal(_BaseModal["str | None"]):
         store: FilterStore,
         current_search: str,
         persist: "Callable[[FilterStore], None]",
+        reset_to_all: "Callable[[], None]",
         **kwargs,
     ):
         super().__init__(**kwargs)
         self._store = store
         self._current_search = current_search
         self._persist = persist
+        self._reset_to_all = reset_to_all
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -2385,6 +2435,9 @@ class FilterPresetModal(_BaseModal["str | None"]):
         self._rebuild_list(highlight_name=new_name)
 
     def action_delete_highlighted(self) -> None:
+        if self.query_one(ListView).index == 0:
+            self.app.notify("'All entries' can't be deleted.", severity="warning")
+            return
         preset = self._highlighted_preset()
         if preset is None:
             return
@@ -2398,8 +2451,12 @@ class FilterPresetModal(_BaseModal["str | None"]):
         if not confirmed:
             return
         self._store.remove(name)
+        # Deleting always drops back to "All entries" — never leaves a
+        # just-deleted filter's results on screen, active or not.
+        self._store.active = ""
         self._persist(self._store)
-        self._rebuild_list()
+        self._reset_to_all()
+        self._rebuild_list(highlight_name="")
 
 
 class AddPDFModal(_FileBrowseMixin, _BaseModal["str | None"]):

@@ -55,6 +55,36 @@ ones are dimmed. Your layout is saved to `config.toml` (under
 The **Title** column always stretches to fill the remaining width — it's widest
 in the maximized *Max table* view (<kbd>m</kbd>).
 
+## Saved filters
+
+Named, saved searches — see [Saved filters](guide/search.md#saved-filters)
+for how to use them day to day. They're kept separately from the rest of
+your settings, at:
+
+```text
+~/.config/bibtui/filters.toml
+```
+
+You don't normally edit it by hand — create and manage filters from the
+<kbd>f</kbd> menu inside the app — but it's a small, readable file:
+
+```toml
+active = "Project X"
+
+[[filter]]
+name = "Project X"
+query = 'k:sepp y:2010-'
+
+[[filter]]
+name = "To read"
+query = "r:to-read"
+```
+
+`active` is the filter restored on the next start (empty means none).
+`query` is a query in the same syntax as the search box — see
+[Field prefixes](guide/search.md#field-prefixes). Filters apply to every
+`.bib` file you open, not just the one they were created from.
+
 ## List/detail split
 
 Press <kbd>&lt;</kbd> / <kbd>&gt;</kbd> to grow or shrink the detail pane in 5%

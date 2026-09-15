@@ -368,7 +368,7 @@ class EntryList(Widget):
             return
         bar.display = True
         bar.update(
-            f"◆ [bold]{self._preset_name}[/bold]  "
+            f"Filter: [bold]{self._preset_name}[/bold]  "
             f"[dim]{self._preset_query}[/dim]  "
             f"{len(self._filtered)} / {len(self._all_entries)}"
         )

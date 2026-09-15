@@ -12,6 +12,7 @@ their own keys in the footer.
 | <kbd>q</kbd>   | Quit                                         |
 | <kbd>w</kbd>   | Write (save to the `.bib` file)              |
 | <kbd>s</kbd>   | Search                                        |
+| <kbd>f</kbd>   | Filters — pick, save, edit or delete a saved filter |
 | <kbd>e</kbd>   | Edit entry (field form or raw BibTeX)        |
 | <kbd>k</kbd>   | Edit keywords                                 |
 | <kbd>v</kbd>   | Toggle field form / raw BibTeX view          |
@@ -45,6 +46,20 @@ their own keys in the footer.
 | ---------------- | -------------------------------------------------- |
 | <kbd>Space</kbd> | Open the linked PDF directly                       |
 | <kbd>p</kbd>     | PDF actions — <kbd>o</kbd> open, <kbd>f</kbd> fetch, <kbd>a</kbd> add, <kbd>c</kbd> copy PDF, <kbd>p</kbd> copy path, <kbd>d</kbd> delete (all six are always listed; the ones that don't apply to the entry's current PDF state are grayed out) |
+
+## Filters
+
+Saved, named searches you can jump back to — see
+[Saved filters](guide/search.md#saved-filters) for the full picture.
+
+| Key              | Action                                            |
+| ---------------- | -------------------------------------------------- |
+| <kbd>f</kbd>     | Filters — <kbd>0</kbd>-<kbd>9</kbd> jump to a saved filter (<kbd>0</kbd> is "All entries"), <kbd>Enter</kbd> select the highlighted row, <kbd>w</kbd> write the current search as a filter, <kbd>e</kbd> edit the highlighted one, <kbd>d</kbd> delete it, <kbd>Esc</kbd> close |
+
+The active filter (marked <kbd>●</kbd> and highlighted when you reopen the
+menu) narrows the library; the search box then refines further within it.
+<kbd>Esc</kbd> in the main view clears only the search — the filter stays on
+until you pick a different one from the menu.
 
 ## Copying
 

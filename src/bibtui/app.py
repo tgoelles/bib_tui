@@ -231,15 +231,24 @@ class BibTuiApp(App):
         if not self._config.theme:
             self._start_omarchy_sync()
         if self._bib_path:
-            self.title = f"bibtui — {os.path.basename(self._bib_path)}"
+            self._update_title()
             self._record_recent_file(self._bib_path)
             self._load_entries()
             self._start_update_check()
             if self._first_run:
                 self.call_after_refresh(self._show_first_run)
         else:
-            self.title = "bibtui"
+            self._update_title()
             self.call_after_refresh(self._show_file_picker)
+
+    def _update_title(self) -> None:
+        """Set the header's title/subtitle: filename, and the active filter if any."""
+        self.title = (
+            f"bibtui — {os.path.basename(self._bib_path)}" if self._bib_path else "bibtui"
+        )
+        self.sub_title = (
+            f"Filter: {self._filter_store.active}" if self._filter_store.active else ""
+        )
 
     def _show_file_picker(self) -> None:
         self.push_screen(
@@ -251,7 +260,7 @@ class BibTuiApp(App):
             self.exit()
             return
         self._bib_path = path
-        self.title = f"bibtui — {os.path.basename(path)}"
+        self._update_title()
         self._record_recent_file(path)
         self._load_entries()
         self._start_update_check()
@@ -422,8 +431,10 @@ class BibTuiApp(App):
         preset = self._filter_store.find(self._filter_store.active)
         if preset is None:
             self._filter_store.active = ""
+            self._update_title()
             return
         entry_list.set_preset(preset.name, preset.query)
+        self._update_title()
 
     # ── Entry selection ────────────────────────────────────────────────────
 
@@ -462,7 +473,12 @@ class BibTuiApp(App):
     def action_filter_presets(self) -> None:
         entry_list = self.query_one(EntryList)
         self.push_screen(
-            FilterPresetModal(self._filter_store, entry_list.search_query, save_filters),
+            FilterPresetModal(
+                self._filter_store,
+                entry_list.search_query,
+                save_filters,
+                self._reset_to_all_entries,
+            ),
             self._on_filter_chosen,
         )
 
@@ -475,7 +491,18 @@ class BibTuiApp(App):
         entry_list.set_preset(name if preset else "", query)
         self._filter_store.active = name if preset else ""
         save_filters(self._filter_store)
+        self._update_title()
         self.query_one(DataTable).focus()
+
+    def _reset_to_all_entries(self) -> None:
+        """Clear the active filter on the live entry list + title, without
+        touching focus — the Filters modal calls this itself (rather than
+        dismissing) when it needs to drop back to "All entries" without
+        closing, e.g. right after deleting a filter."""
+        self.query_one(EntryList).set_preset("", "")
+        self._filter_store.active = ""
+        save_filters(self._filter_store)
+        self._update_title()
 
     def action_save(self) -> None:
         try:
