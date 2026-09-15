@@ -1,4 +1,4 @@
-"""Test for the `d` action that opens the online documentation."""
+"""Test for the `ctrl+d` action that opens the online documentation."""
 
 from bibtui import DOCS_URL
 from bibtui.app import BibTuiApp

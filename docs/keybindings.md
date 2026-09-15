@@ -17,14 +17,14 @@ their own keys in the footer.
 | <kbd>v</kbd>   | Toggle field form / raw BibTeX view          |
 | <kbd>m</kbd>   | Maximize / restore the table pane            |
 | <kbd>&lt;</kbd> / <kbd>&gt;</kbd> | Grow / shrink the detail pane (5% steps, saved to config) |
-| <kbd>d</kbd>   | Open the online documentation in your browser |
+| <kbd>Ctrl</kbd>+<kbd>d</kbd> | Open the online documentation in your browser |
 | <kbd>?</kbd>   | Show help                                     |
 
 ## Adding & removing entries
 
 | Key                              | Action                                |
 | -------------------------------- | ------------------------------------- |
-| <kbd>n</kbd>                     | New entry — then <kbd>m</kbd> fill out manually, <kbd>d</kbd> import by DOI, <kbd>p</kbd> import from PDF (pick one or more files), <kbd>b</kbd> import a `.bib` file, or <kbd>v</kbd> paste BibTeX |
+| <kbd>n</kbd>                     | New entry — then <kbd>d</kbd> import by DOI, <kbd>p</kbd> import from PDF (pick one or more files), <kbd>b</kbd> import a `.bib` file, <kbd>v</kbd> paste BibTeX, or <kbd>m</kbd> fill out manually |
 | <kbd>Ctrl</kbd>+<kbd>V</kbd>     | Also auto-detects a pasted BibTeX entry anywhere |
 | <kbd>Delete</kbd> / <kbd>⌫</kbd> | Delete the selected entry (confirm)   |
 

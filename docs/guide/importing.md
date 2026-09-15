@@ -1,13 +1,13 @@
 # Importing references
 
 You rarely type BibTeX by hand in bibtui. There are five ways to add an
-entry — manually, by DOI, from a PDF, from a `.bib` file, or by pasting raw
-BibTeX — and all of them refuse to create duplicate cite keys.
+entry — by DOI, from a PDF, from a `.bib` file, by pasting raw BibTeX, or
+manually — and all of them refuse to create duplicate cite keys.
 
 Press <kbd>n</kbd> to open the "New Entry" chooser, then pick one with its
-mnemonic key: <kbd>m</kbd> fill out manually, <kbd>d</kbd> import by DOI,
-<kbd>p</kbd> import from PDF, <kbd>b</kbd> import a `.bib` file, or
-<kbd>v</kbd> paste BibTeX. The number keys <kbd>1</kbd>–<kbd>5</kbd> work too.
+mnemonic key: <kbd>d</kbd> import by DOI, <kbd>p</kbd> import from PDF,
+<kbd>b</kbd> import a `.bib` file, <kbd>v</kbd> paste BibTeX, or <kbd>m</kbd>
+fill out manually. The number keys <kbd>1</kbd>–<kbd>5</kbd> work too.
 
 ## Create a new entry
 

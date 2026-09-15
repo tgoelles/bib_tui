@@ -432,11 +432,11 @@ class NewEntryChooserModal(_BaseModal["str | None"]):
 
     # (result key, mnemonic letter, title, short description)
     _OPTIONS: list[tuple[str, str, str, str]] = [
-        ("blank", "m", "Fill out manually", "Pick a type, fill in fields"),
         ("doi", "d", "Import by DOI", "Fetch metadata from a DOI"),
         ("pdf", "p", "Import from PDF", "Fetch metadata from PDF files"),
         ("bibfile", "b", "Import .bib File", "Pick a downloaded .bib file"),
         ("paste", "v", "Paste BibTeX", "Paste a raw BibTeX entry"),
+        ("blank", "m", "Fill out manually", "Pick a type, fill in fields"),
     ]
 
     DEFAULT_CSS = """
@@ -1718,7 +1718,7 @@ _HELP_SECTIONS = [
         "Other",
         [
             ("?", "Show this help"),
-            ("d", "Open the online documentation in your browser"),
+            ("ctrl+d", "Open the online documentation in your browser"),
             ("ctrl+p / ⌘p", "Command palette (Settings + Library actions)"),
             ("maximize", "(palette) maximize focused pane"),
             ("Esc", "Clear search / close modal"),
@@ -1792,7 +1792,7 @@ class HelpModal(_BaseModal[None]):
         return (
             f"[bold]bibtui[/bold] v{version}  —  BibTeX TUI\n"
             "[dim]Author:[/dim] Thomas Gölles\n"
-            f"[dim]Docs:[/dim] {DOCS_URL}  [dim](press d to open)[/dim]\n"
+            f"[dim]Docs:[/dim] {DOCS_URL}  [dim](press ctrl+d to open)[/dim]\n"
             "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui"
         )
 

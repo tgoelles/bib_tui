@@ -153,7 +153,7 @@ class BibTuiApp(App):
         Binding("space", "open_pdf", "␣ Show PDF"),
         Binding("q", "quit", "Quit"),
         Binding("w", "save", "Write"),
-        Binding("d", "open_docs", "Docs"),
+        Binding("ctrl+d", "open_docs", "Docs"),
         Binding("?", "show_help", "Help"),
         # Hidden from the footer (still active — see the `?` help screen)
         Binding("m", "toggle_table_maximize", "Max table", show=False),
