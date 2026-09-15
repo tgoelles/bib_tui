@@ -244,7 +244,7 @@ async def test_save_current_search_prefills_edit_modal() -> None:
 
         app.action_filter_presets()
         await pilot.pause()
-        await pilot.press("a")
+        await pilot.press("w")
         await pilot.pause()
 
         assert isinstance(app.screen, FilterEditModal)
@@ -266,7 +266,7 @@ async def test_save_current_search_adds_preset_and_persists(
         app.action_filter_presets()
         await pilot.pause()
         preset_modal = app.screen
-        await pilot.press("a")
+        await pilot.press("w")
         await pilot.pause()
 
         edit_modal = app.screen

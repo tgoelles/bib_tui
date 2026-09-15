@@ -2204,8 +2204,8 @@ class FilterPresetModal(_BaseModal["str | None"]):
     ``●``. Selecting a row (number, Enter, or click) dismisses the modal
     with that preset's name (``""`` for "All entries").
 
-    ``a``/``e``/``d`` (save current search / edit / delete) act on the
-    store immediately, persisting through the *persist* callback and
+    ``w``/``e``/``d`` (write current search as a filter / edit / delete) act
+    on the store immediately, persisting through the *persist* callback and
     refreshing the list in place — they do not dismiss the modal, so
     managing several presets in one visit doesn't need reopening it, and a
     later Esc never rolls any of it back.
@@ -2223,7 +2223,7 @@ class FilterPresetModal(_BaseModal["str | None"]):
         Binding("7", "choose_index(7)", show=False),
         Binding("8", "choose_index(8)", show=False),
         Binding("9", "choose_index(9)", show=False),
-        Binding("a", "save_current", "Save search", show=True),
+        Binding("w", "save_current", "Write", show=True),
         Binding("e", "edit_highlighted", "Edit", show=True),
         Binding("d", "delete_highlighted", "Delete", show=True),
     ]
@@ -2264,7 +2264,7 @@ class FilterPresetModal(_BaseModal["str | None"]):
             yield Label("[bold]Filters[/bold]", classes="modal-title")
             yield ListView(id="filter-list")
             yield Static(
-                "[dim]0-9 select · a save current search · e edit · "
+                "[dim]0-9 select · w write current search · e edit · "
                 "d delete · Esc close[/dim]",
                 id="filter-hints",
             )
