@@ -36,6 +36,21 @@ def _write_bib(tmp_path, name: str, *entries_text: str):
     return str(path)
 
 
+def _load_sync(app, monkeypatch, path: str) -> None:
+    """Run BibTuiApp._load_bib_file (a @work(thread=True) method) inline,
+    on the calling thread, instead of via a real worker — the app isn't
+    running under a Textual pilot in these tests, so there's no event loop
+    for a real worker/`call_from_thread` to hand back to. `__wrapped__` is
+    the function `@work` wraps, i.e. the method body itself; patching
+    `call_from_thread` to call straight through makes its callback
+    (`_on_bib_file_parsed`) run synchronously too, so the real `parser.load`
+    plus the real decision logic both execute exactly as they would in the
+    app, just without a background thread.
+    """
+    monkeypatch.setattr(app, "call_from_thread", lambda fn, *a, **k: fn(*a, **k))
+    app._load_bib_file.__wrapped__(app, path)
+
+
 # ---------------------------------------------------------------------------
 # action_import_bib_file / _on_bib_file_picked
 # ---------------------------------------------------------------------------
@@ -58,10 +73,23 @@ def test_on_bib_file_picked_none_does_nothing(monkeypatch) -> None:
     app = BibTuiApp(BIB)
     pushed = []
     monkeypatch.setattr(app, "push_screen", lambda *a, **k: pushed.append(a))
+    loaded = []
+    monkeypatch.setattr(app, "_load_bib_file", lambda path: loaded.append(path))
 
     app._on_bib_file_picked(None)
 
     assert pushed == []
+    assert loaded == []
+
+
+def test_on_bib_file_picked_delegates_to_load_bib_file(monkeypatch) -> None:
+    app = BibTuiApp(BIB)
+    loaded = []
+    monkeypatch.setattr(app, "_load_bib_file", lambda path: loaded.append(path))
+
+    app._on_bib_file_picked("/tmp/some.bib")
+
+    assert loaded == ["/tmp/some.bib"]
 
 
 def test_on_bib_file_picked_malformed_file_notifies_error(tmp_path, monkeypatch) -> None:
@@ -74,7 +102,7 @@ def test_on_bib_file_picked_malformed_file_notifies_error(tmp_path, monkeypatch)
     path = tmp_path / "broken.bib"
     path.write_text("not { valid bibtex at all @@@", encoding="utf-8")
 
-    app._on_bib_file_picked(str(path))
+    _load_sync(app, monkeypatch, str(path))
 
     # bibtexparser is lenient about junk text (it just finds 0 entries), so
     # either an error notification or the "no entries found" one is fine —
@@ -93,7 +121,7 @@ def test_on_bib_file_picked_empty_file_notifies_warning(tmp_path, monkeypatch) -
     )
     path = _write_bib(tmp_path, "empty.bib", "")
 
-    app._on_bib_file_picked(path)
+    _load_sync(app, monkeypatch, path)
 
     assert app._entries == []
     assert notes and notes[-1][1] == "warning"
@@ -110,7 +138,7 @@ def test_on_bib_file_picked_single_new_entry_is_added_directly(
     dummy_list, _dummy_detail, notes = wire_dummies(app, monkeypatch)
     path = _write_bib(tmp_path, "one.bib", _entry_text("Doe2023", doi="10.1/new"))
 
-    app._on_bib_file_picked(path)
+    _load_sync(app, monkeypatch, path)
 
     assert [e.key for e in app._entries] == ["Doe2023"]
     assert app._dirty is True
@@ -131,7 +159,7 @@ def test_on_bib_file_picked_single_duplicate_entry_is_skipped(
     )
     path = _write_bib(tmp_path, "dup.bib", _entry_text("Doe2023", doi="10.1/DUP"))
 
-    app._on_bib_file_picked(path)
+    _load_sync(app, monkeypatch, path)
 
     assert app._entries == [existing]  # nothing added
     assert notes and notes[-1][1] == "warning"
@@ -152,7 +180,7 @@ def test_on_bib_file_picked_multi_entry_pushes_review_modal(tmp_path, monkeypatc
         _entry_text("B2023", doi="10.1/b"),
     )
 
-    app._on_bib_file_picked(path)
+    _load_sync(app, monkeypatch, path)
 
     assert len(pushed) == 1
     modal = pushed[0]

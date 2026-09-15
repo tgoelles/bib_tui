@@ -14,7 +14,9 @@ def _no_retry_delay(monkeypatch):
     monkeypatch.setattr("bibtui.pdf.import_scan.time.sleep", lambda _seconds: None)
 
 
-def _fake_identify(doi=None, arxiv_id=None, ambiguous=False, candidates=None, no_text=False):
+def _fake_identify(
+    doi=None, arxiv_id=None, ambiguous=False, candidates=None, no_text=False, unreadable=False
+):
     from bibtui.pdf.identify import IdentifyResult
 
     return IdentifyResult(
@@ -23,6 +25,7 @@ def _fake_identify(doi=None, arxiv_id=None, ambiguous=False, candidates=None, no
         ambiguous=ambiguous,
         candidates=candidates or [],
         no_text=no_text,
+        unreadable=unreadable,
     )
 
 
@@ -85,6 +88,22 @@ def test_no_identifier_when_extraction_finds_nothing(tmp_path) -> None:
 
     assert row.status == ImportStatus.NO_IDENTIFIER
     assert "scanned" in row.message.lower()
+
+
+def test_no_identifier_when_file_is_unreadable(tmp_path) -> None:
+    pdf = tmp_path / "corrupt.pdf"
+    pdf.write_bytes(b"fake")
+    with patch(
+        "bibtui.pdf.import_scan.extract_identifier",
+        return_value=_fake_identify(unreadable=True),
+    ):
+        row = _process(pdf)
+
+    assert row.status == ImportStatus.NO_IDENTIFIER
+    # Distinct message from the "scanned PDF" (no_text) case — this one
+    # couldn't even be opened, so "scanned" would be misleading.
+    assert "scanned" not in row.message.lower()
+    assert "read" in row.message.lower()
 
 
 def test_ambiguous_extraction_is_flagged_not_guessed(tmp_path) -> None:

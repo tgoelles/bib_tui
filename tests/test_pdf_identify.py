@@ -105,6 +105,21 @@ def test_arxiv_id_found_when_no_doi_present(tmp_path: Path) -> None:
     assert not result.ambiguous
 
 
+def test_old_style_arxiv_id_is_recognized(tmp_path: Path) -> None:
+    """Pre-2007 preprints use <archive>/<7 digits> instead of YYMM.NNNNN —
+    see pdf/fetcher.py:_arxiv_id, which already handles both forms."""
+    path = _write_pdf(tmp_path, "old_arxiv.pdf", ["arXiv:hep-th/9711200", "Some abstract"])
+    result = extract_identifier(path)
+    assert result.doi is None
+    assert result.arxiv_id == "hep-th/9711200"
+
+
+def test_old_style_arxiv_id_with_subject_class_is_recognized(tmp_path: Path) -> None:
+    path = _write_pdf(tmp_path, "old_arxiv2.pdf", ["See arxiv.org/abs/math.GT/0309136 for details"])
+    result = extract_identifier(path)
+    assert result.arxiv_id == "math.GT/0309136"
+
+
 def test_multiple_distinct_dois_in_text_are_ambiguous(tmp_path: Path) -> None:
     path = _write_pdf(
         tmp_path,
@@ -155,13 +170,15 @@ def test_corrupt_pdf_does_not_raise(tmp_path: Path) -> None:
     path.write_bytes(b"not actually a pdf")
     result = extract_identifier(str(path))
     assert result.doi is None
-    assert result.no_text
+    assert result.unreadable
+    assert not result.no_text  # distinct from "opened fine, no text layer"
 
 
 def test_missing_file_does_not_raise(tmp_path: Path) -> None:
     result = extract_identifier(str(tmp_path / "does-not-exist.pdf"))
     assert result.doi is None
-    assert result.no_text
+    assert result.unreadable
+    assert not result.no_text
 
 
 @pytest.mark.parametrize(

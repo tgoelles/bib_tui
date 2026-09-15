@@ -85,11 +85,12 @@ def process_pdf(
 
         doi = _candidate_doi(result)
         if not doi:
-            message = (
-                "No extractable text (scanned PDF?)"
-                if result.no_text
-                else "No DOI or arXiv id found."
-            )
+            if result.unreadable:
+                message = "Could not read this PDF (corrupt, encrypted, or not a PDF?)."
+            elif result.no_text:
+                message = "No extractable text (scanned PDF?)"
+            else:
+                message = "No DOI or arXiv id found."
             return ImportRow(path, filename, ImportStatus.NO_IDENTIFIER, message=message)
 
         normalized = normalize_doi(doi)

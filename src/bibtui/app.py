@@ -558,11 +558,27 @@ class BibTuiApp(App):
     def _on_bib_file_picked(self, path: str | None) -> None:
         if path is None:
             return
+        self._load_bib_file(path)
 
+    @work(thread=True)
+    def _load_bib_file(self, path: str) -> None:
+        """Parse *path* off the UI thread — matches every other import flow
+        (``PdfImportReviewModal._scan``, ``FetchPDFModal``,
+        ``BatchFetchPDFModal``), so a large merge file doesn't visibly freeze
+        the UI while parsing.
+        """
         try:
             entries = parser.load(path)
         except Exception as exc:  # noqa: BLE001 — bibtexparser errors vary widely
-            self.notify(f"Could not parse {path}: {exc}", severity="error", timeout=6)
+            self.call_from_thread(self._on_bib_file_parsed, path, None, str(exc))
+            return
+        self.call_from_thread(self._on_bib_file_parsed, path, entries, None)
+
+    def _on_bib_file_parsed(
+        self, path: str, entries: list[BibEntry] | None, error: str | None
+    ) -> None:
+        if error is not None:
+            self.notify(f"Could not parse {path}: {error}", severity="error", timeout=6)
             return
 
         if not entries:

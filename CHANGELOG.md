@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Auto-fetch failure after adding an entry read as if nothing had happened** — when "Auto-fetch PDF after import" is on (Settings) and the fetch fails right after a new entry is added (by DOI, PDF, `.bib` file, or paste), the failure screen said only "Could not fetch PDF for this entry." with the reasons, with no mention that the entry itself had already been saved successfully. It now leads with "Added '\<key>', but its PDF could not be fetched." before the same reasons, so it's clear the entry is safely in the library and only the PDF needs fetching by hand (<kbd>f</kbd>). Fetching a PDF for an existing entry (<kbd>f</kbd>, or via "Library: Fetch missing PDFs") is unaffected — it still reads "Could not fetch PDF for this entry.", since nothing was just added there.
+- **"Import from PDF" now pauses briefly between files that hit CrossRef** — a folder with many PDFs no longer fires every lookup back-to-back; files resolved without a network call (no identifier found, ambiguous, already in the library) aren't delayed.
+- **Parsing a picked `.bib` file no longer runs on the UI thread** — matches every other import flow, so a very large multi-entry file being merged in doesn't visibly freeze the app while it parses.
+- **Old-style arXiv ids (pre-2007, e.g. `hep-th/9711200`) are now recognized when importing from PDF** — previously only the modern `YYMM.NNNNN` form was matched, so these preprints were reported as "no identifier found" even when clearly marked in the text.
+- **A corrupt or unreadable PDF is no longer reported as "scanned PDF?" when importing from PDF** — that message is now reserved for a PDF that opened fine but has no text layer; a file that couldn't be opened at all now says so.
 
 ## [1.0.1] - 2026-09-14
 

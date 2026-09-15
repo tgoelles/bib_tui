@@ -1,5 +1,6 @@
 import copy
 import re
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TypeVar
@@ -69,8 +70,6 @@ class _BaseModal(ModalScreen[_ModalResult]):
 
 def _format_age(mtime: float) -> str:
     """Human-readable age string for a file modification time."""
-    import time
-
     age = time.time() - mtime
     if age < 60:
         return "just now"
@@ -2638,6 +2637,13 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
         "lookup_failed": "Lookup failed",
     }
 
+    # Pause between PDFs that actually hit CrossRef, so a large folder
+    # doesn't fire dozens of back-to-back anonymous-pool requests. Skipped
+    # for rows resolved without a network call (no identifier, ambiguous,
+    # already present, or matched a library entry by DOI alone) and after
+    # the last file (nothing left to protect).
+    _CROSSREF_PAUSE_SECONDS = 0.2
+
     def __init__(
         self,
         paths: list[str],
@@ -2696,6 +2702,9 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
             ):
                 seen_in_batch.add(normalize_doi(row.entry.doi))
             rows.append(row)
+            hit_crossref = row.status in (ImportStatus.MATCHED, ImportStatus.LOOKUP_FAILED)
+            if hit_crossref and index < total and not self._cancel_requested:
+                time.sleep(self._CROSSREF_PAUSE_SECONDS)
         self.app.call_from_thread(self._on_scan_done, rows)
 
     def _on_progress(self, message: str) -> None:

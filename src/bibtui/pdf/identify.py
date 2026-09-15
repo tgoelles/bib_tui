@@ -32,8 +32,19 @@ _DOI_RE = re.compile(r'10\.\d{4,9}/[^\s"<>]+')
 # surrounding sentence/citation rather than part of the DOI itself.
 _DOI_TRAILING_RE = re.compile(r'[).,;:\]}\'"]+$')
 
+# New-style (2007+): YYMM.NNNNN, e.g. 2301.12345.
+_ARXIV_NEW_ID = r"\d{4}\.\d{4,5}"
+# Old-style (pre-2007): <archive>[.<subject-class>]/YYMMNNN, e.g.
+# hep-th/9711200 or math.GT/0309136. Matched too, alongside fetcher.py's
+# _arxiv_id, so pre-2007 preprints are at least recognised on import (a
+# CrossRef lookup for one may still fail — arXiv only registered DOIs for
+# every submission starting in 2022 — but that's a LOOKUP_FAILED with the
+# id shown, not a silent NO_IDENTIFIER).
+_ARXIV_OLD_ID = r"[a-z-]+(?:\.[a-z]{2,4})?/\d{7}"
+_ARXIV_ID = rf"(?:{_ARXIV_NEW_ID}|{_ARXIV_OLD_ID})"
+
 _ARXIV_RE = re.compile(
-    r"arxiv[:\s]\s*(\d{4}\.\d{4,5})(?:v\d+)?|arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5})",
+    rf"arxiv[:\s]\s*({_ARXIV_ID})(?:v\d+)?|arxiv\.org/(?:abs|pdf)/({_ARXIV_ID})",
     re.IGNORECASE,
 )
 
@@ -42,13 +53,23 @@ _PAGES_TO_SCAN = 2
 
 @dataclass
 class IdentifyResult:
-    """Result of scanning one PDF for an identifier."""
+    """Result of scanning one PDF for an identifier.
+
+    ``no_text`` and ``unreadable`` are deliberately separate: ``no_text``
+    means the file opened fine but has no text layer to search (a scanned
+    PDF, most likely); ``unreadable`` means the file itself couldn't be
+    opened at all (corrupt, encrypted, or not really a PDF). They call for
+    different messages to the user — "scan it or type the DOI in yourself"
+    versus "this file may be broken" — so keep them apart rather than
+    collapsing both into one flag.
+    """
 
     doi: str | None = None
     arxiv_id: str | None = None
     ambiguous: bool = False
     candidates: list[str] = field(default_factory=list)
     no_text: bool = False
+    unreadable: bool = False
 
 
 def _clean_doi(raw: str) -> str:
@@ -75,13 +96,13 @@ def extract_identifier(pdf_path: str) -> IdentifyResult:
     """Look inside *pdf_path* for a DOI or arXiv id.
 
     Never raises — a corrupt, encrypted, or otherwise unreadable PDF comes
-    back as a result with ``no_text=True`` instead of propagating an
+    back as a result with ``unreadable=True`` instead of propagating an
     exception, so a single bad file never crashes a batch.
     """
     try:
         reader = PdfReader(pdf_path)
     except (PdfReadError, OSError, ValueError):
-        return IdentifyResult(no_text=True)
+        return IdentifyResult(unreadable=True)
 
     # 1. Metadata
     metadata_text = ""

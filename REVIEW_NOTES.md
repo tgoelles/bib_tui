@@ -162,7 +162,7 @@ edited. Kept green throughout (`ruff check src/`, `pytest -m "not network"`
 
 ---
 
-## P3 — Gaps between the design and the code
+## P3 — Gaps between the design and the code — 1, 2, 4, 5 DONE; 3 needs manual QA (not done)
 
 1. **CrossRef rate limiting was never implemented.** The original issue listed
    "rate limiting for CrossRef queries (avoid hammering the API on large
@@ -179,11 +179,25 @@ edited. Kept green throughout (`ruff check src/`, `pytest -m "not network"`
    call and sets no `mailto`, so we're in CrossRef's anonymous pool. Adding a
    mailto (from `Config.unpaywall_email`, which the user already sets) would be a
    good follow-up — but that's a behaviour change, so raise it, don't silently do it.
+
+   **Done:** `PdfImportReviewModal._CROSSREF_PAUSE_SECONDS = 0.2`, slept after
+   `MATCHED`/`LOOKUP_FAILED` rows only, skipped after the last file and if
+   canceled mid-scan. The `mailto` follow-up was intentionally left alone —
+   still needs a decision, not silently added.
 2. **`parser.load()` runs on the UI thread.** `app.py:_on_bib_file_picked` (565)
    parses the chosen `.bib` synchronously. Every comparable flow on this branch
    (`PdfImportReviewModal._scan`, `FetchPDFModal._do_fetch`, `BatchFetchPDFModal`)
    uses `@work(thread=True)`. A large merge file will visibly freeze the UI.
    Low priority — parsing is fast — but note it, or background it for consistency.
+
+   **Done:** split into `_on_bib_file_picked` (thin, delegates) and a new
+   `@work(thread=True)` `_load_bib_file` that calls back via
+   `call_from_thread` into `_on_bib_file_parsed` (the actual decision logic,
+   unchanged). Tests that drove `_on_bib_file_picked` directly now either
+   test delegation (monkeypatch `_load_bib_file`) or run the worker body
+   inline via `_load_bib_file.__wrapped__` with `call_from_thread`
+   monkeypatched to call straight through — no real thread needed, no
+   `run_test()` pilot needed either.
 3. **`identify.py` may flag ordinary papers as ambiguous.** `extract_identifier`
    (identify.py 75-133) returns `ambiguous=True` as soon as page 1-2 contain two
    distinct DOI strings — which is common (article DOI + publisher boilerplate or
@@ -192,14 +206,29 @@ edited. Kept green throughout (`ruff check src/`, `pytest -m "not network"`
    journal PDFs** before release. If the hit rate is poor, the cheapest
    improvement is to prefer the most frequently occurring DOI, or to try
    candidates against CrossRef in order rather than refusing outright.
+
+   **Not done** — genuinely needs a handful of real journal PDFs to judge the
+   false-positive rate, which isn't something to guess at from inside this
+   session. Left as-is; flag to the user before spending effort here.
 4. **`no_text=True` is overloaded.** identify.py returns it both for "scanned PDF,
    no text layer" and for "corrupt/encrypted/unreadable file" (line 84), and
    `import_scan.py` renders both as *"No extractable text (scanned PDF?)"* —
    misleading for a corrupt file. Add a second flag or a distinct message.
+
+   **Done:** added `IdentifyResult.unreadable`, separate from `no_text`; a
+   file that fails to open at all now reports "Could not read this PDF
+   (corrupt, encrypted, or not a PDF?)." instead of the scanned-PDF message.
 5. **`identify.py` only matches new-style arXiv IDs.** `_ARXIV_RE` (line 36)
    accepts `\d{4}\.\d{4,5}` only, while `pdf/fetcher.py:_arxiv_id` (173) also
    handles old-style (`hep-th/9711200`). Pre-2007 preprints therefore won't be
    recognised on import. Document the limit or widen the regex.
+
+   **Done:** widened `_ARXIV_RE` to also match `<archive>[.<subject-class>]/
+   <7 digits>` (old-style), matching what `fetcher.py:_arxiv_id` already
+   handles. A CrossRef lookup for one of these may still fail — arXiv only
+   registered DOIs for every submission starting in 2022 — but that now
+   surfaces as `LOOKUP_FAILED` with the id shown, not a silent
+   `NO_IDENTIFIER`.
 
 ---
 
