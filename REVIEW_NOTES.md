@@ -207,9 +207,15 @@ edited. Kept green throughout (`ruff check src/`, `pytest -m "not network"`
    improvement is to prefer the most frequently occurring DOI, or to try
    candidates against CrossRef in order rather than refusing outright.
 
-   **Not done** — genuinely needs a handful of real journal PDFs to judge the
-   false-positive rate, which isn't something to guess at from inside this
-   session. Left as-is; flag to the user before spending effort here.
+   **Partially validated:** the user supplied 3 real papers (2 journal, 1
+   arXiv, all redistribution-license-checked — see `tests/pdfs/README.md`)
+   and none triggered a false "ambiguous" — real-world confirmation with a
+   small sample, now guarded by regression tests
+   (`tests/test_pdf_identify_real.py`, `tests/test_pdf_import_scan_real.py`).
+   Still just 3 papers, so the false-positive-rate question isn't fully
+   closed — more real PDFs (especially ones with a reference list starting
+   on page 1-2) would strengthen this further, but no code change is
+   indicated by what's been tested so far.
 4. **`no_text=True` is overloaded.** identify.py returns it both for "scanned PDF,
    no text layer" and for "corrupt/encrypted/unreadable file" (line 84), and
    `import_scan.py` renders both as *"No extractable text (scanned PDF?)"* —
