@@ -1,15 +1,21 @@
 # Importing references
 
-You rarely type BibTeX by hand in bibtui. There are three ways to add an
-entry, and all of them refuse to create duplicate cite keys.
+You rarely type BibTeX by hand in bibtui. There are five ways to add an
+entry — manually, by DOI, from a PDF, from a `.bib` file, or by pasting raw
+BibTeX — and all of them refuse to create duplicate cite keys.
+
+Press <kbd>n</kbd> to open the "New Entry" chooser, then pick one with its
+mnemonic key: <kbd>m</kbd> fill out manually, <kbd>d</kbd> import by DOI,
+<kbd>p</kbd> import from PDF, <kbd>b</kbd> import a `.bib` file, or
+<kbd>v</kbd> paste BibTeX. The number keys <kbd>1</kbd>–<kbd>5</kbd> work too.
 
 ## Create a new entry
 
-Press <kbd>n</kbd> to open the new-entry form. Pick the entry type (article,
-book, inproceedings, …) and the form shows that type's fields under their real
-BibTeX names: **required fields are marked with `*`** and listed in the hint
-under the type selector, then `doi`, `url` and `note`, then the remaining optional
-fields.
+Press <kbd>n</kbd> then <kbd>m</kbd> to open the new-entry form. Pick the entry
+type (article, book, inproceedings, …) and the form shows that type's fields
+under their real BibTeX names: **required fields are marked with `*`** and
+listed in the hint under the type selector, then `doi`, `url` and `note`, then
+the remaining optional fields.
 
 The cursor starts in the first field (usually the author) rather than the cite
 key, because the key is filled in for you: it's suggested automatically from the
@@ -67,13 +73,13 @@ the form; opening a `.bib` file never validates or rejects anything.
 
 ## Import by DOI
 
-Press <kbd>d</kbd>, paste a DOI, and bibtui fetches the full metadata online and
-builds the entry for you.
+Press <kbd>n</kbd> then <kbd>d</kbd>, paste a DOI, and bibtui fetches the full
+metadata online and builds the entry for you.
 
 ![Importing an entry by DOI](../assets/img/doi-import.svg){ loading=lazy }
 
 This is the quickest way to add a paper you found in a browser or a reference
-list — copy the DOI, press <kbd>d</kbd>, paste, done.
+list — copy the DOI, press <kbd>n</kbd> then <kbd>d</kbd>, paste, done.
 
 !!! tip "PDFs are fetched automatically"
 
@@ -83,11 +89,59 @@ list — copy the DOI, press <kbd>d</kbd>, paste, done.
     directory set. Turn it off in [settings](../configuration.md) if you'd rather
     fetch manually with <kbd>f</kbd>.
 
+## Import from PDF
+
+Press <kbd>n</kbd> then <kbd>p</kbd> to build entries straight from PDF files
+already on disk — handy for clearing out an old downloads folder or a migrated
+Papers/Zotero library. The picker reuses "Add PDF"'s browse-and-filter list
+(it defaults to the configured download directory; paste a different folder
+path in to browse elsewhere) but as a checklist, so you can pick several files
+at once instead of one per entry.
+
+Each selected PDF is scanned for a DOI or arXiv id — first in the embedded
+document metadata, then in the text of its first two pages — and the
+identifier is validated and its metadata fetched through the same CrossRef
+pipeline as "Import by DOI". Nothing is written until you confirm: a report
+screen lists every file with a ✓/✗ mark and the reason a file failed (an
+ambiguous file's candidate DOIs are shown too, so you can copy one out and use
+"Import by DOI" yourself). Press <kbd>Space</kbd> on any row, success or
+failure, to preview its PDF. One "Import N Entries" click then commits every
+✓ row at once.
+
+- If the DOI already matches an entry in your library, no duplicate entry is
+  created; if that entry has no PDF linked yet, this PDF is linked to it (✓)
+  instead of being silently skipped — including duplicate PDFs within the
+  same selection.
+- If the exact same PDF (by content, not filename) is already sitting in your
+  configured PDF folder under any name, it's reused instead of being copied in
+  again; otherwise matched PDFs are moved into the PDF folder and linked, the
+  same as "Add PDF".
+- Files with no extractable text, or where CrossRef can't be reached, are
+  reported per-file and never block the rest of the batch.
+
+## Import a `.bib` file
+
+Press <kbd>n</kbd> then <kbd>b</kbd> to import a downloaded `.bib` file — for
+example the "Download citation" link on a journal page. The picker is the same
+browse-and-filter list as "Import from PDF"/"Add PDF" (it defaults to
+`~/Downloads`; paste a folder path in to browse elsewhere; <kbd>Space</kbd>
+previews the highlighted file, <kbd>Enter</kbd>/<kbd>x</kbd> choose it), just
+for a single `.bib` file instead of a PDF checklist.
+
+A file with one entry is added directly — no review screen, same as "Import by
+DOI". A file with several entries shows a report first: ✓ for a new entry, ✗
+for one already in your library (matched by DOI, including a duplicate DOI
+within the same file) — entries without a DOI are always treated as new. One
+"Import N Entries" click commits every ✓ row. It reuses the same parser that
+loads your main library, so there's no size limit beyond what a `.bib` file
+can hold.
+
 ## Paste raw BibTeX
 
 If you already have a BibTeX snippet (for example from a publisher's "cite this"
 button or Google Scholar), press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste it
-directly as a new entry. Like entries created with the form, pasted entries are
+directly as a new entry — or press <kbd>n</kbd> then <kbd>v</kbd> and paste
+into the prompt. Like entries created with the form, pasted entries are
 stamped with a `date-added` timestamp automatically if they don't carry one.
 
 ## Cite-key conflicts

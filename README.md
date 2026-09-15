@@ -39,7 +39,9 @@ uv tool install bibtui
   cite key as you type, with field prefixes like `a:`, `t:`, `k:`, `y:`.
 - **Download PDFs automatically** — one keystroke fetches the open-access PDF
   from arXiv, Copernicus, OpenAlex or Unpaywall and links it to the entry.
-- **Import by DOI** — paste a DOI and the metadata is fetched for you.
+- **Import by DOI, PDF, or `.bib` file** — paste a DOI, point at a folder of
+  PDFs, or pick a downloaded `.bib` file, and the metadata is fetched or parsed
+  for you.
 - **Organise** — keywords, read states, priorities and star ratings, all stored
   in your `.bib` file.
 - **Collaborate with Git** — your library is plain text, so a research group can

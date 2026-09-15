@@ -46,7 +46,9 @@ updates as you go.
 | Edit the selected entry            | <kbd>e</kbd>                             |
 | Edit keywords                      | <kbd>k</kbd>                             |
 | Create a new entry                 | <kbd>n</kbd>                             |
-| Import a new entry by DOI          | <kbd>d</kbd>                             |
+| Import a new entry by DOI          | <kbd>n</kbd> then <kbd>d</kbd>          |
+| Import from a PDF file             | <kbd>n</kbd> then <kbd>p</kbd>          |
+| Import a `.bib` file               | <kbd>n</kbd> then <kbd>b</kbd>          |
 | Fetch the PDF for an entry         | <kbd>f</kbd>                             |
 | Open the PDF                       | <kbd>Space</kbd>                         |
 | Cycle read state (to-read → read)  | <kbd>r</kbd>                             |
