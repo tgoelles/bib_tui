@@ -9,8 +9,9 @@ paywalls.
 
 ## Fetch a single PDF
 
-Select an entry and press <kbd>f</kbd>. bibtui tries these sources in order and
-stops at the first that works:
+Select an entry and press <kbd>p</kbd> then <kbd>f</kbd> (opens the
+[PDF actions menu](../keybindings.md#pdf-actions), then fetches). bibtui tries
+these sources in order and stops at the first that works:
 
 1. **arXiv** — for entries with a `10.48550/arXiv.*` DOI or an `arxiv.org` URL.
 2. **Copernicus** — direct PDF construction for `10.5194/*` DOIs (EGU journals).
@@ -32,7 +33,7 @@ entry's `file` field is updated in JabRef format, so the `◫` icon lights up an
 
 ## On import (automatic)
 
-You usually don't even press <kbd>f</kbd>. With **Auto-fetch PDF on import**
+You usually don't even need to fetch manually. With **Auto-fetch PDF on import**
 enabled (the default), bibtui fetches the PDF automatically right after you
 [import an entry](importing.md) by DOI or paste — provided the entry has a DOI or
 URL and you've set a PDF directory. Turn it off in
@@ -49,20 +50,25 @@ overwritten — turn it off to leave those untouched.
 
 ## Attach a PDF you already have
 
-If you've downloaded a paper yourself, press <kbd>a</kbd> to attach it. bibtui
-shows the files in your Downloads folder with a live filter; pick one and it's
-copied into your PDF directory and linked to the entry.
+If you've downloaded a paper yourself, press <kbd>p</kbd> then <kbd>a</kbd> to
+attach it. bibtui shows the files in your Downloads folder with a live filter;
+pick one and it's copied into your PDF directory and linked to the entry.
 
 ## Opening and managing PDFs
 
-Press <kbd>Space</kbd> on any entry with a linked PDF to open it in your system
-viewer. bibtui resolves the link relative to your PDF directory, and also falls
-back to matching by cite key, so links created by JabRef keep working.
+Press <kbd>Space</kbd> on any entry with a linked PDF to open it directly in
+your system viewer. bibtui resolves the link relative to your PDF directory,
+and also falls back to matching by cite key, so links created by JabRef keep
+working.
 
-The **PDF** section in the detail pane collects every action for an entry's PDF —
-**Open**, **Fetch**, **Add**, **Copy PDF**, **Copy path** and **Delete**.
-Actions that don't apply (for example copying when there's no local PDF) are
-disabled.
+Press <kbd>p</kbd> to open the **PDF actions** menu — it lists **Open**,
+**Fetch**, **Add**, **Copy PDF**, **Copy path** and **Delete**, each with a
+one-letter mnemonic, choosing an action immediately (no separate confirm
+step). All six are always listed, in the same order, so the menu always
+looks the same; the ones that don't make sense for the entry's current PDF
+state are grayed out — with no local PDF, Fetch/Add are the only ones lit
+up, for example, while a linked PDF lights up Open/Copy PDF/Copy path/Delete
+instead.
 
 ### Copy PDF — share a paper in two clicks
 

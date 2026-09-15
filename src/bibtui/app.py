@@ -62,6 +62,7 @@ from bibtui.widgets.modals import (
     NewEntryChooserModal,
     NewEntryModal,
     PasteModal,
+    PdfActionsModal,
     PdfImportPickerModal,
     PdfImportReviewModal,
     RawEditModal,
@@ -142,7 +143,7 @@ class BibTuiApp(App):
         Binding("e", "edit_entry", "Edit"),
         Binding("k", "edit_keywords", "Keywords"),
         Binding("r", "cycle_read_state", "State"),
-        Binding("p", "cycle_priority", "Prio"),
+        Binding("u", "cycle_priority", "Prio"),
         Binding("0", "set_rating('0')", "Unrated", group=_RATING_GROUP),
         Binding("1", "set_rating('1')", "★", group=_RATING_GROUP),
         Binding("2", "set_rating('2')", "★★", group=_RATING_GROUP),
@@ -150,6 +151,7 @@ class BibTuiApp(App):
         Binding("4", "set_rating('4')", "★★★★", group=_RATING_GROUP),
         Binding("5", "set_rating('5')", "★★★★★", group=_RATING_GROUP),
         Binding("s", "focus_search", "Search"),
+        Binding("p", "pdf_actions_menu", "PDF"),
         Binding("space", "open_pdf", "␣ Show PDF"),
         Binding("q", "quit", "Quit"),
         Binding("w", "save", "Write"),
@@ -162,8 +164,6 @@ class BibTuiApp(App):
         Binding("less_than_sign", "adjust_split(5)", "Grow detail", show=False),
         Binding("b", "open_url", "Browser", show=False),
         Binding("B", "open_openalex", "OpenAlex", show=False),
-        Binding("f", "fetch_pdf", "Fetch PDF", show=False),
-        Binding("a", "add_pdf", "Add PDF", show=False),
         # Copy
         Binding(COPY_KEY, "copy_key", "Copy key", show=False, priority=True),
         Binding("C", "copy_citation", "Copy citation", show=False),
@@ -815,6 +815,32 @@ class BibTuiApp(App):
             self.notify("Opening OpenAlex (title search)", timeout=3)
         else:
             self.notify("Opening OpenAlex (DOI search)", timeout=3)
+
+    def action_pdf_actions_menu(self) -> None:
+        """`p`: open the PDF actions chooser for the selected entry — the
+        single entry point for Open/Fetch/Add/Copy PDF/Copy path/Delete,
+        mirroring how `n` is the single entry point for adding an entry."""
+        entry = self.query_one(EntryList).selected_entry
+        if entry is None:
+            self.notify("No entry selected.", severity="warning")
+            return
+        self.push_screen(
+            PdfActionsModal(entry, self._config.pdf_base_dir),
+            self._on_pdf_actions_choice,
+        )
+
+    def _on_pdf_actions_choice(self, choice: str | None) -> None:
+        actions = {
+            "open": self.action_open_pdf,
+            "fetch": self.action_fetch_pdf,
+            "add": self.action_add_pdf,
+            "copy_file": self.action_pdf_copy_file,
+            "copy_path": self.action_pdf_copy_path,
+            "delete": self.action_pdf_delete,
+        }
+        action = actions.get(choice) if choice else None
+        if action is not None:
+            action()
 
     def action_fetch_pdf(self) -> None:
         entry = self.query_one(EntryList).selected_entry

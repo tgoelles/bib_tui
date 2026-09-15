@@ -87,7 +87,8 @@ list — copy the DOI, press <kbd>n</kbd> then <kbd>d</kbd>, paste, done.
     open-access PDF right after import — so a DOI often becomes a fully-linked
     entry, PDF and all, in one step. It needs a DOI or URL on the entry and a PDF
     directory set. Turn it off in [settings](../configuration.md) if you'd rather
-    fetch manually with <kbd>f</kbd>.
+    fetch manually with the [PDF actions menu](../keybindings.md#pdf-actions)
+    (<kbd>p</kbd> then <kbd>f</kbd>).
 
 ## Import from PDF
 

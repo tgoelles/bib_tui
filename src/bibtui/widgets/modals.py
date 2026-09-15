@@ -36,6 +36,7 @@ from bibtui.bib.citekeys import author_year_base
 from bibtui.bib.models import COMMON_FIELDS, ENTRY_TYPES, BibEntry
 from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bibtui.bib.validate import validate_entry
+from bibtui.pdf.paths import pdf_link_state
 from bibtui.utils.config import Config
 from bibtui.utils.dates import DATE_ADDED_KEYS
 from bibtui.utils.doi import normalize_doi
@@ -1356,7 +1357,7 @@ class SettingsModal(_BaseModal["Config | None"]):
 
             yield Label("PDF download directory")
             yield Static(
-                "[dim]PDFs listed when you press [bold]a[/bold] to add an existing PDF. Defaults to ~/Downloads.[/dim]"
+                "[dim]PDFs listed when you press [bold]p[/bold] then [bold]a[/bold] to add an existing PDF. Defaults to ~/Downloads.[/dim]"
             )
             yield Input(
                 value=self._config.pdf_download_dir,
@@ -1672,12 +1673,23 @@ _HELP_SECTIONS = [
         "Entry state",
         [
             ("r", "Cycle read state"),
-            ("p", "Cycle priority"),
+            ("u", "Cycle priority"),
             ("␣", "Show PDF"),
             ("b", "Open URL in browser (validates http/https)"),
             ("Shift+b", "Search OpenAlex (title first, then DOI)"),
-            ("f", "Fetch PDF and link it to the entry"),
-            ("a", "Add an existing PDF to the library and link it"),
+        ],
+    ),
+    (
+        "PDF actions",
+        [
+            ("p", "PDF actions — choose:"),
+            (None, "  o  Open — open the linked PDF"),
+            (None, "  f  Fetch — download the open-access PDF automatically"),
+            (None, "  a  Add — link an existing PDF from disk"),
+            (None, "  c  Copy PDF — copy the file to the clipboard"),
+            (None, "  p  Copy path — copy the file's path as text"),
+            (None, "  d  Delete — remove the file and unlink it"),
+            (None, "Actions that don't apply to the entry's current PDF state are grayed out."),
         ],
     ),
     (
@@ -1956,6 +1968,119 @@ class PasteModal(_BaseModal["BibEntry | None"]):
 
     def action_do_import(self) -> None:
         self._do_import()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class PdfActionsModal(_BaseModal["str | None"]):
+    """`p`: pick a PDF action for the selected entry.
+
+    Modeled on :class:`NewEntryChooserModal` — a ``ListView`` of
+    ``letter · Title — desc`` rows, chosen instantly by pressing the letter
+    (no separate confirm step). All six rows are always listed, in the same
+    order, so the menu always looks the same; the ones not valid for the
+    entry's current PDF state (:func:`bibtui.pdf.paths.pdf_link_state`) are
+    dimmed and inert — matching how the old button panel always showed all
+    six buttons and just disabled the inapplicable ones, rather than the
+    set of buttons itself changing shape. Dismisses with the chosen action's
+    key, or ``None`` if canceled — the caller
+    (``BibTuiApp._on_pdf_actions_choice``) dispatches to the existing
+    ``action_*`` methods, unchanged.
+    """
+
+    # (result key, mnemonic letter, title, desc, states it applies to)
+    _ALL_ACTIONS: list[tuple[str, str, str, str, set[str]]] = [
+        ("open", "o", "Open PDF", "Open the linked PDF file", {"found"}),
+        (
+            "fetch",
+            "f",
+            "Fetch PDF",
+            "Download the open-access PDF automatically",
+            {"none", "missing"},
+        ),
+        ("add", "a", "Add PDF", "Link an existing PDF from disk", {"none", "missing"}),
+        (
+            "copy_file",
+            "c",
+            "Copy PDF File",
+            "Copy the file to the clipboard",
+            {"found"},
+        ),
+        ("copy_path", "p", "Copy PDF Path", "Copy the file's path as text", {"found"}),
+        ("delete", "d", "Delete PDF", "Remove the file and unlink it", {"found", "missing"}),
+    ]
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("o", "choose('open')", show=False),
+        Binding("f", "choose('fetch')", show=False),
+        Binding("a", "choose('add')", show=False),
+        Binding("c", "choose('copy_file')", show=False),
+        Binding("p", "choose('copy_path')", show=False),
+        Binding("d", "choose('delete')", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    PdfActionsModal > Vertical {
+        width: 68;
+    }
+    PdfActionsModal ListView {
+        height: auto;
+        border: solid $panel;
+    }
+    PdfActionsModal ListItem {
+        padding: 0 1;
+    }
+    """
+
+    def __init__(self, entry: BibEntry, pdf_base_dir: str, **kwargs):
+        super().__init__(**kwargs)
+        self._entry = entry
+        state = pdf_link_state(entry.file, entry.key, pdf_base_dir)
+        self._available: set[str] = {
+            opt[0] for opt in self._ALL_ACTIONS if state in opt[4]
+        }
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label(
+                f"[bold]PDF Actions[/bold]  [dim]{self._entry.key}[/dim]",
+                classes="modal-title",
+            )
+            with ListView(id="pdf-actions-list"):
+                for key, letter, title, desc, _states in self._ALL_ACTIONS:
+                    if key in self._available:
+                        text = f"[bold]{letter}[/bold] · {title}  [dim]— {desc}[/dim]"
+                    else:
+                        # Grayed out, not just its desc — the whole row reads
+                        # as inert, like a disabled button. `[dim]` rides on
+                        # whatever the active theme resolves, so this stays
+                        # theme-aware without a hardcoded color.
+                        text = f"[dim]{letter} · {title}  — {desc}[/dim]"
+                    yield ListItem(Label(text))
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.call_after_refresh(self.query_one(ListView).focus)
+
+    @on(ListView.Selected, "#pdf-actions-list")
+    def _on_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one(ListView).index
+        if idx is not None and idx < len(self._ALL_ACTIONS):
+            self.action_choose(self._ALL_ACTIONS[idx][0])
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+
+    def action_choose(self, key: str) -> None:
+        # A letter (or Enter on a row) for an action not valid right now
+        # (e.g. `o` while the PDF isn't linked) is a silent no-op — same
+        # effect as a disabled button, since that row is grayed out.
+        if key in self._available:
+            self.dismiss(key)
 
     def action_cancel(self) -> None:
         self.dismiss(None)

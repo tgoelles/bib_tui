@@ -32,7 +32,7 @@ Keywords pair naturally with bibtui's lightweight reading-status fields, which
 all live in your `.bib` file:
 
 - **Read state** — cycle to-read → skimmed → read with <kbd>r</kbd>.
-- **Priority** — cycle high → medium → low with <kbd>p</kbd>.
+- **Priority** — cycle high → medium → low with <kbd>u</kbd>.
 - **Star rating** — press <kbd>1</kbd>–<kbd>5</kbd>, or <kbd>0</kbd> to clear.
 
 Combine them with search and sorting to answer questions like "what high-priority

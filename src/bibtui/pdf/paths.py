@@ -72,6 +72,22 @@ def find_pdf_for_entry(
     return None
 
 
+def pdf_link_state(file_field: str, entry_key: str, base_dir: str = "") -> str:
+    """Classify an entry's local-PDF state: one of ``"none"`` (no ``file``
+    field at all), ``"found"`` (linked and located via
+    :func:`find_pdf_for_entry`), or ``"missing"`` (linked but not located).
+
+    The single source of truth for "is there a local PDF, and in what
+    state" — used by the table's file-status column, the detail pane's
+    compact PDF status label, and the PDF actions menu's row filtering, so
+    all three always agree (they used to each answer this slightly
+    differently, which could show the table and detail pane disagreeing).
+    """
+    if not file_field:
+        return "none"
+    return "found" if find_pdf_for_entry(file_field, entry_key, base_dir) else "missing"
+
+
 def format_jabref_path(filepath: str, base_dir: str = "") -> str:
     """Format a path as a JabRef file field value ``:filename.pdf:PDF``.
 

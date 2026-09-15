@@ -33,19 +33,18 @@ their own keys in the footer.
 | Key                          | Action                                        |
 | ---------------------------- | --------------------------------------------- |
 | <kbd>r</kbd>                 | Cycle read state (to-read → skimmed → read)   |
-| <kbd>p</kbd>                 | Cycle priority (high → medium → low)          |
+| <kbd>u</kbd>                 | Cycle priority (high → medium → low)          |
 | <kbd>1</kbd>–<kbd>5</kbd>    | Set star rating                               |
 | <kbd>0</kbd>                 | Clear rating                                  |
-| <kbd>Space</kbd>             | Open the linked PDF                            |
 | <kbd>b</kbd>                 | Open the entry's URL in a browser             |
 | <kbd>Shift</kbd>+<kbd>B</kbd>| Search OpenAlex for the entry                 |
 
-## PDFs
+## PDF actions
 
-| Key            | Action                                            |
-| -------------- | ------------------------------------------------- |
-| <kbd>f</kbd>   | Fetch the PDF and link it to the entry            |
-| <kbd>a</kbd>   | Attach an existing PDF from your Downloads folder |
+| Key              | Action                                            |
+| ---------------- | -------------------------------------------------- |
+| <kbd>Space</kbd> | Open the linked PDF directly                       |
+| <kbd>p</kbd>     | PDF actions — <kbd>o</kbd> open, <kbd>f</kbd> fetch, <kbd>a</kbd> add, <kbd>c</kbd> copy PDF, <kbd>p</kbd> copy path, <kbd>d</kbd> delete (all six are always listed; the ones that don't apply to the entry's current PDF state are grayed out) |
 
 ## Copying
 

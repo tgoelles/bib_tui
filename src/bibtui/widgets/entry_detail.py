@@ -1,11 +1,8 @@
-from typing import TYPE_CHECKING, cast
-
 from rich.syntax import Syntax
-from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
-from textual.widgets import Button, Collapsible, Label, Select, Static, TextArea
+from textual.widgets import Label, Select, Static, TextArea
 
 from bibtui.bib.citation_preview import (
     available_csl_styles,
@@ -14,10 +11,7 @@ from bibtui.bib.citation_preview import (
 )
 from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import entry_to_bibtex_str
-from bibtui.pdf.paths import find_pdf_for_entry
-
-if TYPE_CHECKING:
-    from bibtui.app import BibTuiApp
+from bibtui.pdf.paths import pdf_link_state
 
 
 def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
@@ -131,13 +125,14 @@ class EntryDetail(Widget):
         width: auto;
         margin-right: 2;
     }
+    #detail-pdf-status {
+        width: auto;
+        margin-right: 2;
+    }
     #detail-url {
         width: 1fr;
         margin-left: 2;
         color: $text-muted;
-    }
-    #detail-pdf-collapsible {
-        margin: 1 0;
     }
     #detail-csl-row {
         height: auto;
@@ -166,48 +161,6 @@ class EntryDetail(Widget):
         margin: 0 0 1 0;
         color: $text;
         height: auto;
-    }
-    #detail-pdf-panel {
-        padding: 0 1;
-        height: auto;
-    }
-    #detail-pdf-title {
-        margin: 1 0 0 0;
-    }
-    #detail-pdf-status {
-        color: $text-muted;
-        margin: 0 0 1 0;
-    }
-    #detail-pdf-actions-main {
-        height: auto;
-        layout: horizontal;
-        margin-bottom: 0;
-    }
-    #detail-pdf-actions-extra {
-        height: auto;
-        layout: horizontal;
-        margin-bottom: 1;
-    }
-    #detail-pdf-actions-main Button,
-    #detail-pdf-actions-extra Button {
-        min-width: 12;
-        margin-right: 1;
-    }
-    #detail-pdf-actions-main Button {
-        width: 1fr;
-    }
-    #detail-pdf-actions-extra Button {
-        width: 1fr;
-    }
-    EntryDetail.narrow #detail-pdf-actions-main,
-    EntryDetail.narrow #detail-pdf-actions-extra {
-        layout: vertical;
-    }
-    EntryDetail.narrow #detail-pdf-actions-main Button,
-    EntryDetail.narrow #detail-pdf-actions-extra Button {
-        width: 1fr;
-        margin-right: 0;
-        margin-bottom: 1;
     }
     #detail-content {
         height: auto;
@@ -243,10 +196,6 @@ class EntryDetail(Widget):
         if self._entry is not None:
             self._refresh_content()
 
-    def on_resize(self, event: events.Resize) -> None:
-        # Keep button rows usable on narrow terminal panes.
-        self.set_class(event.size.width < 90, "narrow")
-
     def set_pdf_base_dir(self, base_dir: str) -> None:
         self._pdf_base_dir = base_dir
 
@@ -263,19 +212,8 @@ class EntryDetail(Widget):
             yield Label("", id="detail-read-state")
             yield Label("", id="detail-priority")
             yield Label("", id="detail-rating")
+            yield Label("", id="detail-pdf-status")
             yield Label("", id="detail-url")
-        with Collapsible(collapsed=True, title="PDF", id="detail-pdf-collapsible"):
-            with Vertical(id="detail-pdf-panel"):
-                yield Label("[bold]PDF Actions[/bold]", id="detail-pdf-title")
-                yield Label("", id="detail-pdf-status")
-                with Horizontal(id="detail-pdf-actions-main"):
-                    yield Button("Open", id="detail-pdf-open")
-                    yield Button("Fetch", id="detail-pdf-fetch")
-                    yield Button("Add", id="detail-pdf-add")
-                with Horizontal(id="detail-pdf-actions-extra"):
-                    yield Button("Copy PDF", id="detail-pdf-copy-file")
-                    yield Button("Copy path", id="detail-pdf-copy-path")
-                    yield Button("Delete", id="detail-pdf-delete", variant="error")
         yield Static("Select an entry to view details.", id="detail-content")
         with Vertical(id="detail-citation-panel"):
             yield Label("[bold]Citation[/bold]", id="detail-citation-title")
@@ -290,21 +228,6 @@ class EntryDetail(Widget):
             yield Static("", id="detail-citation-preview")
         yield Static("", id="detail-abstract")
         yield TextArea("", id="detail-raw", read_only=True)
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        app = cast("BibTuiApp", self.app)
-        if event.button.id == "detail-pdf-open":
-            app.action_open_pdf()
-        elif event.button.id == "detail-pdf-fetch":
-            app.action_fetch_pdf()
-        elif event.button.id == "detail-pdf-add":
-            app.action_add_pdf()
-        elif event.button.id == "detail-pdf-copy-file":
-            getattr(app, "action_pdf_copy_file")()
-        elif event.button.id == "detail-pdf-copy-path":
-            app.action_pdf_copy_path()
-        elif event.button.id == "detail-pdf-delete":
-            app.action_pdf_delete()
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id != "detail-csl-select":
@@ -335,20 +258,6 @@ class EntryDetail(Widget):
         mode = "raw BibTeX" if self._raw_mode else "formatted"
         self.border_title = f"Entry Detail [{mode}]"
 
-    def _file_icon(self, entry: BibEntry) -> str:
-        if not entry.file:
-            return " "
-        # Use the same lookup as the table column and app actions (including
-        # the entry-key glob fallback) so the icon and action buttons agree
-        # with what "PDF present" means elsewhere. A bare os.path.exists()
-        # on the stored path alone can disagree with that shared lookup —
-        # e.g. on macOS, where filename normalization/case quirks are more
-        # likely to make the literal stored path miss while the glob still
-        # finds the file — leaving the icon "found" but actions stuck on
-        # Fetch/Add.
-        found = find_pdf_for_entry(entry.file, entry.key, self._pdf_base_dir)
-        return "■" if found else "□"
-
     def _theme_colors(self) -> dict[str, str]:
         """Return Rich color strings derived from the current Textual theme.
 
@@ -371,14 +280,7 @@ class EntryDetail(Widget):
         read_label = self.query_one("#detail-read-state", Label)
         priority_label = self.query_one("#detail-priority", Label)
         rating_label = self.query_one("#detail-rating", Label)
-        pdf_collapsible = self.query_one("#detail-pdf-collapsible", Collapsible)
         pdf_status_label = self.query_one("#detail-pdf-status", Label)
-        pdf_open_btn = self.query_one("#detail-pdf-open", Button)
-        pdf_add_btn = self.query_one("#detail-pdf-add", Button)
-        pdf_fetch_btn = self.query_one("#detail-pdf-fetch", Button)
-        pdf_copy_file_btn = self.query_one("#detail-pdf-copy-file", Button)
-        pdf_copy_path_btn = self.query_one("#detail-pdf-copy-path", Button)
-        pdf_delete_btn = self.query_one("#detail-pdf-delete", Button)
         url_label = self.query_one("#detail-url", Label)
         citation_panel = self.query_one("#detail-citation-panel", Vertical)
         citation_preview_widget = self.query_one("#detail-citation-preview", Static)
@@ -389,7 +291,6 @@ class EntryDetail(Widget):
             read_label.update("")
             priority_label.update("")
             rating_label.update("")
-            pdf_collapsible.display = False
             pdf_status_label.update("")
             url_label.update("")
             citation_panel.display = False
@@ -431,37 +332,13 @@ class EntryDetail(Widget):
         stars = e.rating_stars or "[dim]unrated[/dim]"
         rating_label.update(f"[bold]Rating:[/bold] [{colors['warning']}]{stars}[/]")
 
-        pdf_collapsible.display = True
-
-        icon = self._file_icon(e)
-        if not e.file:
-            pdf_status_label.update(
-                "[bold]Status:[/bold] [dim]No linked PDF. Use Fetch or Add.[/dim]"
-            )
-            pdf_fetch_btn.disabled = False
-            pdf_add_btn.disabled = False
-            pdf_open_btn.disabled = True
-            pdf_copy_file_btn.disabled = True
-            pdf_copy_path_btn.disabled = True
-            pdf_delete_btn.disabled = True
-        elif icon == "■":
-            pdf_status_label.update("[bold]Status:[/bold] ■ Local PDF linked")
-            pdf_fetch_btn.disabled = True
-            pdf_add_btn.disabled = True
-            pdf_open_btn.disabled = False
-            pdf_copy_file_btn.disabled = False
-            pdf_copy_path_btn.disabled = False
-            pdf_delete_btn.disabled = False
+        state = pdf_link_state(e.file, e.key, self._pdf_base_dir)
+        if state == "found":
+            pdf_status_label.update("[bold]PDF:[/bold] ■ linked")
+        elif state == "missing":
+            pdf_status_label.update("[dim]PDF: □ missing[/dim]")
         else:
-            pdf_status_label.update(
-                "[bold]Status:[/bold] [dim]□ Linked file not found. Use Fetch/Add or Delete.[/dim]"
-            )
-            pdf_fetch_btn.disabled = False
-            pdf_add_btn.disabled = False
-            pdf_open_btn.disabled = True
-            pdf_copy_file_btn.disabled = True
-            pdf_copy_path_btn.disabled = True
-            pdf_delete_btn.disabled = False
+            pdf_status_label.update("[dim]PDF: — none[/dim]")
 
         if e.url:
             short = e.url if len(e.url) <= 34 else e.url[:31] + "…"
