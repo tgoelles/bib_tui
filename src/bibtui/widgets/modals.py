@@ -1,7 +1,7 @@
 import copy
 import re
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import TypeVar
 
@@ -40,6 +40,7 @@ from bibtui.pdf.paths import pdf_link_state
 from bibtui.utils.config import Config
 from bibtui.utils.dates import DATE_ADDED_KEYS
 from bibtui.utils.doi import normalize_doi
+from bibtui.utils.filters import FilterPreset, FilterStore
 from bibtui.utils.keymap import SAVE
 from bibtui.utils.opener import open_with_default_app
 from bibtui.widgets.columns import DEFAULT_TABLE_COLUMNS, ColumnSpec
@@ -2113,6 +2114,289 @@ class PdfActionsModal(_BaseModal["str | None"]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class FilterEditModal(_BaseModal["tuple[str, str] | None"]):
+    """Create or edit one saved filter preset: a name and a query.
+
+    The query field uses exactly the same syntax as the main search box
+    (see :mod:`bibtui.widgets.entry_list`) — there's no separate filter
+    language, so anything typed into search can be saved verbatim.
+    Dismisses with ``(name, query)``, or ``None`` if canceled.
+    """
+
+    BINDINGS = [
+        Binding(SAVE, "save", "Write", show=True),
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
+
+    DEFAULT_CSS = """
+    FilterEditModal > Vertical {
+        width: 70;
+    }
+    FilterEditModal Input {
+        margin-bottom: 1;
+    }
+    FilterEditModal #filter-edit-error {
+        color: $error;
+        height: auto;
+    }
+    """
+
+    def __init__(self, name: str = "", query: str = "", **kwargs):
+        super().__init__(**kwargs)
+        self._initial_name = name
+        self._initial_query = query
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Save Filter[/bold]", classes="modal-title")
+            yield Label("Name")
+            yield Input(
+                value=self._initial_name, placeholder="e.g. Project X", id="filter-name"
+            )
+            yield Label("Query")
+            yield Input(
+                value=self._initial_query,
+                placeholder="k:sepp y:2010-",
+                id="filter-query",
+            )
+            yield Static("", id="filter-edit-error")
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Write", variant="primary", id="btn-save")
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.call_after_refresh(self.query_one("#filter-name", Input).focus)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id == "btn-save":
+            self._save()
+
+    def _save(self) -> None:
+        name = self.query_one("#filter-name", Input).value.strip()
+        query = self.query_one("#filter-query", Input).value.strip()
+        error = self.query_one("#filter-edit-error", Static)
+        if not name:
+            error.update("Name is required.")
+            return
+        if not query:
+            error.update("Query is required.")
+            return
+        self.dismiss((name, query))
+
+    def action_save(self) -> None:
+        self._save()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class FilterPresetModal(_BaseModal["str | None"]):
+    """`f`: pick a saved filter preset, or manage the saved list.
+
+    Modeled on :class:`NewEntryChooserModal` / :class:`PdfActionsModal` — a
+    single ``ListView`` chosen by number. Row 0 is always "All entries"
+    (clears any active preset); rows 1-9 are the user's saved presets in
+    file order, each selectable by its number, with the active one marked
+    ``●``. Selecting a row (number, Enter, or click) dismisses the modal
+    with that preset's name (``""`` for "All entries").
+
+    ``a``/``e``/``d`` (save current search / edit / delete) act on the
+    store immediately, persisting through the *persist* callback and
+    refreshing the list in place — they do not dismiss the modal, so
+    managing several presets in one visit doesn't need reopening it, and a
+    later Esc never rolls any of it back.
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("0", "choose_index(0)", show=False),
+        Binding("1", "choose_index(1)", show=False),
+        Binding("2", "choose_index(2)", show=False),
+        Binding("3", "choose_index(3)", show=False),
+        Binding("4", "choose_index(4)", show=False),
+        Binding("5", "choose_index(5)", show=False),
+        Binding("6", "choose_index(6)", show=False),
+        Binding("7", "choose_index(7)", show=False),
+        Binding("8", "choose_index(8)", show=False),
+        Binding("9", "choose_index(9)", show=False),
+        Binding("a", "save_current", "Save search", show=True),
+        Binding("e", "edit_highlighted", "Edit", show=True),
+        Binding("d", "delete_highlighted", "Delete", show=True),
+    ]
+
+    DEFAULT_CSS = """
+    FilterPresetModal > Vertical {
+        width: 76;
+    }
+    FilterPresetModal ListView {
+        height: auto;
+        max-height: 16;
+        border: solid $panel;
+    }
+    FilterPresetModal ListItem {
+        padding: 0 1;
+    }
+    FilterPresetModal #filter-hints {
+        height: auto;
+        margin-top: 1;
+        color: $text-muted;
+    }
+    """
+
+    def __init__(
+        self,
+        store: FilterStore,
+        current_search: str,
+        persist: "Callable[[FilterStore], None]",
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self._store = store
+        self._current_search = current_search
+        self._persist = persist
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("[bold]Filters[/bold]", classes="modal-title")
+            yield ListView(id="filter-list")
+            yield Static(
+                "[dim]0-9 select · a save current search · e edit · "
+                "d delete · Esc close[/dim]",
+                id="filter-hints",
+            )
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Cancel", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self._rebuild_list()
+        self.call_after_refresh(self.query_one(ListView).focus)
+
+    def _row_label(self, index: int) -> str:
+        active = self._store.active.strip().lower()
+        if index == 0:
+            marker = "●" if not active else " "
+            return f"[bold]0[/bold] · {marker} All entries"
+        preset = self._store.presets[index - 1]
+        num = str(index) if index <= 9 else " "
+        marker = "●" if preset.name.lower() == active else " "
+        return f"[bold]{num}[/bold] · {marker} {preset.name}  [dim]— {preset.query}[/dim]"
+
+    def _rebuild_list(self, highlight_name: str | None = None) -> None:
+        lv = self.query_one(ListView)
+        lv.clear()
+        for index in range(len(self._store.presets) + 1):
+            lv.append(ListItem(Label(self._row_label(index))))
+        if highlight_name is not None:
+            idx = self._index_for_name(highlight_name)
+            if idx is not None:
+                lv.index = idx
+
+    def _index_for_name(self, name: str) -> int | None:
+        if not name:
+            return 0
+        for i, preset in enumerate(self._store.presets, start=1):
+            if preset.name.lower() == name.lower():
+                return i
+        return None
+
+    def _name_for_index(self, index: int) -> str | None:
+        if index == 0:
+            return ""
+        preset_idx = index - 1
+        if 0 <= preset_idx < len(self._store.presets):
+            return self._store.presets[preset_idx].name
+        return None
+
+    def _highlighted_preset(self) -> "FilterPreset | None":
+        idx = self.query_one(ListView).index
+        if idx is None or idx == 0:
+            return None
+        preset_idx = idx - 1
+        if 0 <= preset_idx < len(self._store.presets):
+            return self._store.presets[preset_idx]
+        return None
+
+    @on(ListView.Selected, "#filter-list")
+    def _on_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one(ListView).index
+        if idx is not None:
+            self._choose(idx)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+
+    def _choose(self, index: int) -> None:
+        name = self._name_for_index(index)
+        if name is not None:
+            self.dismiss(name)
+
+    def action_choose_index(self, index: int) -> None:
+        self._choose(index)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_save_current(self) -> None:
+        active_preset = self._store.find(self._store.active) if self._store.active else None
+        parts = [
+            p for p in (active_preset.query if active_preset else "", self._current_search) if p
+        ]
+        prefill_query = " ".join(parts)
+        self.app.push_screen(
+            FilterEditModal(query=prefill_query), self._on_save_current_done
+        )
+
+    def _on_save_current_done(self, result: "tuple[str, str] | None") -> None:
+        if result is None:
+            return
+        name, query = result
+        self._store.upsert(FilterPreset(name=name, query=query))
+        self._persist(self._store)
+        self._rebuild_list(highlight_name=name)
+
+    def action_edit_highlighted(self) -> None:
+        preset = self._highlighted_preset()
+        if preset is None:
+            return
+        self.app.push_screen(
+            FilterEditModal(name=preset.name, query=preset.query),
+            lambda result: self._on_edit_done(preset.name, result),
+        )
+
+    def _on_edit_done(self, old_name: str, result: "tuple[str, str] | None") -> None:
+        if result is None:
+            return
+        new_name, query = result
+        was_active = self._store.active.strip().lower() == old_name.lower()
+        if new_name.lower() != old_name.lower():
+            self._store.remove(old_name)
+        self._store.upsert(FilterPreset(name=new_name, query=query))
+        if was_active:
+            self._store.active = new_name
+        self._persist(self._store)
+        self._rebuild_list(highlight_name=new_name)
+
+    def action_delete_highlighted(self) -> None:
+        preset = self._highlighted_preset()
+        if preset is None:
+            return
+        msg = f"Delete filter '[bold]{preset.name}[/bold]'?"
+        self.app.push_screen(
+            ConfirmModal(msg),
+            lambda confirmed: self._on_delete_confirmed(confirmed, preset.name),
+        )
+
+    def _on_delete_confirmed(self, confirmed: bool | None, name: str) -> None:
+        if not confirmed:
+            return
+        self._store.remove(name)
+        self._persist(self._store)
+        self._rebuild_list()
 
 
 class AddPDFModal(_FileBrowseMixin, _BaseModal["str | None"]):

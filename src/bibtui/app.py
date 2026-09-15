@@ -38,6 +38,7 @@ from bibtui.utils.config import (
     load_config,
     save_config,
 )
+from bibtui.utils.filters import FilterStore, load_filters, save_filters
 from bibtui.utils.keymap import COMMAND_PALETTE, COPY_ENTRY, COPY_KEY
 from bibtui.utils.opener import open_with_default_app
 from bibtui.utils.theme import get_omarchy_theme
@@ -54,6 +55,7 @@ from bibtui.widgets.modals import (
     EditModal,
     FetchPDFModal,
     FilePickerModal,
+    FilterPresetModal,
     FirstRunModal,
     HelpModal,
     ImportBibPickerModal,
@@ -84,6 +86,11 @@ class BibTuiCommands(Provider):
                 "Check for updates",
                 app.action_check_for_updates,
                 "Check PyPI for a newer bibtui release now",
+            ),
+            (
+                "Filter: Choose preset",
+                app.action_filter_presets,
+                "Pick a saved filter, or save/edit/delete one",
             ),
             (
                 "Library: Fetch missing PDFs",
@@ -151,6 +158,7 @@ class BibTuiApp(App):
         Binding("4", "set_rating('4')", "★★★★", group=_RATING_GROUP),
         Binding("5", "set_rating('5')", "★★★★★", group=_RATING_GROUP),
         Binding("s", "focus_search", "Search"),
+        Binding("f", "filter_presets", "Filter"),
         Binding("p", "pdf_actions_menu", "PDF"),
         Binding("space", "open_pdf", "␣ Show PDF"),
         Binding("q", "quit", "Quit"),
@@ -202,6 +210,7 @@ class BibTuiApp(App):
         self._dirty = False
         self._first_run = is_first_run()
         self._config: Config = load_config()
+        self._filter_store: FilterStore = load_filters()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -400,10 +409,21 @@ class BibTuiApp(App):
             detail.set_pdf_base_dir(self._config.pdf_base_dir)
             detail.set_default_csl_style(self._config.default_citation_style)
             entry_list.refresh_entries(self._entries)
+            self._restore_active_filter(entry_list)
             self.notify(f"Loaded {len(self._entries)} entries.", timeout=3)
         except Exception as e:
             self.notify(f"Error loading file: {e}", severity="error")
         self.query_one(DataTable).focus()
+
+    def _restore_active_filter(self, entry_list: EntryList) -> None:
+        """Reactivate the last-active saved filter preset, if any still exists."""
+        if not self._filter_store.active:
+            return
+        preset = self._filter_store.find(self._filter_store.active)
+        if preset is None:
+            self._filter_store.active = ""
+            return
+        entry_list.set_preset(preset.name, preset.query)
 
     # ── Entry selection ────────────────────────────────────────────────────
 
@@ -438,6 +458,24 @@ class BibTuiApp(App):
             search.blur()
         else:
             search.blur()
+
+    def action_filter_presets(self) -> None:
+        entry_list = self.query_one(EntryList)
+        self.push_screen(
+            FilterPresetModal(self._filter_store, entry_list.search_query, save_filters),
+            self._on_filter_chosen,
+        )
+
+    def _on_filter_chosen(self, name: str | None) -> None:
+        if name is None:
+            return
+        entry_list = self.query_one(EntryList)
+        preset = self._filter_store.find(name) if name else None
+        query = preset.query if preset else ""
+        entry_list.set_preset(name if preset else "", query)
+        self._filter_store.active = name if preset else ""
+        save_filters(self._filter_store)
+        self.query_one(DataTable).focus()
 
     def action_save(self) -> None:
         try:
@@ -767,7 +805,13 @@ class BibTuiApp(App):
             self.query_one(DataTable).move_cursor(row=idx)
             self.query_one(EntryDetail).show_entry(result)
         except StopIteration:
-            pass
+            preset_name, _ = el.active_preset
+            if preset_name:
+                self.notify(
+                    f"Added '{result.key}' — hidden by filter '{preset_name}'",
+                    severity="warning",
+                    timeout=6,
+                )
 
     def _maybe_auto_fetch(self, entry: BibEntry) -> None:
         """Trigger PDF fetch after import if the setting is enabled and prerequisites are met."""
