@@ -1707,7 +1707,9 @@ _HELP_SECTIONS = [
             ("1 – 9", "Jump straight to that saved filter"),
             ("Enter", "Select the highlighted row"),
             ("w", "Write the current search as a new (or updated) filter"),
+            (None, "An existing name updates that filter — confirmed first."),
             ("e", "Edit the highlighted filter's name/query"),
+            (None, "Renaming onto another filter's name also confirms first."),
             ("d", "Delete the highlighted filter (confirmation required)"),
             (None, "Deleting always drops back to 'All entries', even if"),
             (None, "the deleted filter wasn't the active one."),
@@ -2257,6 +2259,13 @@ class FilterPresetModal(_BaseModal["str | None"]):
     filter's results on screen. "All entries" itself (row 0) isn't a real
     preset and can't be deleted; trying to shows a notification instead of
     silently doing nothing.
+
+    Typing an existing filter's name into "write current search" (``w``) is
+    how you *update* it — matching ``upsert`` semantics — but since that's
+    also an easy typo when meaning to create a new one, and renaming an
+    edited (``e``) filter onto another existing name would silently merge
+    the two, both paths confirm before overwriting rather than clobbering
+    silently.
     """
 
     BINDINGS = [
@@ -2408,6 +2417,22 @@ class FilterPresetModal(_BaseModal["str | None"]):
         if result is None:
             return
         name, query = result
+        if self._store.find(name) is not None:
+            # Typing an existing name is how you *update* a filter (see the
+            # class docstring), but it's also an easy typo to make while
+            # meaning to create a new one — confirm rather than clobber
+            # silently.
+            msg = f"A filter named '[bold]{name}[/bold]' already exists. Overwrite it?"
+            self.app.push_screen(
+                ConfirmModal(msg),
+                lambda confirmed: self._commit_save_current(confirmed, name, query),
+            )
+            return
+        self._commit_save_current(True, name, query)
+
+    def _commit_save_current(self, confirmed: bool | None, name: str, query: str) -> None:
+        if not confirmed:
+            return
         self._store.upsert(FilterPreset(name=name, query=query))
         self._persist(self._store)
         self._rebuild_list(highlight_name=name)
@@ -2425,6 +2450,27 @@ class FilterPresetModal(_BaseModal["str | None"]):
         if result is None:
             return
         new_name, query = result
+        renamed = new_name.lower() != old_name.lower()
+        if renamed and self._store.find(new_name) is not None:
+            # Renaming onto another existing filter's name would silently
+            # merge the two (the old name vanishes, the other one's query
+            # is replaced) — confirm first, same as the save-current case.
+            msg = (
+                f"Renaming to '[bold]{new_name}[/bold]' will overwrite the "
+                "existing filter of that name. Continue?"
+            )
+            self.app.push_screen(
+                ConfirmModal(msg),
+                lambda confirmed: self._commit_edit(confirmed, old_name, new_name, query),
+            )
+            return
+        self._commit_edit(True, old_name, new_name, query)
+
+    def _commit_edit(
+        self, confirmed: bool | None, old_name: str, new_name: str, query: str
+    ) -> None:
+        if not confirmed:
+            return
         was_active = self._store.active.strip().lower() == old_name.lower()
         if new_name.lower() != old_name.lower():
             self._store.remove(old_name)

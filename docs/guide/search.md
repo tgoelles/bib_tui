@@ -95,9 +95,11 @@ Press <kbd>f</kbd> to open **Filters**:
 | <kbd>Esc</kbd>             | Close the menu                                                 |
 
 To save a filter: type a search (`k:sepp y:2010-`), press <kbd>f</kbd> then
-<kbd>w</kbd>, and give it a name. The active filter (marked `●`, and already
-highlighted when you reopen the menu) is shown in a bar above the search box
-— `Filter: Project X  k:sepp y:2010-  42 / 1203` — and in the app's title bar.
+<kbd>w</kbd>, and give it a name — typing an existing filter's name updates
+it instead of creating a new one (confirmed first, in case it was a typo).
+The active filter (marked `●`, and already highlighted when you reopen the
+menu) is shown in a bar above the search box —
+`Filter: Project X  k:sepp y:2010-  42 / 1203` — and in the app's title bar.
 
 The search box then **refines within the active filter**, exactly like
 adding another ANDed term. <kbd>Esc</kbd> clears only that refining search —

@@ -7,7 +7,7 @@ from textual.widgets import ListView
 from bibtui.app import BibTuiApp
 from bibtui.utils.filters import FilterPreset, FilterStore, load_filters, save_filters
 from bibtui.widgets.entry_list import EntryList
-from bibtui.widgets.modals import FilterEditModal, FilterPresetModal
+from bibtui.widgets.modals import ConfirmModal, FilterEditModal, FilterPresetModal
 
 BIB = "tests/bib_examples/MyCollection.bib"
 
@@ -342,6 +342,133 @@ async def test_save_current_search_adds_preset_and_persists() -> None:
         assert app.screen is preset_modal
         assert preset_modal._store.find("Project X").query == "y:2020"
         assert load_filters().find("Project X") is not None
+
+
+async def test_saving_current_search_with_a_new_name_needs_no_confirmation() -> None:
+    """Guard: no confirmation prompt should appear for a name that doesn't
+    already exist — only a real collision triggers one (see the collision
+    test below)."""
+    app = BibTuiApp(BIB)
+    app._filter_store = FilterStore(
+        presets=[FilterPreset(name="Project X", query="y:2020")]
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.action_filter_presets()
+        await pilot.pause()
+        preset_modal = app.screen
+
+        preset_modal._on_save_current_done(("To read", "r:to-read"))
+        await pilot.pause()
+
+        assert app.screen is preset_modal  # no ConfirmModal interposed
+        assert preset_modal._store.find("To read").query == "r:to-read"
+
+
+async def test_saving_current_search_over_an_existing_name_asks_for_confirmation() -> None:
+    app = BibTuiApp(BIB)
+    app._filter_store = FilterStore(
+        presets=[FilterPreset(name="Project X", query="y:2020")]
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.action_filter_presets()
+        await pilot.pause()
+        preset_modal = app.screen
+
+        preset_modal._on_save_current_done(("Project X", "y:2015-"))
+        await pilot.pause()
+
+        assert isinstance(app.screen, ConfirmModal)
+        # Declining leaves the original query untouched.
+        preset_modal._commit_save_current(False, "Project X", "y:2015-")
+        await pilot.pause()
+        assert preset_modal._store.find("Project X").query == "y:2020"
+
+
+async def test_confirming_overwrite_replaces_the_existing_preset() -> None:
+    app = BibTuiApp(BIB)
+    app._filter_store = FilterStore(
+        presets=[FilterPreset(name="Project X", query="y:2020")]
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.action_filter_presets()
+        await pilot.pause()
+        preset_modal = app.screen
+
+        preset_modal._commit_save_current(True, "Project X", "y:2015-")
+        await pilot.pause()
+
+        assert preset_modal._store.find("Project X").query == "y:2015-"
+        assert load_filters().find("Project X").query == "y:2015-"
+
+
+async def test_renaming_a_filter_onto_an_unused_name_needs_no_confirmation() -> None:
+    app = BibTuiApp(BIB)
+    app._filter_store = FilterStore(
+        presets=[FilterPreset(name="Project X", query="y:2020")]
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.action_filter_presets()
+        await pilot.pause()
+        preset_modal = app.screen
+
+        preset_modal._on_edit_done("Project X", ("Renamed", "y:2020"))
+        await pilot.pause()
+
+        assert app.screen is preset_modal  # no ConfirmModal interposed
+        assert preset_modal._store.find("Renamed") is not None
+        assert preset_modal._store.find("Project X") is None
+
+
+async def test_renaming_a_filter_onto_an_existing_name_asks_for_confirmation() -> None:
+    app = BibTuiApp(BIB)
+    app._filter_store = FilterStore(
+        presets=[
+            FilterPreset(name="Project X", query="y:2020"),
+            FilterPreset(name="To read", query="r:to-read"),
+        ]
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.action_filter_presets()
+        await pilot.pause()
+        preset_modal = app.screen
+
+        preset_modal._on_edit_done("Project X", ("To read", "y:2020"))
+        await pilot.pause()
+
+        assert isinstance(app.screen, ConfirmModal)
+        # Declining leaves both original filters untouched.
+        preset_modal._commit_edit(False, "Project X", "To read", "y:2020")
+        await pilot.pause()
+        assert preset_modal._store.find("Project X").query == "y:2020"
+        assert preset_modal._store.find("To read").query == "r:to-read"
+
+
+async def test_confirming_rename_overwrite_merges_into_the_target_name() -> None:
+    app = BibTuiApp(BIB)
+    app._filter_store = FilterStore(
+        presets=[
+            FilterPreset(name="Project X", query="y:2020"),
+            FilterPreset(name="To read", query="r:to-read"),
+        ],
+        active="Project X",
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.action_filter_presets()
+        await pilot.pause()
+        preset_modal = app.screen
+
+        preset_modal._commit_edit(True, "Project X", "To read", "y:2020")
+        await pilot.pause()
+
+        assert preset_modal._store.find("Project X") is None
+        assert preset_modal._store.find("To read").query == "y:2020"
+        assert preset_modal._store.active == "To read"  # active follows the rename
 
 
 async def test_delete_highlighted_preset_removes_it() -> None:
