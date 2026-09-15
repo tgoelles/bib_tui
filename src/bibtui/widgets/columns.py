@@ -74,7 +74,7 @@ _BUILTINS: tuple[ColumnSpec, ...] = (
     ColumnSpec(
         key="priority",
         label="!",
-        name="Priority",
+        name="Urgency",
         width=1,
         render=lambda e, _b: e.priority_icon,
         sort_key=lambda e: e.priority if e.priority > 0 else 99,

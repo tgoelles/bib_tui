@@ -57,7 +57,7 @@ all without leaving the terminal. No database, no sync daemon, no account.
     ---
 
     Tag entries, toggle keywords on and off, and filter your library by topic.
-    Track read state, priority and star ratings to keep on top of your reading.
+    Track read state, urgency and star ratings to keep on top of your reading.
 
     [:octicons-arrow-right-24: Keywords & tags](guide/keywords.md)
 

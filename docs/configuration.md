@@ -35,7 +35,7 @@ command palette with <kbd>Ctrl</kbd>+<kbd>P</kbd> and choose
 **Table: Configure columns**.
 
 The panel lists every available column. Alongside the built-in columns (read
-state, priority, PDF, URL, type, year, author, journal, title, added, rating)
+state, urgency, PDF, URL, type, year, author, journal, title, added, rating)
 and an optional **cite key** column, it offers a column for **any BibTeX field
 found in your library** — bibtui discovers these by scanning the whole `.bib`
 file, so fields like `doi`, `keywords`, `volume`, or `publisher` can all become

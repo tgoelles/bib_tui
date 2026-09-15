@@ -143,7 +143,7 @@ class BibTuiApp(App):
         Binding("e", "edit_entry", "Edit"),
         Binding("k", "edit_keywords", "Keywords"),
         Binding("r", "cycle_read_state", "State"),
-        Binding("u", "cycle_priority", "Prio"),
+        Binding("u", "cycle_priority", "Urgency"),
         Binding("0", "set_rating('0')", "Unrated", group=_RATING_GROUP),
         Binding("1", "set_rating('1')", "★", group=_RATING_GROUP),
         Binding("2", "set_rating('2')", "★★", group=_RATING_GROUP),

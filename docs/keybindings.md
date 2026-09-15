@@ -33,7 +33,7 @@ their own keys in the footer.
 | Key                          | Action                                        |
 | ---------------------------- | --------------------------------------------- |
 | <kbd>r</kbd>                 | Cycle read state (to-read → skimmed → read)   |
-| <kbd>u</kbd>                 | Cycle priority (high → medium → low)          |
+| <kbd>u</kbd>                 | Cycle urgency (high → medium → low)           |
 | <kbd>1</kbd>–<kbd>5</kbd>    | Set star rating                               |
 | <kbd>0</kbd>                 | Clear rating                                  |
 | <kbd>b</kbd>                 | Open the entry's URL in a browser             |

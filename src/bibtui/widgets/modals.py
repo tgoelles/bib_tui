@@ -1673,7 +1673,7 @@ _HELP_SECTIONS = [
         "Entry state",
         [
             ("r", "Cycle read state"),
-            ("u", "Cycle priority"),
+            ("u", "Cycle urgency"),
             ("␣", "Show PDF"),
             ("b", "Open URL in browser (validates http/https)"),
             ("Shift+b", "Search OpenAlex (title first, then DOI)"),

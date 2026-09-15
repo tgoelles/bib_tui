@@ -324,10 +324,10 @@ class EntryDetail(Widget):
 
         if e.priority:
             priority_label.update(
-                f"[bold]Priority:[/bold] {e.priority_icon} {e.priority_label}"
+                f"[bold]Urgency:[/bold] {e.priority_icon} {e.priority_label}"
             )
         else:
-            priority_label.update("[dim]Priority: —[/dim]")
+            priority_label.update("[dim]Urgency: —[/dim]")
 
         stars = e.rating_stars or "[dim]unrated[/dim]"
         rating_label.update(f"[bold]Rating:[/bold] [{colors['warning']}]{stars}[/]")
