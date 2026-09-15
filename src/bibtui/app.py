@@ -577,12 +577,13 @@ class BibTuiApp(App):
     def _on_bib_file_parsed(
         self, path: str, entries: list[BibEntry] | None, error: str | None
     ) -> None:
+        filename = os.path.basename(path)
         if error is not None:
-            self.notify(f"Could not parse {path}: {error}", severity="error", timeout=6)
+            self.notify(f"Could not parse {filename}: {error}", severity="error", timeout=6)
             return
 
         if not entries:
-            self.notify(f"No entries found in {path}.", severity="warning", timeout=4)
+            self.notify(f"No entries found in {filename}.", severity="warning", timeout=4)
             return
 
         if len(entries) == 1:
@@ -590,7 +591,7 @@ class BibTuiApp(App):
             return
 
         self.push_screen(
-            BibFileImportReviewModal(entries, self._existing_entries_by_doi()),
+            BibFileImportReviewModal(entries, self._existing_entries_by_doi(), path),
             self._on_bib_file_review_done,
         )
 

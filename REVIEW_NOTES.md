@@ -232,7 +232,7 @@ edited. Kept green throughout (`ruff check src/`, `pytest -m "not network"`
 
 ---
 
-## P4 — Consistency nits
+## P4 — Consistency nits — DONE (1 and 2 fixed, 3 left alone as instructed)
 
 1. **`BibFileImportReviewModal` has no preview and no nav hint.**
    `PdfImportReviewModal` shows a `#import-nav-hint` Static and binds Space to
@@ -241,9 +241,18 @@ edited. Kept green throughout (`ruff check src/`, `pytest -m "not network"`
    `.bib` file* could be opened with Space, and the user asked twice for these
    flows to feel the same. Decide and make it deliberate; if leaving it out, say
    so in the class docstring.
+
+   **Done:** made it deliberate the other way — `BibFileImportReviewModal`
+   now takes an optional `path` (passed by `app.py`'s only caller) and
+   Space previews it, regardless of which row is highlighted (every row
+   shares the same one file, unlike the PDF flow's per-row files). A modal
+   built without a path (existing tests that don't pass one) just no-ops on
+   Space rather than erroring.
 2. **Error notifications print full absolute paths** (`app.py` 566, 570:
    `f"Could not parse {path}"`). Elsewhere the app shows basenames. Use
    `os.path.basename(path)` for readability.
+
+   **Done:** `_on_bib_file_parsed` now notifies with `os.path.basename(path)`.
 3. **`ARG002` unused `event` args** on several `@on(...)` handlers — pre-existing
    house style (`FilePickerModal.on_recent_selected` does it too) and not flagged
    by the project's ruff config. **Leave alone.**

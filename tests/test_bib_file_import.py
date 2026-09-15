@@ -297,3 +297,53 @@ async def test_review_modal_import_button_disabled_when_all_duplicates(monkeypat
         await pilot.pause()
 
         assert modal.query_one("#btn-import", Button).disabled is True
+
+
+async def test_review_modal_space_previews_the_source_bib_file(tmp_path, monkeypatch) -> None:
+    path = str(tmp_path / "many.bib")
+    entries = [_entry("A2023", "10.1/a"), _entry("B2023", "10.1/b")]
+
+    previewed: list[str] = []
+    monkeypatch.setattr(
+        "bibtui.widgets.modals.open_with_default_app",
+        lambda p: previewed.append(p),
+    )
+
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        modal = BibFileImportReviewModal(entries, existing_by_doi={}, path=path)
+        app.push_screen(modal)
+        await pilot.pause()
+
+        ol = modal.query_one(OptionList)
+        ol.focus()
+        ol.highlighted = 1  # doesn't matter which row — same file either way
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.pause()
+
+        assert previewed == [path]
+
+
+async def test_review_modal_space_is_a_noop_without_a_path(monkeypatch) -> None:
+    entries = [_entry("A2023", "10.1/a")]
+    previewed: list[str] = []
+    monkeypatch.setattr(
+        "bibtui.widgets.modals.open_with_default_app",
+        lambda p: previewed.append(p),
+    )
+
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        modal = BibFileImportReviewModal(entries, existing_by_doi={})  # no path
+        app.push_screen(modal)
+        await pilot.pause()
+
+        modal.query_one(OptionList).focus()
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.pause()
+
+        assert previewed == []

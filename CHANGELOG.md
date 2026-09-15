@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Parsing a picked `.bib` file no longer runs on the UI thread** — matches every other import flow, so a very large multi-entry file being merged in doesn't visibly freeze the app while it parses.
 - **Old-style arXiv ids (pre-2007, e.g. `hep-th/9711200`) are now recognized when importing from PDF** — previously only the modern `YYMM.NNNNN` form was matched, so these preprints were reported as "no identifier found" even when clearly marked in the text.
 - **A corrupt or unreadable PDF is no longer reported as "scanned PDF?" when importing from PDF** — that message is now reserved for a PDF that opened fine but has no text layer; a file that couldn't be opened at all now says so.
+- **"Import .bib File"'s report screen now previews the source file too** — <kbd>Space</kbd> opens the `.bib` file being imported, matching "Import from PDF"'s Space-to-preview convention (every row shares the same one file here, so it doesn't matter which is highlighted).
+- **Parse errors for a `.bib` file now show its filename, not the full path** — consistent with how the rest of the app reports on files.
 
 ## [1.0.1] - 2026-09-14
 

@@ -131,10 +131,11 @@ for a single `.bib` file instead of a PDF checklist.
 A file with one entry is added directly — no review screen, same as "Import by
 DOI". A file with several entries shows a report first: ✓ for a new entry, ✗
 for one already in your library (matched by DOI, including a duplicate DOI
-within the same file) — entries without a DOI are always treated as new. One
-"Import N Entries" click commits every ✓ row. It reuses the same parser that
-loads your main library, so there's no size limit beyond what a `.bib` file
-can hold.
+within the same file) — entries without a DOI are always treated as new.
+<kbd>Space</kbd> previews the source `.bib` file itself (every row comes from
+the same file). One "Import N Entries" click commits every ✓ row. It reuses
+the same parser that loads your main library, so there's no size limit beyond
+what a `.bib` file can hold.
 
 ## Paste raw BibTeX
 

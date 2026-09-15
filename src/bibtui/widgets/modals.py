@@ -2861,6 +2861,10 @@ class BibFileImportReviewModal(_BaseModal["list[BibEntry] | None"]):
     PDF": an entry with no DOI is always ✓, never auto-skipped. Dismisses
     with the list of ✓ entries to append, or ``None`` if none are new or
     the user cancels — nothing is written until "Import N Entries".
+
+    Like :class:`PdfImportReviewModal`, Space previews a file — here there's
+    only one file (the `.bib` file itself, the same one on every row), not
+    one per row, but the keybinding is kept consistent rather than dropped.
     """
 
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
@@ -2879,15 +2883,22 @@ class BibFileImportReviewModal(_BaseModal["list[BibEntry] | None"]):
         border: solid $panel;
         margin-top: 1;
     }
+    BibFileImportReviewModal #bfi-nav-hint {
+        color: $text-muted;
+        height: auto;
+        margin-top: 1;
+    }
     """
 
     def __init__(
         self,
         entries: list[BibEntry],
         existing_by_doi: dict[str, BibEntry],
+        path: str = "",
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self._path = path
         self._new_entries: list[BibEntry] = []
         self._rows: list[tuple[BibEntry, str | None]] = []  # (entry, skip-reason)
         seen_in_batch: set[str] = set()
@@ -2917,6 +2928,10 @@ class BibFileImportReviewModal(_BaseModal["list[BibEntry] | None"]):
             )
             yield Static(self._summary_text(), id="bfi-summary")
             yield OptionList(id="bfi-list")
+            yield Static(
+                "[dim]↓/↑ navigate · Space preview the .bib file[/dim]",
+                id="bfi-nav-hint",
+            )
             with Horizontal(classes="modal-buttons"):
                 yield Button(
                     _import_button_label(len(self._new_entries)),
@@ -2948,6 +2963,23 @@ class BibFileImportReviewModal(_BaseModal["list[BibEntry] | None"]):
             )
             return _report_row_text(self.app, True, body)
         return _report_row_text(self.app, False, f"{entry.key} — {reason}")
+
+    def on_key(self, event: events.Key) -> None:
+        """Space previews the source .bib file, regardless of which row is
+        highlighted — matching PdfImportReviewModal's Space-to-preview
+        convention, even though here every row shares the same one file."""
+        ol = self.query_one(OptionList)
+        if self.focused is ol and event.key == "space":
+            self._preview_source()
+            event.stop()
+
+    def _preview_source(self) -> None:
+        if not self._path:
+            return
+        try:
+            open_with_default_app(self._path)
+        except Exception as e:
+            self.app.notify(f"Could not open: {e}", severity="error", timeout=5)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
