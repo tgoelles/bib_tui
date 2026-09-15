@@ -1166,9 +1166,10 @@ class KeywordsModal(_BaseModal["tuple[str, set[str]] | None"]):
             yield Input(
                 placeholder="Filter or type new keyword + Enter to add…", id="kw-filter"
             )
-            yield SelectionList(id="kw-list")
+            yield PreviewSelectionList(id="kw-list")
             yield Static(
-                "[dim]Esc close · Enter add new  |  ↓/↑ navigate · Space toggle · ⌫ delete everywhere[/dim]",
+                "[dim]Esc close · Enter add new (in filter)  |  ↓/↑ navigate · "
+                "Enter/x toggle · ⌫ delete everywhere[/dim]",
                 id="kw-hints",
             )
             with Horizontal(classes="modal-buttons"):
@@ -1663,8 +1664,8 @@ _HELP_SECTIONS = [
     (
         "Keywords modal",
         [
-            ("Enter", "Add typed keyword"),
-            ("Space", "Toggle selected keyword on/off"),
+            ("Enter", "Add the typed keyword (while the filter is focused)"),
+            ("Enter / x", "Toggle the highlighted keyword (while the list is focused)"),
             ("⌫", "Delete highlighted keyword from all entries"),
             ("↓ / ↑", "Move between filter and list"),
         ],
@@ -2488,12 +2489,15 @@ class BatchFetchPDFModal(_BaseModal["dict | None"]):
         self.query_one("#btn-cancel", Button).disabled = True
 
 
-class PdfSelectionList(SelectionList):
-    """A SelectionList for picking PDFs: Space previews the highlighted PDF
-    (delegated to the screen's ``_preview_highlighted``) instead of toggling
-    it; Enter and `x` toggle it instead. Keeps every PDF checklist in the app
-    consistent with :class:`AddPDFModal`'s Space-previews convention, and
-    with each other — plain ``SelectionList`` still toggles on Space.
+class PreviewSelectionList(SelectionList):
+    """A SelectionList where Space previews the highlighted row instead of
+    toggling it, and Enter/`x` toggle instead — the checklist counterpart of
+    every single-choice picker's Space-previews/Enter-or-x-chooses
+    convention (:class:`AddPDFModal` and friends). Space delegates to the
+    screen's ``_preview_highlighted`` if it defines one; on a screen that
+    doesn't (nothing to preview — e.g. :class:`KeywordsModal`), Space is
+    simply a no-op rather than falling back to plain ``SelectionList``'s
+    default of toggling on Space.
     """
 
     BINDINGS = [
@@ -2568,7 +2572,7 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
                 placeholder="type to filter, or paste a file/folder path…",
                 id="pip-filter",
             )
-            yield PdfSelectionList(id="pip-list")
+            yield PreviewSelectionList(id="pip-list")
             yield Static(
                 "[dim]↓/↑ navigate · Space preview · Enter/x toggle[/dim]",
                 id="pip-nav-hint",
