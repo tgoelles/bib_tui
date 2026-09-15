@@ -107,6 +107,14 @@ def test_unbalanced_quote_falls_back_instead_of_raising() -> None:
     matches_query(e, 'k:"sea ice')
 
 
+def test_hash_in_query_is_not_treated_as_a_comment() -> None:
+    # shlex.split's default already disables '#' comment-stripping, but this
+    # locks the behavior in: a citekey or title containing '#' must search
+    # in full, not get silently truncated at the '#'.
+    e = _entry(key="rfc-2119#section3")
+    assert matches_query(e, "c:rfc-2119#section3")
+
+
 # ---------------------------------------------------------------------------
 # New: read state and priority/urgency prefixes
 # ---------------------------------------------------------------------------

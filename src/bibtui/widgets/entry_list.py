@@ -52,9 +52,16 @@ def _tokenize(query: str) -> list[str]:
     quote — the normal state of things while the user is still typing —
     raises ``ValueError`` in shlex; fall back to a plain split rather than
     losing the query.
+
+    ``comments=False`` is already ``shlex.split``'s default — unlike a raw
+    ``shlex.shlex`` instance, the convenience function disables ``#``
+    comment-stripping unless asked for — but it's passed explicitly here so
+    a search for a citekey or title containing ``#`` is visibly safe rather
+    than relying on a default a future stdlib change (or a future edit)
+    could flip.
     """
     try:
-        return shlex.split(query)
+        return shlex.split(query, comments=False)
     except ValueError:
         return query.split()
 
@@ -352,7 +359,7 @@ class EntryList(Widget):
         base = self._all_entries
         if self._preset_query:
             base = [e for e in base if matches_query(e, self._preset_query)]
-        search = self.query_one(Input).value.strip()
+        search = self.query_one("#search-input", Input).value.strip()
         if search:
             base = [e for e in base if matches_query(e, search)]
         self._populate_table(base)
@@ -374,7 +381,7 @@ class EntryList(Widget):
         )
 
     def _update_search_placeholder(self) -> None:
-        search = self.query_one(Input)
+        search = self.query_one("#search-input", Input)
         search.placeholder = (
             f"Search within {self._preset_name}…"
             if self._preset_name
@@ -393,7 +400,7 @@ class EntryList(Widget):
     def on_key(self, event: events.Key) -> None:
         """Allow arrow keys to move the table cursor while search is focused."""
         table = self.query_one(DataTable)
-        search = self.query_one(Input)
+        search = self.query_one("#search-input", Input)
         if self.app.focused is search:
             if event.key == "down":
                 table.action_cursor_down()
@@ -448,7 +455,7 @@ class EntryList(Widget):
 
     @property
     def search_query(self) -> str:
-        return self.query_one(Input).value.strip()
+        return self.query_one("#search-input", Input).value.strip()
 
     def _restore_cursor(self, table: DataTable, selected_key: str | None) -> None:
         if selected_key is None:
