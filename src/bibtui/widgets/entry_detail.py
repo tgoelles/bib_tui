@@ -465,9 +465,9 @@ class EntryDetail(Widget):
 
         if e.url:
             short = e.url if len(e.url) <= 34 else e.url[:31] + "…"
-            url_label.update(f"[bold]🔗 URL:[/bold] {short}")
+            url_label.update(f"[bold]↗ URL:[/bold] {short}")
         else:
-            url_label.update("[dim]🔗 URL: —[/dim]")
+            url_label.update("[dim]↗ URL: —[/dim]")
 
         raw = self.query_one("#detail-raw", TextArea)
         if self._raw_mode:

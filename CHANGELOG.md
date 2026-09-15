@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A corrupt or unreadable PDF is no longer reported as "scanned PDF?" when importing from PDF** — that message is now reserved for a PDF that opened fine but has no text layer; a file that couldn't be opened at all now says so.
 - **"Import .bib File"'s report screen now previews the source file too** — <kbd>Space</kbd> opens the `.bib` file being imported, matching "Import from PDF"'s Space-to-preview convention (every row shares the same one file here, so it doesn't matter which is highlighted).
 - **Parse errors for a `.bib` file now show its filename, not the full path** — consistent with how the rest of the app reports on files.
+- **The URL column/indicator (an entry's `↗`) could render as invisible in some terminals** — it used the 🔗 emoji, which needs color-emoji glyph support many terminal fonts lack (silently rendering nothing, unlike a missing plain glyph which usually falls back to a visible box); every other status icon in the table already used a plain Unicode symbol. Switched to `↗`, in the table, the detail pane, and the `?` help screen.
 
 ## [1.0.1] - 2026-09-14
 

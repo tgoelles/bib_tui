@@ -90,9 +90,9 @@ _BUILTINS: tuple[ColumnSpec, ...] = (
     ),
     ColumnSpec(
         key="url",
-        label="🔗",
+        label="↗",
         name="URL",
-        width=2,
+        width=1,
         render=lambda e, _b: e.url_icon,
         sort_key=lambda e: 0 if e.url else 1,
         dynamic=True,

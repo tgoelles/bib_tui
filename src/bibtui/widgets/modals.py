@@ -1735,7 +1735,7 @@ _HELP_SECTIONS = [
             ),
             (
                 "Default cols: [bold]◉[/bold] state  [bold]![/bold] prio  "
-                "[bold]◫[/bold] PDF  [bold]🔗[/bold] URL  Type  Year  "
+                "[bold]◫[/bold] PDF  [bold]↗[/bold] URL  Type  Year  "
                 "Author  Journal  Title  Added  [bold]★[/bold]",
             ),
             (

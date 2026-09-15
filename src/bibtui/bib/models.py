@@ -140,7 +140,12 @@ class BibEntry:
 
     @property
     def url_icon(self) -> str:
-        return "🔗" if self.url else "  "
+        # A plain Unicode arrow, not an emoji-presentation glyph like 🔗 —
+        # every other status icon in the table (state, priority, PDF) is a
+        # plain symbol that renders in any monospace terminal font; 🔗
+        # requires color-emoji glyph support many terminals lack, where it
+        # renders as nothing at all rather than a visible fallback box.
+        return "↗" if self.url else " "
 
     @property
     def authors_short(self) -> str:
