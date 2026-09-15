@@ -2264,15 +2264,18 @@ class FilterPresetModal(_BaseModal["str | None"]):
             yield Label("[bold]Filters[/bold]", classes="modal-title")
             yield ListView(id="filter-list")
             yield Static(
-                "[dim]0-9 select · w write current search · e edit · "
-                "d delete · Esc close[/dim]",
+                "[dim]Esc close · Enter select  |  ↓/↑ navigate · 0-9 jump · "
+                "w write current search · e edit · d delete[/dim]",
                 id="filter-hints",
             )
             with Horizontal(classes="modal-buttons"):
                 yield Button("Cancel", id="btn-cancel")
 
     def on_mount(self) -> None:
-        self._rebuild_list()
+        # Highlight the active preset's row (or "All entries") so it's
+        # obvious at a glance what's currently selected, matching the
+        # active-marker convention on the row text itself.
+        self._rebuild_list(highlight_name=self._store.active)
         self.call_after_refresh(self.query_one(ListView).focus)
 
     def _row_label(self, index: int) -> str:

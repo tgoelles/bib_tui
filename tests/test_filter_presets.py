@@ -4,6 +4,8 @@ and the `f` app action end to end — modeled on test_pdf_actions_modal.py.
 
 from pathlib import Path
 
+from textual.widgets import ListView
+
 from bibtui.app import BibTuiApp
 from bibtui.utils.filters import FilterPreset, FilterStore, load_filters
 from bibtui.widgets.entry_list import EntryList
@@ -155,6 +157,36 @@ async def test_f_opens_filter_preset_modal() -> None:
         await pilot.press("f")
         await pilot.pause()
         assert isinstance(app.screen, FilterPresetModal)
+
+
+async def test_active_preset_row_highlighted_on_open() -> None:
+    app = BibTuiApp(BIB)
+    app._filter_store = FilterStore(
+        presets=[
+            FilterPreset(name="Project X", query="y:2020"),
+            FilterPreset(name="To read", query="r:to-read"),
+        ],
+        active="To read",
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.action_filter_presets()
+        await pilot.pause()
+        lv = app.screen.query_one(ListView)
+        assert lv.index == 2  # row 0 = All entries, 1 = Project X, 2 = To read
+
+
+async def test_all_entries_row_highlighted_on_open_when_no_active_preset() -> None:
+    app = BibTuiApp(BIB)
+    app._filter_store = FilterStore(
+        presets=[FilterPreset(name="Project X", query="y:2020")], active=""
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.action_filter_presets()
+        await pilot.pause()
+        lv = app.screen.query_one(ListView)
+        assert lv.index == 0
 
 
 async def test_choosing_preset_activates_it_and_persists(tmp_path: Path, monkeypatch) -> None:
