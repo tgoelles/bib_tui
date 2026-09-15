@@ -29,6 +29,7 @@ from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabre
 from bibtui.utils import update_check
 from bibtui.utils.clipboard import copy_to_os_clipboard
 from bibtui.utils.dates import extract_date_added, now_date_added_value
+from bibtui.utils.doi import normalize_doi
 from bibtui.utils.config import (
     CONFIG_PATH,
     Config,
@@ -530,8 +531,6 @@ class BibTuiApp(App):
         link a PDF to an already-existing entry in place — see
         ``_on_pdf_import_review_done`` and ``PdfImportReviewModal``.
         """
-        from bibtui.utils.doi import normalize_doi
-
         return {normalize_doi(e.doi): e for e in self._entries if e.doi.strip()}
 
     def _on_pdf_import_review_done(self, result: dict | None) -> None:
@@ -587,8 +586,6 @@ class BibTuiApp(App):
         """
         doi = entry.doi.strip()
         if doi:
-            from bibtui.utils.doi import normalize_doi
-
             existing = self._existing_entries_by_doi().get(normalize_doi(doi))
             if existing is not None:
                 self.notify(

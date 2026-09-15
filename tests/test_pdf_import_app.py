@@ -1,60 +1,12 @@
 """Tests for the app-level PDF import wiring in bibtui.app."""
 
-from textual.widgets import DataTable
+from conftest import DummyList, wire_dummies
 
 from bibtui.app import BibTuiApp
 from bibtui.bib.models import BibEntry
 from bibtui.utils.config import Config
-from bibtui.widgets.entry_detail import EntryDetail
-from bibtui.widgets.entry_list import EntryList
 
-
-class DummyDataTable:
-    def move_cursor(self, **kwargs) -> None:
-        pass
-
-
-class DummyList:
-    def __init__(self, selected=None) -> None:
-        self.selected_entry = selected
-        self.refresh_calls = 0
-        self._filtered: list = []
-
-    def refresh_entries(self, entries) -> None:
-        self.refresh_calls += 1
-        self._filtered = list(entries)
-
-
-class DummyDetail:
-    def __init__(self) -> None:
-        self.shown = None
-
-    def show_entry(self, entry) -> None:
-        self.shown = entry
-
-
-def _wire_dummies(app, monkeypatch, dummy_list=None, dummy_detail=None):
-    dummy_list = dummy_list or DummyList()
-    dummy_detail = dummy_detail or DummyDetail()
-    notifications: list[tuple[str, str | None]] = []
-
-    def fake_query_one(selector):
-        if selector is EntryList:
-            return dummy_list
-        if selector is EntryDetail:
-            return dummy_detail
-        if selector is DataTable:
-            return DummyDataTable()
-        raise AssertionError(f"Unexpected selector: {selector}")
-
-    monkeypatch.setattr(app, "query_one", fake_query_one)
-    monkeypatch.setattr(
-        app,
-        "notify",
-        lambda message, **kwargs: notifications.append((message, kwargs.get("severity"))),
-    )
-    monkeypatch.setattr(app, "call_after_refresh", lambda fn, *a, **k: fn(*a, **k))
-    return dummy_list, dummy_detail, notifications
+BIB = "tests/bib_examples/MyCollection.bib"
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +15,7 @@ def _wire_dummies(app, monkeypatch, dummy_list=None, dummy_detail=None):
 
 
 def test_existing_entries_by_doi_normalizes_and_skips_empty() -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     e_a = BibEntry(key="a", entry_type="article", doi="https://doi.org/10.1000/TEST")
     e_b = BibEntry(key="b", entry_type="article", doi="")
     e_c = BibEntry(key="c", entry_type="article", doi="10.2000/other")
@@ -82,7 +34,7 @@ def test_existing_entries_by_doi_normalizes_and_skips_empty() -> None:
 
 
 def test_action_import_pdf_requires_pdf_base_dir(monkeypatch) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     app._config = Config(pdf_base_dir="")
     pushed = []
     monkeypatch.setattr(app, "push_screen", lambda *a, **k: pushed.append(a))
@@ -98,7 +50,7 @@ def test_action_import_pdf_requires_pdf_base_dir(monkeypatch) -> None:
 
 
 def test_action_import_pdf_passes_download_dir_to_picker(monkeypatch, tmp_path) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     app._config = Config(pdf_base_dir=str(tmp_path), pdf_download_dir="/some/downloads")
     pushed = []
     monkeypatch.setattr(
@@ -119,7 +71,7 @@ def test_action_import_pdf_passes_download_dir_to_picker(monkeypatch, tmp_path) 
 def test_on_pdf_import_picked_pushes_review_with_selected_paths(
     monkeypatch, tmp_path
 ) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     app._config = Config(pdf_base_dir=str(tmp_path))
     existing = BibEntry(key="Existing2020", entry_type="article", doi="10.9/x")
     app._entries = [existing]
@@ -141,7 +93,7 @@ def test_on_pdf_import_picked_pushes_review_with_selected_paths(
 
 
 def test_on_pdf_import_picked_empty_list_does_not_push(monkeypatch) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     pushed = []
     monkeypatch.setattr(app, "push_screen", lambda *a, **k: pushed.append(a))
 
@@ -151,7 +103,7 @@ def test_on_pdf_import_picked_empty_list_does_not_push(monkeypatch) -> None:
 
 
 def test_on_pdf_import_picked_none_result_does_nothing(monkeypatch) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     pushed = []
     monkeypatch.setattr(app, "push_screen", lambda *a, **k: pushed.append(a))
 
@@ -166,10 +118,10 @@ def test_on_pdf_import_picked_none_result_does_nothing(monkeypatch) -> None:
 
 
 def test_on_pdf_import_review_done_appends_new_entries(monkeypatch) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     app._entries = []
     app._dirty = False
-    dummy_list, _dummy_detail, notifications = _wire_dummies(app, monkeypatch)
+    dummy_list, _dummy_detail, notifications = wire_dummies(app, monkeypatch)
 
     new_entry = BibEntry(key="New2024", entry_type="article", doi="10.1/n")
     app._on_pdf_import_review_done({"new": [new_entry], "relinked": []})
@@ -182,11 +134,11 @@ def test_on_pdf_import_review_done_appends_new_entries(monkeypatch) -> None:
 def test_on_pdf_import_review_done_relinks_existing_entry_without_appending(
     monkeypatch,
 ) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     existing = BibEntry(key="Old2020", entry_type="article", doi="10.1/o")
     app._entries = [existing]
     app._dirty = False
-    dummy_list, dummy_detail, notifications = _wire_dummies(
+    dummy_list, dummy_detail, notifications = wire_dummies(
         app, monkeypatch, dummy_list=DummyList(selected=existing)
     )
 
@@ -202,11 +154,11 @@ def test_on_pdf_import_review_done_relinks_existing_entry_without_appending(
 
 
 def test_on_pdf_import_review_done_handles_both_new_and_relinked(monkeypatch) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     existing = BibEntry(key="Old2020", entry_type="article", doi="10.1/o")
     app._entries = [existing]
     app._dirty = False
-    dummy_list, _dummy_detail, notifications = _wire_dummies(app, monkeypatch)
+    dummy_list, _dummy_detail, notifications = wire_dummies(app, monkeypatch)
 
     new_entry = BibEntry(key="New2024", entry_type="article", doi="10.1/n")
     existing.file = ":Old2020.pdf:PDF"
@@ -219,7 +171,7 @@ def test_on_pdf_import_review_done_handles_both_new_and_relinked(monkeypatch) ->
 
 
 def test_on_pdf_import_review_done_none_or_empty_does_nothing(monkeypatch) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     app._entries = []
     calls = []
     monkeypatch.setattr(app, "query_one", lambda *a, **k: calls.append(a))
@@ -238,10 +190,10 @@ def test_on_pdf_import_review_done_none_or_empty_does_nothing(monkeypatch) -> No
 
 
 def test_finalize_imported_entries_appends_all_and_refreshes_once(monkeypatch) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     app._entries = []
     app._dirty = False
-    dummy_list, dummy_detail, notifications = _wire_dummies(app, monkeypatch)
+    dummy_list, dummy_detail, notifications = wire_dummies(app, monkeypatch)
 
     e1 = BibEntry(key="Alpha2023", entry_type="article", doi="10.1/a")
     e2 = BibEntry(key="Beta2023", entry_type="article", doi="10.1/b")
@@ -256,11 +208,11 @@ def test_finalize_imported_entries_appends_all_and_refreshes_once(monkeypatch) -
 
 
 def test_finalize_imported_entries_renames_on_key_conflict(monkeypatch) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     existing = BibEntry(key="Smith2023", entry_type="article", title="Existing Paper")
     app._entries = [existing]
     app._dirty = False
-    _wire_dummies(app, monkeypatch)
+    wire_dummies(app, monkeypatch)
 
     incoming = BibEntry(key="Smith2023", entry_type="article", title="A Different Paper")
     app._finalize_imported_entries([incoming])
@@ -272,10 +224,10 @@ def test_finalize_imported_entries_never_triggers_auto_fetch(monkeypatch) -> Non
     """Entries from PDF import already have their PDF linked — auto-fetch
     would immediately refetch and overwrite it, since _maybe_auto_fetch has
     no "already has a file" guard."""
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     app._config = Config(pdf_base_dir="/tmp/pdfs", auto_fetch_pdf=True)
     app._entries = []
-    _wire_dummies(app, monkeypatch)
+    wire_dummies(app, monkeypatch)
 
     called = []
     monkeypatch.setattr(app, "_maybe_auto_fetch", lambda entry: called.append(entry))
@@ -289,9 +241,9 @@ def test_finalize_imported_entries_never_triggers_auto_fetch(monkeypatch) -> Non
 
 
 def test_finalize_imported_entries_reports_errors_without_crashing(monkeypatch) -> None:
-    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app = BibTuiApp(BIB)
     app._entries = []
-    _wire_dummies(app, monkeypatch)
+    wire_dummies(app, monkeypatch)
     notifications = []
     monkeypatch.setattr(
         app,

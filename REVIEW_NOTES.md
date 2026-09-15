@@ -9,7 +9,7 @@ else is cleanup.** Do not refactor beyond what's listed.
 
 ---
 
-## P1 — Stale user docs (actively wrong, ship-blocking)
+## P1 — Stale user docs (actively wrong, ship-blocking) — DONE
 
 `d` used to be "import by DOI" at top level. On this branch `d` opens the online
 documentation, and DOI import moved to `n` → `d`. Published docs still tell users
@@ -38,7 +38,7 @@ to press `d` to import a DOI, so following them now opens a browser.
 
 ---
 
-## P2 — Code duplication (the main ask)
+## P2 — Code duplication (the main ask) — DONE (2a, 2b, 2c, 2d, 2e all addressed)
 
 ### 2a. Three near-identical file-picker modals — `src/bibtui/widgets/modals.py`
 
@@ -141,6 +141,24 @@ The branch added function-body imports that have no cycle justification:
 Move those to the top of each file. (The `bibtui.pdf.fetcher` /
 `bibtui.pdf.paths` lazy imports inside methods match the existing house style for
 heavy modules — leave those alone.)
+
+**Correction found while implementing:** the `ImportStatus`/`process_pdf`
+imports were *not* moved to module level after all. `bibtui.pdf.import_scan`
+itself does `from bibtui.bib.doi import fetch_by_doi` at its own top level,
+and `bib/doi.py` does `from habanero import Crossref` at its top level
+(~0.1s import) — so hoisting `ImportStatus` in `modals.py` would make every
+app startup pay for importing `habanero`, which today only happens lazily
+when DOI import (or PDF import) is actually used. That's exactly the "heavy
+module" lazy-import convention this same item told you to leave alone for
+`fetcher`/`paths` — it just wasn't obvious until tracing `import_scan`'s own
+imports. Left those four `from bibtui.pdf.import_scan import ...` lines as
+local imports; only the `normalize_doi` imports (genuinely cheap, `re`-only)
+were hoisted.
+
+**Resolution:** 2a–2e all done — see `git log` on this branch for the
+commits, or diff against the version of this file before this section was
+edited. Kept green throughout (`ruff check src/`, `pytest -m "not network"`
+→ 437 passed).
 
 ---
 

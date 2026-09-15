@@ -201,5 +201,5 @@ async def test_submitting_explicit_file_path_adds_and_selects_it(tmp_path) -> No
         await pilot.pause()
 
         assert str(other_pdf) in modal._selected
-        assert Path(other_pdf) in modal._all_pdfs
+        assert Path(other_pdf) in modal._all_files
         assert inp.value == ""

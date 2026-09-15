@@ -37,6 +37,7 @@ from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
 from bibtui.bib.validate import validate_entry
 from bibtui.utils.config import Config
 from bibtui.utils.dates import DATE_ADDED_KEYS
+from bibtui.utils.doi import normalize_doi
 from bibtui.utils.keymap import SAVE
 from bibtui.utils.opener import open_with_default_app
 from bibtui.widgets.columns import DEFAULT_TABLE_COLUMNS, ColumnSpec
@@ -78,6 +79,173 @@ def _format_age(mtime: float) -> str:
     if age < 86400:
         return f"{int(age / 3600)} hr ago"
     return f"{int(age / 86400)} days ago"
+
+
+def _report_row_text(app, ok: bool, body: str) -> Text:
+    """A ✓/✗ styled report-list row, shared by :class:`PdfImportReviewModal`
+    and :class:`BibFileImportReviewModal`: ✓ in the current theme's success
+    color, ✗ in its error color, in front of whatever text describes the row."""
+    mark = "✓" if ok else "✗"
+    color = app.current_theme.success if ok else app.current_theme.error
+    return Text(f"{mark} {body}", style=color)
+
+
+def _import_button_label(n: int) -> str:
+    """"Import N Entries" button label, shared by both import-review modals."""
+    if not n:
+        return "Import"
+    return f"Import {n} {'Entry' if n == 1 else 'Entries'}"
+
+
+def _file_row_label(path: Path) -> str:
+    """Row label for a file-picker list: ``name  size  age``, shared by every
+    picker that lists files from a directory (:class:`AddPDFModal`,
+    :class:`PdfImportPickerModal`, :class:`ImportBibPickerModal`)."""
+    stat = path.stat()
+    size = stat.st_size
+    size_str = (
+        f"{size / 1048576:.1f} MB" if size >= 1048576 else f"{size / 1024:.0f} KB"
+    )
+    return f"{path.name}  [dim]{size_str}  {_format_age(stat.st_mtime)}[/dim]"
+
+
+class _FileBrowseMixin:
+    """Shared browse/filter/choose machinery for a single-file ``ListView``
+    picker: list a directory (falling back to ``~/Downloads`` when unset),
+    filter by typing, preview the highlighted row on Space, and choose it on
+    Enter/`x`. Used by :class:`AddPDFModal` (pick a PDF for one entry) and
+    :class:`ImportBibPickerModal` (pick a `.bib` file to import) — the two
+    "choose a single file" pickers in the app; :class:`PdfImportPickerModal`
+    is a checklist instead and doesn't fit this shape.
+
+    A subclass sets ``_ID_PREFIX`` (its widgets' id prefix, e.g. ``"add"``
+    for ``#add-filter``/``#add-hint``/``#add-error``), ``_GLOB`` (e.g.
+    ``"*.pdf"``) and ``_NOUN`` (e.g. ``"PDF"``, used in "3 PDFs"), composes a
+    bare ``ListView`` plus those three widgets, and implements
+    :meth:`_choose_path` for what "choosing" a file actually does. Because
+    ``@on`` selectors are literal strings, each subclass still declares thin
+    ``@on``-decorated wrappers for its own widget ids that delegate to the
+    shared ``_filter_changed``/``_filter_submitted``/``_list_selected``
+    methods below.
+    """
+
+    _ID_PREFIX: str = ""
+    _GLOB: str = "*"
+    _NOUN: str = "file"
+
+    _download_dir: str
+    _all_files: list[Path]
+    _filtered: list[Path]
+
+    def _wid(self, suffix: str) -> str:
+        return f"#{self._ID_PREFIX}-{suffix}"
+
+    def _scan(self) -> None:
+        dl = Path(self._download_dir).expanduser()
+        hint = self.query_one(self._wid("hint"), Static)
+        if not dl.is_dir():
+            hint.update(
+                f"[dim]Folder not found: {dl}  ·  paste a file or folder path below[/dim]"
+            )
+            self._all_files = []
+        else:
+            files = sorted(
+                dl.glob(self._GLOB), key=lambda p: p.stat().st_mtime, reverse=True
+            )
+            self._all_files = files
+            hint.update(
+                f"[dim]{dl}  ·  {len(files)} {self._NOUN}{'s' if len(files) != 1 else ''}"
+                "  ·  paste another folder path to browse elsewhere[/dim]"
+            )
+        self._filtered = list(self._all_files)
+        self._refresh_list()
+
+    def _refresh_list(self) -> None:
+        lv = self.query_one(ListView)
+        lv.clear()
+        for p in self._filtered:
+            lv.append(ListItem(Label(_file_row_label(p))))
+
+    def _filter_changed(self, event: Input.Changed) -> None:
+        q = event.value.strip().lower()
+        self._filtered = (
+            [p for p in self._all_files if q in p.name.lower()]
+            if q
+            else list(self._all_files)
+        )
+        self._refresh_list()
+
+    def on_key(self, event: events.Key) -> None:
+        """Down in the Input moves focus to the list; Up from the first item
+        returns focus; Space previews, `x` chooses (same as Enter)."""
+        lv = self.query_one(ListView)
+        inp = self.query_one(self._wid("filter"), Input)
+        if self.focused is inp and event.key == "down" and self._filtered:
+            lv.focus()
+            event.stop()
+        elif self.focused is lv and event.key == "up" and (lv.index or 0) == 0:
+            inp.focus()
+            event.stop()
+        elif self.focused is lv and event.key == "space":
+            self._preview_selected()
+            event.stop()
+        elif self.focused is lv and event.key == "x":
+            self._confirm()
+            event.stop()
+
+    def _preview_selected(self) -> None:
+        lv = self.query_one(ListView)
+        idx = lv.index
+        if idx is None or idx >= len(self._filtered):
+            return
+        try:
+            open_with_default_app(str(self._filtered[idx]))
+        except Exception as e:
+            self.query_one(self._wid("error"), Static).update(f"Could not open: {e}")
+
+    def _filter_submitted(self, event: Input.Submitted) -> None:
+        val = event.value.strip()
+        if val:
+            expanded = Path(val).expanduser()
+            if expanded.is_dir():
+                self._download_dir = str(expanded)
+                self.query_one(self._wid("filter"), Input).value = ""
+                self.query_one(self._wid("error"), Static).update("")
+                self._scan()
+                return
+        self._confirm()
+
+    def _list_selected(self, event: ListView.Selected) -> None:
+        idx = self.query_one(ListView).index
+        if idx is not None and idx < len(self._filtered):
+            self._choose_path(self._filtered[idx])
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.dismiss(None)
+        elif event.button.id and event.button.id.startswith("btn-"):
+            self._confirm()
+
+    def _confirm(self) -> None:
+        lv = self.query_one(ListView)
+        idx = lv.index
+        if self._filtered and idx is not None and idx < len(self._filtered):
+            self._choose_path(self._filtered[idx])
+        else:
+            val = self.query_one(self._wid("filter"), Input).value.strip()
+            if val:
+                self._choose_path(Path(val).expanduser())
+            else:
+                self.query_one(self._wid("error"), Static).update(
+                    "Select a file or enter a path."
+                )
+
+    def _choose_path(self, path: Path) -> None:
+        """Subclasses decide what "choosing" a file means."""
+        raise NotImplementedError
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
 
 class ConfirmModal(_BaseModal[bool]):
@@ -1794,8 +1962,12 @@ class PasteModal(_BaseModal["BibEntry | None"]):
         self.dismiss(None)
 
 
-class AddPDFModal(_BaseModal["str | None"]):
+class AddPDFModal(_FileBrowseMixin, _BaseModal["str | None"]):
     """Pick an existing PDF from the download directory, filter by name, and link it."""
+
+    _ID_PREFIX = "add"
+    _GLOB = "*.pdf"
+    _NOUN = "PDF"
 
     BINDINGS = [
         Binding(SAVE, "add", "Add", show=True),
@@ -1839,11 +2011,9 @@ class AddPDFModal(_BaseModal["str | None"]):
         super().__init__(**kwargs)
         self._entry = entry
         self._base_dir = base_dir
-        from pathlib import Path
-
         self._download_dir = download_dir or str(Path.home() / "Downloads")
-        self._all_pdfs: list = []
-        self._filtered: list = []
+        self._all_files: list[Path] = []
+        self._filtered: list[Path] = []
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -1852,7 +2022,10 @@ class AddPDFModal(_BaseModal["str | None"]):
                 classes="modal-title",
             )
             yield Static("", id="add-hint")
-            yield Input(placeholder="type to filter…", id="add-filter")
+            yield Input(
+                placeholder="type to filter, or paste a file/folder path…",
+                id="add-filter",
+            )
             yield ListView(id="add-list")
             yield Static(
                 "[dim]↓/↑ navigate · Space preview · Enter/x add[/dim]",
@@ -1867,131 +2040,31 @@ class AddPDFModal(_BaseModal["str | None"]):
         self._scan()
         self.call_after_refresh(self.query_one("#add-filter", Input).focus)
 
-    def _scan(self) -> None:
-        from pathlib import Path
-
-        dl = Path(self._download_dir).expanduser()
-        hint = self.query_one("#add-hint", Static)
-        if not dl.is_dir():
-            hint.update(
-                f"[dim]Download dir not found: {dl}  ·  enter a path manually[/dim]"
-            )
-            self._all_pdfs = []
-        else:
-            pdfs = sorted(
-                dl.glob("*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True
-            )
-            self._all_pdfs = pdfs
-            hint.update(
-                f"[dim]{dl}  ·  {len(pdfs)} PDF{'s' if len(pdfs) != 1 else ''}[/dim]"
-            )
-        self._filtered = list(self._all_pdfs)
-        self._refresh_list()
-
-    def _refresh_list(self) -> None:
-        lv = self.query_one(ListView)
-        lv.clear()
-        for p in self._filtered:
-            stat = p.stat()
-            size = stat.st_size
-            size_str = (
-                f"{size / 1048576:.1f} MB"
-                if size >= 1048576
-                else f"{size / 1024:.0f} KB"
-            )
-            age = _format_age(stat.st_mtime)
-            lv.append(ListItem(Label(f"{p.name}  [dim]{size_str}  {age}[/dim]")))
-
     @on(Input.Changed, "#add-filter")
     def _on_filter(self, event: Input.Changed) -> None:
-        q = event.value.strip().lower()
-        self._filtered = (
-            [p for p in self._all_pdfs if q in p.name.lower()]
-            if q
-            else list(self._all_pdfs)
-        )
-        self._refresh_list()
-
-    def on_key(self, event: events.Key) -> None:
-        """Down in the Input moves focus to the list; Up from the first item
-        returns focus; Space previews, `x` adds (same as Enter)."""
-        lv = self.query_one(ListView)
-        inp = self.query_one("#add-filter", Input)
-        if self.focused is inp and event.key == "down" and self._filtered:
-            lv.focus()
-            event.stop()
-        elif self.focused is lv and event.key == "up" and (lv.index or 0) == 0:
-            inp.focus()
-            event.stop()
-        elif self.focused is lv and event.key == "space":
-            self._preview_selected()
-            event.stop()
-        elif self.focused is lv and event.key == "x":
-            self._confirm()
-            event.stop()
-
-    def _preview_selected(self) -> None:
-        lv = self.query_one(ListView)
-        idx = lv.index
-        if idx is None or idx >= len(self._filtered):
-            return
-        path = self._filtered[idx]
-        try:
-            open_with_default_app(str(path))
-        except Exception as e:
-            self.query_one("#add-error", Static).update(f"Could not open: {e}")
+        self._filter_changed(event)
 
     @on(Input.Submitted, "#add-filter")
-    def _on_filter_submitted(self, _: Input.Submitted) -> None:
-        self._confirm()
+    def _on_filter_submitted(self, event: Input.Submitted) -> None:
+        self._filter_submitted(event)
 
     @on(ListView.Selected)
     def _on_list_selected(self, event: ListView.Selected) -> None:
-        idx = self.query_one(ListView).index
-        if idx is not None and idx < len(self._filtered):
-            self._add_path(self._filtered[idx])
+        self._list_selected(event)
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-cancel":
-            self.dismiss(None)
-        elif event.button.id == "btn-add":
-            self._confirm()
-
-    def _confirm(self) -> None:
-        from pathlib import Path
-
-        lv = self.query_one(ListView)
-        idx = lv.index
-        if self._filtered and idx is not None and idx < len(self._filtered):
-            self._add_path(self._filtered[idx])
-        else:
-            # Fallback: treat the filter text as a custom path
-            val = self.query_one("#add-filter", Input).value.strip()
-            if val:
-                self._add_path(Path(val))
-            else:
-                self.query_one("#add-error", Static).update(
-                    "Select a file or enter a path."
-                )
-
-    def _add_path(self, src) -> None:
-        from pathlib import Path
-
+    def _choose_path(self, path: Path) -> None:
         from bibtui.pdf.fetcher import FetchError, add_pdf
 
         error = self.query_one("#add-error", Static)
         error.update("")
         try:
-            dest = add_pdf(Path(src), self._entry, self._base_dir)
+            dest = add_pdf(path, self._entry, self._base_dir)
             self.dismiss(str(dest))
         except FetchError as exc:
             error.update(str(exc))
 
     def action_add(self) -> None:
         self._confirm()
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
 
 
 class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
@@ -2359,7 +2432,7 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
     def __init__(self, download_dir: str, **kwargs):
         super().__init__(**kwargs)
         self._download_dir = download_dir or str(Path.home() / "Downloads")
-        self._all_pdfs: list[Path] = []
+        self._all_files: list[Path] = []
         self._filtered: list[Path] = []
         self._selected: set[str] = set()
 
@@ -2392,17 +2465,17 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
             hint.update(
                 f"[dim]Folder not found: {dl}  ·  paste a file or folder path below[/dim]"
             )
-            self._all_pdfs = []
+            self._all_files = []
         else:
             pdfs = sorted(
                 dl.glob("*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True
             )
-            self._all_pdfs = pdfs
+            self._all_files = pdfs
             hint.update(
                 f"[dim]{dl}  ·  {len(pdfs)} PDF{'s' if len(pdfs) != 1 else ''}  ·  "
                 "paste another folder path to browse elsewhere[/dim]"
             )
-        self._filtered = list(self._all_pdfs)
+        self._filtered = list(self._all_files)
         self._rebuild_list()
 
     def _sync_from_list(self) -> None:
@@ -2420,15 +2493,7 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
         sl = self.query_one(SelectionList)
         sl.clear_options()
         for p in self._filtered:
-            stat = p.stat()
-            size = stat.st_size
-            size_str = (
-                f"{size / 1048576:.1f} MB"
-                if size >= 1048576
-                else f"{size / 1024:.0f} KB"
-            )
-            age = _format_age(stat.st_mtime)
-            label = f"{p.name}  [dim]{size_str}  {age}[/dim]"
+            label = _file_row_label(p)
             sl.add_option(Selection(label, str(p), str(p) in self._selected))
 
     @on(Input.Changed, "#pip-filter")
@@ -2436,9 +2501,9 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
         self._sync_from_list()
         q = event.value.strip().lower()
         self._filtered = (
-            [p for p in self._all_pdfs if q in p.name.lower()]
+            [p for p in self._all_files if q in p.name.lower()]
             if q
-            else list(self._all_pdfs)
+            else list(self._all_files)
         )
         self._rebuild_list()
 
@@ -2480,11 +2545,11 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
             return
 
         if expanded.is_file() and expanded.suffix.lower() == ".pdf":
-            if expanded not in self._all_pdfs:
-                self._all_pdfs.insert(0, expanded)
+            if expanded not in self._all_files:
+                self._all_files.insert(0, expanded)
             self._selected.add(str(expanded))
             self.query_one("#pip-filter", Input).value = ""
-            self._filtered = list(self._all_pdfs)
+            self._filtered = list(self._all_files)
             self._rebuild_list()
             return
 
@@ -2613,7 +2678,6 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
     @work(thread=True)
     def _scan(self) -> None:
         from bibtui.pdf.import_scan import ImportStatus, process_pdf
-        from bibtui.utils.doi import normalize_doi
 
         seen_in_batch: set[str] = set()
         rows = []
@@ -2649,20 +2713,18 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
 
         if row.status == ImportStatus.MATCHED:
             entry = row.entry
-            text = (
-                f"✓ {row.filename} → {entry.title_short} "
+            body = (
+                f"{row.filename} → {entry.title_short} "
                 f"({entry.authors_short}, {entry.year or '?'})"
             )
-            color = self.app.current_theme.success
-        elif row.status == ImportStatus.LINK_EXISTING:
-            text = f"✓ {row.filename} → link to existing entry '{row.entry.key}'"
-            color = self.app.current_theme.success
-        else:
-            label = self._STATUS_LABELS.get(str(row.status), str(row.status))
-            candidates = f" ({', '.join(row.candidates)})" if row.candidates else ""
-            text = f"✗ {row.filename} — {label}: {row.message}{candidates}"
-            color = self.app.current_theme.error
-        return Text(text, style=color)
+            return _report_row_text(self.app, True, body)
+        if row.status == ImportStatus.LINK_EXISTING:
+            body = f"{row.filename} → link to existing entry '{row.entry.key}'"
+            return _report_row_text(self.app, True, body)
+        label = self._STATUS_LABELS.get(str(row.status), str(row.status))
+        candidates = f" ({', '.join(row.candidates)})" if row.candidates else ""
+        body = f"{row.filename} — {label}: {row.message}{candidates}"
+        return _report_row_text(self.app, False, body)
 
     def _on_scan_done(self, rows: list) -> None:
         self._scanning = False
@@ -2683,9 +2745,7 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
 
         btn = self.query_one("#btn-import", Button)
         btn.disabled = not importable
-        if importable:
-            noun = "Entry" if len(importable) == 1 else "Entries"
-            btn.label = f"Import {len(importable)} {noun}"
+        btn.label = _import_button_label(len(importable))
 
     def on_key(self, event: events.Key) -> None:
         """Space previews the highlighted row's source PDF."""
@@ -2819,8 +2879,6 @@ class BibFileImportReviewModal(_BaseModal["list[BibEntry] | None"]):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        from bibtui.utils.doi import normalize_doi
-
         self._new_entries: list[BibEntry] = []
         self._rows: list[tuple[BibEntry, str | None]] = []  # (entry, skip-reason)
         seen_in_batch: set[str] = set()
@@ -2852,7 +2910,7 @@ class BibFileImportReviewModal(_BaseModal["list[BibEntry] | None"]):
             yield OptionList(id="bfi-list")
             with Horizontal(classes="modal-buttons"):
                 yield Button(
-                    self._button_label(),
+                    _import_button_label(len(self._new_entries)),
                     variant="primary",
                     id="btn-import",
                     disabled=not self._new_entries,
@@ -2868,12 +2926,6 @@ class BibFileImportReviewModal(_BaseModal["list[BibEntry] | None"]):
             f"{new} new, {skipped} already in your library."
         )
 
-    def _button_label(self) -> str:
-        n = len(self._new_entries)
-        if not n:
-            return "Import"
-        return f"Import {n} {'Entry' if n == 1 else 'Entries'}"
-
     def on_mount(self) -> None:
         ol = self.query_one(OptionList)
         for entry, reason in self._rows:
@@ -2881,15 +2933,12 @@ class BibFileImportReviewModal(_BaseModal["list[BibEntry] | None"]):
 
     def _row_text(self, entry: BibEntry, reason: str | None) -> Text:
         if reason is None:
-            text = (
-                f"✓ {entry.key} → {entry.title_short} "
+            body = (
+                f"{entry.key} → {entry.title_short} "
                 f"({entry.authors_short}, {entry.year or '?'})"
             )
-            color = self.app.current_theme.success
-        else:
-            text = f"✗ {entry.key} — {reason}"
-            color = self.app.current_theme.error
-        return Text(text, style=color)
+            return _report_row_text(self.app, True, body)
+        return _report_row_text(self.app, False, f"{entry.key} — {reason}")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
@@ -3029,17 +3078,19 @@ class FilePickerModal(_BaseModal["str | None"]):
         self.dismiss(None)
 
 
-class ImportBibPickerModal(_BaseModal["str | None"]):
+class ImportBibPickerModal(_FileBrowseMixin, _BaseModal["str | None"]):
     """Pick a single .bib file to import, filtered by name.
 
-    Same browsing model as :class:`AddPDFModal` — list a download
-    directory, filter by typing, ``Space`` previews the highlighted row,
-    ``Enter``/``x`` choose it — the .bib counterpart of "choosing a single
-    PDF", plus :class:`PdfImportPickerModal`'s directory-repoint
-    convenience: submitting an existing directory path in the filter
-    re-points the listing at that folder instead of only ever showing the
-    download directory.
+    Shares :class:`AddPDFModal`'s browsing model via :class:`_FileBrowseMixin`
+    — list a download directory, filter by typing, ``Space`` previews the
+    highlighted row, ``Enter``/``x`` choose it, submitting an existing
+    directory path in the filter re-points the listing at that folder — the
+    .bib counterpart of "choosing a single PDF".
     """
+
+    _ID_PREFIX = "ibp"
+    _GLOB = "*.bib"
+    _NOUN = ".bib file"
 
     BINDINGS = [
         Binding(SAVE, "choose", "Choose", show=True),
@@ -3101,117 +3152,17 @@ class ImportBibPickerModal(_BaseModal["str | None"]):
         self._scan()
         self.call_after_refresh(self.query_one("#ibp-filter", Input).focus)
 
-    def _scan(self) -> None:
-        dl = Path(self._download_dir).expanduser()
-        hint = self.query_one("#ibp-hint", Static)
-        if not dl.is_dir():
-            hint.update(
-                f"[dim]Folder not found: {dl}  ·  paste a file or folder path below[/dim]"
-            )
-            self._all_files = []
-        else:
-            files = sorted(
-                dl.glob("*.bib"), key=lambda p: p.stat().st_mtime, reverse=True
-            )
-            self._all_files = files
-            hint.update(
-                f"[dim]{dl}  ·  {len(files)} .bib file{'s' if len(files) != 1 else ''}  ·  "
-                "paste another folder path to browse elsewhere[/dim]"
-            )
-        self._filtered = list(self._all_files)
-        self._refresh_list()
-
-    def _refresh_list(self) -> None:
-        lv = self.query_one(ListView)
-        lv.clear()
-        for p in self._filtered:
-            stat = p.stat()
-            size = stat.st_size
-            size_str = (
-                f"{size / 1048576:.1f} MB"
-                if size >= 1048576
-                else f"{size / 1024:.0f} KB"
-            )
-            age = _format_age(stat.st_mtime)
-            lv.append(ListItem(Label(f"{p.name}  [dim]{size_str}  {age}[/dim]")))
-
     @on(Input.Changed, "#ibp-filter")
     def _on_filter(self, event: Input.Changed) -> None:
-        q = event.value.strip().lower()
-        self._filtered = (
-            [p for p in self._all_files if q in p.name.lower()]
-            if q
-            else list(self._all_files)
-        )
-        self._refresh_list()
-
-    def on_key(self, event: events.Key) -> None:
-        """Down in the Input moves focus to the list; Up from the first item
-        returns focus; Space previews, `x` chooses (same as Enter)."""
-        lv = self.query_one(ListView)
-        inp = self.query_one("#ibp-filter", Input)
-        if self.focused is inp and event.key == "down" and self._filtered:
-            lv.focus()
-            event.stop()
-        elif self.focused is lv and event.key == "up" and (lv.index or 0) == 0:
-            inp.focus()
-            event.stop()
-        elif self.focused is lv and event.key == "space":
-            self._preview_selected()
-            event.stop()
-        elif self.focused is lv and event.key == "x":
-            self._confirm()
-            event.stop()
-
-    def _preview_selected(self) -> None:
-        lv = self.query_one(ListView)
-        idx = lv.index
-        if idx is None or idx >= len(self._filtered):
-            return
-        try:
-            open_with_default_app(str(self._filtered[idx]))
-        except Exception as e:
-            self.query_one("#ibp-error", Static).update(f"Could not open: {e}")
+        self._filter_changed(event)
 
     @on(Input.Submitted, "#ibp-filter")
-    def _on_filter_submitted(self, _: Input.Submitted) -> None:
-        val = self.query_one("#ibp-filter", Input).value.strip()
-        if val:
-            expanded = Path(val).expanduser()
-            if expanded.is_dir():
-                self._download_dir = str(expanded)
-                self.query_one("#ibp-filter", Input).value = ""
-                self.query_one("#ibp-error", Static).update("")
-                self._scan()
-                return
-        self._confirm()
+    def _on_filter_submitted(self, event: Input.Submitted) -> None:
+        self._filter_submitted(event)
 
     @on(ListView.Selected)
     def _on_list_selected(self, event: ListView.Selected) -> None:
-        idx = self.query_one(ListView).index
-        if idx is not None and idx < len(self._filtered):
-            self._choose_path(self._filtered[idx])
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-cancel":
-            self.dismiss(None)
-        elif event.button.id == "btn-choose":
-            self._confirm()
-
-    def _confirm(self) -> None:
-        lv = self.query_one(ListView)
-        idx = lv.index
-        if self._filtered and idx is not None and idx < len(self._filtered):
-            self._choose_path(self._filtered[idx])
-        else:
-            # Fallback: treat the filter text as a custom path
-            val = self.query_one("#ibp-filter", Input).value.strip()
-            if val:
-                self._choose_path(Path(val).expanduser())
-            else:
-                self.query_one("#ibp-error", Static).update(
-                    "Select a file or enter a path."
-                )
+        self._list_selected(event)
 
     def _choose_path(self, path: Path) -> None:
         error = self.query_one("#ibp-error", Static)
@@ -3225,6 +3176,3 @@ class ImportBibPickerModal(_BaseModal["str | None"]):
 
     def action_choose(self) -> None:
         self._confirm()
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)

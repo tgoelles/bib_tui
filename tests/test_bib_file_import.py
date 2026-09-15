@@ -2,12 +2,11 @@
 BibFileImportReviewModal's DOI-based duplicate detection.
 """
 
-from textual.widgets import Button, DataTable, OptionList
+from conftest import wire_dummies
+from textual.widgets import Button, OptionList
 
 from bibtui.app import BibTuiApp
 from bibtui.bib.models import BibEntry
-from bibtui.widgets.entry_detail import EntryDetail
-from bibtui.widgets.entry_list import EntryList
 from bibtui.widgets.modals import BibFileImportReviewModal, ImportBibPickerModal
 
 BIB = "tests/bib_examples/MyCollection.bib"
@@ -35,59 +34,6 @@ def _write_bib(tmp_path, name: str, *entries_text: str):
     path = tmp_path / name
     path.write_text("\n".join(entries_text), encoding="utf-8")
     return str(path)
-
-
-# ---------------------------------------------------------------------------
-# App-level dummies (same pattern as test_pdf_import_app.py)
-# ---------------------------------------------------------------------------
-
-
-class DummyDataTable:
-    def move_cursor(self, **kwargs) -> None:
-        pass
-
-
-class DummyList:
-    def __init__(self, selected=None) -> None:
-        self.selected_entry = selected
-        self.refresh_calls = 0
-        self._filtered: list = []
-
-    def refresh_entries(self, entries) -> None:
-        self.refresh_calls += 1
-        self._filtered = list(entries)
-
-
-class DummyDetail:
-    def __init__(self) -> None:
-        self.shown = None
-
-    def show_entry(self, entry) -> None:
-        self.shown = entry
-
-
-def _wire_dummies(app, monkeypatch, dummy_list=None, dummy_detail=None):
-    dummy_list = dummy_list or DummyList()
-    dummy_detail = dummy_detail or DummyDetail()
-    notifications: list[tuple[str, str | None]] = []
-
-    def fake_query_one(selector):
-        if selector is EntryList:
-            return dummy_list
-        if selector is EntryDetail:
-            return dummy_detail
-        if selector is DataTable:
-            return DummyDataTable()
-        raise AssertionError(f"Unexpected selector: {selector}")
-
-    monkeypatch.setattr(app, "query_one", fake_query_one)
-    monkeypatch.setattr(
-        app,
-        "notify",
-        lambda message, **kwargs: notifications.append((message, kwargs.get("severity"))),
-    )
-    monkeypatch.setattr(app, "call_after_refresh", lambda fn, *a, **k: fn(*a, **k))
-    return dummy_list, dummy_detail, notifications
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +107,7 @@ def test_on_bib_file_picked_single_new_entry_is_added_directly(
     app._entries = []
     app._dirty = False
     app._config.auto_fetch_pdf = False
-    dummy_list, _dummy_detail, notes = _wire_dummies(app, monkeypatch)
+    dummy_list, _dummy_detail, notes = wire_dummies(app, monkeypatch)
     path = _write_bib(tmp_path, "one.bib", _entry_text("Doe2023", doi="10.1/new"))
 
     app._on_bib_file_picked(path)
@@ -218,7 +164,7 @@ def test_on_bib_file_review_done_appends_entries(monkeypatch) -> None:
     app = BibTuiApp(BIB)
     app._entries = []
     app._dirty = False
-    dummy_list, _dummy_detail, notes = _wire_dummies(app, monkeypatch)
+    dummy_list, _dummy_detail, notes = wire_dummies(app, monkeypatch)
 
     e1 = BibEntry(key="A2023", entry_type="article", doi="10.1/a")
     e2 = BibEntry(key="B2023", entry_type="article", doi="10.1/b")

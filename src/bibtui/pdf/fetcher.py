@@ -25,6 +25,7 @@ from urllib.parse import urlparse
 import pyalex  # type: ignore[import-untyped]
 
 from bibtui.bib.models import BibEntry
+from bibtui.utils.doi import normalize_doi
 
 
 class FetchError(Exception):
@@ -356,13 +357,6 @@ def _try_copernicus(entry: BibEntry, dest_path: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def _normalized_doi(doi: str) -> str:
-    """Normalize DOI for provider lookups."""
-    norm = doi.strip()
-    norm = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", norm, flags=re.IGNORECASE)
-    return norm
-
-
 def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
     """Try OpenAlex lookup and download a direct PDF URL.
 
@@ -380,7 +374,7 @@ def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
         works: list[dict[str, Any]] = []
 
         if entry.doi:
-            lookup_doi = _normalized_doi(entry.doi)
+            lookup_doi = normalize_doi(entry.doi, lower=False)
             works = cast(
                 list[dict[str, Any]],
                 pyalex.Works()
