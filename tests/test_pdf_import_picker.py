@@ -36,6 +36,48 @@ async def test_scan_lists_pdfs_in_download_dir(tmp_path) -> None:
         assert sl.option_count == 2
 
 
+async def test_default_focus_is_list_first_item(tmp_path) -> None:
+    (tmp_path / "a.pdf").write_bytes(b"fake")
+    (tmp_path / "b.pdf").write_bytes(b"fake")
+
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        modal, _ = await _open_modal(app, pilot, str(tmp_path))
+
+        sl = modal.query_one(SelectionList)
+        assert modal.focused is sl
+        assert sl.highlighted == 0
+
+
+async def test_default_focus_falls_back_to_filter_when_list_empty(tmp_path) -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        modal, _ = await _open_modal(app, pilot, str(tmp_path))  # empty dir
+
+        inp = modal.query_one("#pip-filter", Input)
+        assert modal.focused is inp
+
+
+async def test_s_jumps_from_list_to_filter(tmp_path) -> None:
+    (tmp_path / "a.pdf").write_bytes(b"fake")
+
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        modal, _ = await _open_modal(app, pilot, str(tmp_path))
+
+        sl = modal.query_one(SelectionList)
+        assert modal.focused is sl  # default focus
+
+        await pilot.press("s")
+        await pilot.pause()
+
+        inp = modal.query_one("#pip-filter", Input)
+        assert modal.focused is inp
+
+
 async def test_confirm_with_nothing_selected_shows_error(tmp_path) -> None:
     (tmp_path / "a.pdf").write_bytes(b"fake")
 

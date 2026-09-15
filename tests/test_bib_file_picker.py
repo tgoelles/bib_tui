@@ -36,6 +36,48 @@ async def test_scan_lists_bib_files_in_download_dir(tmp_path) -> None:
         assert len(modal.query_one(ListView).children) == 2
 
 
+async def test_default_focus_is_list_first_item(tmp_path) -> None:
+    (tmp_path / "a.bib").write_text("@article{a}")
+    (tmp_path / "b.bib").write_text("@article{b}")
+
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        modal, _ = await _open_modal(app, pilot, str(tmp_path))
+
+        lv = modal.query_one(ListView)
+        assert modal.focused is lv
+        assert lv.index == 0
+
+
+async def test_default_focus_falls_back_to_filter_when_list_empty(tmp_path) -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        modal, _ = await _open_modal(app, pilot, str(tmp_path))  # empty dir
+
+        inp = modal.query_one("#ibp-filter", Input)
+        assert modal.focused is inp
+
+
+async def test_s_jumps_from_list_to_filter(tmp_path) -> None:
+    (tmp_path / "a.bib").write_text("@article{a}")
+
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        modal, _ = await _open_modal(app, pilot, str(tmp_path))
+
+        lv = modal.query_one(ListView)
+        assert modal.focused is lv  # default focus
+
+        await pilot.press("s")
+        await pilot.pause()
+
+        inp = modal.query_one("#ibp-filter", Input)
+        assert modal.focused is inp
+
+
 async def test_confirm_with_nothing_selected_shows_error(tmp_path) -> None:
     app = BibTuiApp(BIB)
     async with app.run_test() as pilot:

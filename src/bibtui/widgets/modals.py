@@ -129,6 +129,14 @@ class _FileBrowseMixin:
     methods below.
     """
 
+    # Screen's own AUTO_FOCUS defaults to "*" (first focusable widget —
+    # here, the filter Input, since it's composed before the list). Textual
+    # applies that during _compose(), before on_mount()'s _focus_initial()
+    # runs, so without this the Input would visibly flash focused for one
+    # frame before focus jumps to the list. Disabling it here makes
+    # _focus_initial() the *only* thing that ever sets initial focus.
+    AUTO_FOCUS = ""
+
     _ID_PREFIX: str = ""
     _GLOB: str = "*"
     _NOUN: str = "file"
@@ -175,15 +183,35 @@ class _FileBrowseMixin:
         )
         self._refresh_list()
 
+    def on_mount(self) -> None:
+        self._scan()
+        self._focus_initial()
+
+    def _focus_initial(self) -> None:
+        """Default focus is the first row in the list — so Enter/`x` chooses
+        immediately, the common case — not the filter input. `s` jumps to
+        the filter from the list, matching the main view's Search key.
+        Falls back to the filter when there's nothing to list yet."""
+        lv = self.query_one(ListView)
+        if self._filtered:
+            lv.index = 0
+            self.call_after_refresh(lv.focus)
+        else:
+            self.call_after_refresh(self.query_one(self._wid("filter"), Input).focus)
+
     def on_key(self, event: events.Key) -> None:
         """Down in the Input moves focus to the list; Up from the first item
-        returns focus; Space previews, `x` chooses (same as Enter)."""
+        or `s` returns focus to the filter; Space previews, `x` chooses
+        (same as Enter)."""
         lv = self.query_one(ListView)
         inp = self.query_one(self._wid("filter"), Input)
         if self.focused is inp and event.key == "down" and self._filtered:
             lv.focus()
             event.stop()
         elif self.focused is lv and event.key == "up" and (lv.index or 0) == 0:
+            inp.focus()
+            event.stop()
+        elif self.focused is lv and event.key == "s":
             inp.focus()
             event.stop()
         elif self.focused is lv and event.key == "space":
@@ -2153,17 +2181,13 @@ class AddPDFModal(_FileBrowseMixin, _BaseModal["str | None"]):
             )
             yield ListView(id="add-list")
             yield Static(
-                "[dim]↓/↑ navigate · Space preview · Enter/x add[/dim]",
+                "[dim]↓/↑ navigate · Space preview · Enter/x add · s search[/dim]",
                 id="add-preview-hint",
             )
             yield Static("", id="add-error")
             with Horizontal(classes="modal-buttons"):
                 yield Button("Add", variant="primary", id="btn-add")
                 yield Button("Cancel", id="btn-cancel")
-
-    def on_mount(self) -> None:
-        self._scan()
-        self.call_after_refresh(self.query_one("#add-filter", Input).focus)
 
     @on(Input.Changed, "#add-filter")
     def _on_filter(self, event: Input.Changed) -> None:
@@ -2525,6 +2549,11 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
     instead of only ever showing the configured download directory.
     """
 
+    # See _FileBrowseMixin's AUTO_FOCUS for why this is disabled: without
+    # it, the filter Input (composed before the list) would flash focused
+    # for one frame before _focus_initial() moves focus to the list.
+    AUTO_FOCUS = ""
+
     BINDINGS = [
         Binding(SAVE, "import_selected", "Import", show=True),
         Binding("escape", "cancel", "Cancel", show=True),
@@ -2574,7 +2603,7 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
             )
             yield PreviewSelectionList(id="pip-list")
             yield Static(
-                "[dim]↓/↑ navigate · Space preview · Enter/x toggle[/dim]",
+                "[dim]↓/↑ navigate · Space preview · Enter/x toggle · s search[/dim]",
                 id="pip-nav-hint",
             )
             yield Static("", id="pip-error")
@@ -2584,7 +2613,18 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
 
     def on_mount(self) -> None:
         self._scan()
-        self.call_after_refresh(self.query_one("#pip-filter", Input).focus)
+        self._focus_initial()
+
+    def _focus_initial(self) -> None:
+        """Default focus is the first row in the list, not the filter — same
+        convention as every other file picker in the app. `s` jumps back to
+        the filter from the list, matching the main view's Search key."""
+        sl = self.query_one(SelectionList)
+        if self._filtered:
+            sl.highlighted = 0
+            self.call_after_refresh(sl.focus)
+        else:
+            self.call_after_refresh(self.query_one("#pip-filter", Input).focus)
 
     def _scan(self) -> None:
         dl = Path(self._download_dir).expanduser()
@@ -2637,13 +2677,16 @@ class PdfImportPickerModal(_BaseModal["list[str] | None"]):
 
     def on_key(self, event: events.Key) -> None:
         """Down in the Input moves focus to the list; Up from the first item
-        returns focus."""
+        or `s` returns focus to the filter."""
         sl = self.query_one(SelectionList)
         inp = self.query_one("#pip-filter", Input)
         if self.focused is inp and event.key == "down" and self._filtered:
             sl.focus()
             event.stop()
         elif self.focused is sl and event.key == "up" and (sl.highlighted or 0) == 0:
+            inp.focus()
+            event.stop()
+        elif self.focused is sl and event.key == "s":
             inp.focus()
             event.stop()
 
@@ -3310,17 +3353,13 @@ class ImportBibPickerModal(_FileBrowseMixin, _BaseModal["str | None"]):
             )
             yield ListView(id="ibp-list")
             yield Static(
-                "[dim]↓/↑ navigate · Space preview · Enter/x choose[/dim]",
+                "[dim]↓/↑ navigate · Space preview · Enter/x choose · s search[/dim]",
                 id="ibp-nav-hint",
             )
             yield Static("", id="ibp-error")
             with Horizontal(classes="modal-buttons"):
                 yield Button("Choose", variant="primary", id="btn-choose")
                 yield Button("Cancel", id="btn-cancel")
-
-    def on_mount(self) -> None:
-        self._scan()
-        self.call_after_refresh(self.query_one("#ibp-filter", Input).focus)
 
     @on(Input.Changed, "#ibp-filter")
     def _on_filter(self, event: Input.Changed) -> None:
