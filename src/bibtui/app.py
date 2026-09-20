@@ -215,7 +215,13 @@ class BibTuiApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="main-content"):
-            yield EntryList([], columns=self._config.table_columns, id="entry-list")
+            yield EntryList(
+                [],
+                columns=self._config.table_columns,
+                sort_column=self._config.sort_column,
+                sort_reverse=self._config.sort_reverse,
+                id="entry-list",
+            )
             yield EntryDetail(
                 default_csl_style=self._config.default_citation_style,
                 id="entry-detail",
@@ -1196,6 +1202,11 @@ class BibTuiApp(App):
         save_config(self._config)
         self.query_one(EntryList).set_columns(keys)
         self.notify("Table columns updated.", timeout=3)
+
+    def on_entry_list_sort_changed(self, event: EntryList.SortChanged) -> None:
+        self._config.sort_column = event.column
+        self._config.sort_reverse = event.reverse
+        save_config(self._config)
 
     def action_reset_theme(self) -> None:
         self._config.theme = ""

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Sort order is remembered** — the column you sorted by (and its direction) is saved to `config.toml` and restored on the next start. The default is now **Added**, newest first, instead of file order. The sort also keeps applying if you hide its column.
+
 ## [1.1.0] - 2026-09-14
 
 ### Added

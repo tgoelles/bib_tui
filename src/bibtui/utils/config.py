@@ -33,6 +33,8 @@ class Config:
     default_citation_style: str = "copernicus-publications"
     table_columns: list[str] = field(default_factory=list)  # empty = default layout
     detail_panel_percent: int = 50  # width of the detail pane in the split view
+    sort_column: str = "added"  # column key to sort by; empty = file order
+    sort_reverse: bool = True  # True = descending (default: newest Added first)
 
 
 DETAIL_PANEL_PERCENT_MIN = 20
@@ -44,6 +46,14 @@ def clamp_detail_panel_percent(value: object) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         return Config.detail_panel_percent
     return max(DETAIL_PANEL_PERCENT_MIN, min(DETAIL_PANEL_PERCENT_MAX, value))
+
+
+def _str_or_default(value: object, default: str) -> str:
+    return value if isinstance(value, str) else default
+
+
+def _bool_or_default(value: object, default: bool) -> bool:
+    return value if isinstance(value, bool) else default
 
 
 def csl_dir() -> Path:
@@ -152,6 +162,10 @@ def load_config() -> Config:
         detail_panel_percent=clamp_detail_panel_percent(
             ui_section.get("detail_panel_percent", Config.detail_panel_percent)
         ),
+        sort_column=_str_or_default(ui_section.get("sort_column"), Config.sort_column),
+        sort_reverse=_bool_or_default(
+            ui_section.get("sort_reverse"), Config.sort_reverse
+        ),
     )
 
 
@@ -181,6 +195,8 @@ def save_config(config: Config) -> None:
             "default_citation_style": config.default_citation_style,
             "table_columns": config.table_columns,
             "detail_panel_percent": config.detail_panel_percent,
+            "sort_column": config.sort_column,
+            "sort_reverse": config.sort_reverse,
         },
     }
     with open(CONFIG_PATH, "wb") as f:

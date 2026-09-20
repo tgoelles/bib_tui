@@ -1796,6 +1796,7 @@ _HELP_SECTIONS = [
         [
             ("Click any column header to sort by that column.",),
             ("Click the same header again to reverse the order.",),
+            ("The default is Added, newest first; your sort is remembered.",),
             (
                 "Active sort column is marked with "
                 "[bold]▲[/bold] (asc) or [bold]▼[/bold] (desc).",

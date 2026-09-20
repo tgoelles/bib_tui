@@ -3,13 +3,14 @@ import shlex
 from rich.text import Text
 from textual import events, on
 from textual.app import ComposeResult
+from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import DataTable, Input, Static
 from textual.widgets._data_table import ColumnKey
 
 from bibtui.bib.models import BibEntry
-from bibtui.widgets.columns import ColumnSpec, resolve_columns
+from bibtui.widgets.columns import ColumnSpec, resolve_columns, spec_for
 
 # Extra horizontal budget beyond the sum of fixed column widths: DataTable pads
 # every cell (1 char each side) and the widget itself has a small border/gutter.
@@ -221,10 +222,20 @@ class EntryList(Widget):
 
     _DEFAULT_SEARCH_PLACEHOLDER = "Search… (a:smith j:nature y:2025 k:ice c:smith2020)"
 
+    class SortChanged(Message):
+        """The user picked a new sort by clicking a column header."""
+
+        def __init__(self, column: str, reverse: bool) -> None:
+            super().__init__()
+            self.column = column
+            self.reverse = reverse
+
     def __init__(
         self,
         entries: list[BibEntry],
         columns: list[str] | None = None,
+        sort_column: str | None = None,
+        sort_reverse: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -235,10 +246,11 @@ class EntryList(Widget):
         self._col_keys_by_key: dict[str, ColumnKey] = {}
         self._title_width: int = 30
         # Sort is tracked by the column's stable spec key so it survives a
-        # column reconfigure (the DataTable ColumnKey objects do not).
-        self._sort_key: ColumnKey | None = None
-        self._sort_spec_key: str | None = None
-        self._sort_reverse: bool = False
+        # column reconfigure (the DataTable ColumnKey objects do not). It also
+        # applies while its column is hidden — only the ▲/▼ marker needs the
+        # column to be visible.
+        self._sort_spec_key: str | None = sort_column or None
+        self._sort_reverse: bool = sort_reverse
         self._pdf_base_dir: str = ""
         # Saved filter preset layered underneath the live search box — see
         # `_apply_filters`. Empty name means no preset is active.
@@ -259,9 +271,9 @@ class EntryList(Widget):
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
         self._add_columns(table)
-        self._populate_table(self._all_entries)
+        self._apply_filters()
+        self._update_header_labels()
         self._update_title_width()
-        self._update_preset_bar()
 
     def _add_columns(self, table: DataTable) -> None:
         """(Re)create the DataTable columns from ``self._specs``."""
@@ -313,21 +325,20 @@ class EntryList(Widget):
         else:
             self._sort_spec_key = spec_key
             self._sort_reverse = False
-        self._sort_key = event.column_key
         self._apply_sort()
         self._update_header_labels()
-
-    def _sort_fn(self, col_key: ColumnKey):
-        """Return the sort-key function for the column identified by *col_key*."""
-        idx = self._col_keys.index(col_key)
-        return self._specs[idx].sort_key
+        self.post_message(self.SortChanged(spec_key, self._sort_reverse))
 
     def _apply_sort(self) -> None:
-        if self._sort_key is None:
+        if self._sort_spec_key is None:
             return
+        spec = next(
+            (s for s in self._specs if s.key == self._sort_spec_key),
+            None,
+        ) or spec_for(self._sort_spec_key)
         self._filtered = sorted(
             self._filtered,
-            key=self._sort_fn(self._sort_key),
+            key=spec.sort_key,
             reverse=self._sort_reverse,
         )
         # Rebuild the table rows in new order without re-fetching data
@@ -340,7 +351,7 @@ class EntryList(Widget):
         """Put ▲/▼ on the active sort column, restore others."""
         table = self.query_one(DataTable)
         for key, spec in zip(self._col_keys, self._specs):
-            if key == self._sort_key:
+            if spec.key == self._sort_spec_key:
                 indicator = "▼" if self._sort_reverse else "▲"
                 table.columns[key].label = Text(f"{spec.label} {indicator}")
             else:
@@ -363,8 +374,7 @@ class EntryList(Widget):
         if search:
             base = [e for e in base if matches_query(e, search)]
         self._populate_table(base)
-        if self._sort_key is not None:
-            self._apply_sort()
+        self._apply_sort()
         self._update_preset_bar()
 
     def _update_preset_bar(self) -> None:
@@ -419,17 +429,8 @@ class EntryList(Widget):
         table = self.query_one(DataTable)
         table.clear(columns=True)
         self._add_columns(table)
-        # Restore the active sort only if that column is still present.
-        self._sort_key = (
-            self._col_keys_by_key.get(self._sort_spec_key)
-            if self._sort_spec_key
-            else None
-        )
-        if self._sort_key is None:
-            self._sort_spec_key = None
         self._reload_rows()
-        if self._sort_key is not None:
-            self._update_header_labels()
+        self._update_header_labels()
         self._title_width = -1  # force a recompute on the new column set
         self._update_title_width()
         self._restore_cursor(table, selected_key)

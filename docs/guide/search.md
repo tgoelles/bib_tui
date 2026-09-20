@@ -124,6 +124,10 @@ column is marked with `▲` (ascending) or `▼` (descending). Sort by **Added**
 see what's new, by **★** to surface your highest-rated reading, or by **Year**
 to scan chronologically.
 
+By default the table is sorted by **Added**, newest first. Your choice is
+remembered: the sort you left is restored the next time you start bibtui (saved
+under `[ui] sort_column` / `sort_reverse` in `config.toml`).
+
 ## Choosing columns
 
 You're not limited to the default columns. From the command palette
