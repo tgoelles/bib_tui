@@ -1,7 +1,10 @@
+import textwrap
+
 from rich.syntax import Syntax
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.markup import escape
 from textual.widget import Widget
 from textual.widgets import Label, Select, Static, TextArea
 
@@ -68,17 +71,49 @@ def _status_label(widget_id: str, width: int) -> Label:
     return label
 
 
-def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
+# The author block under the title is always this many lines tall, so a long
+# author list can't push everything below it around while flicking through
+# entries.
+_AUTHOR_LINES = 3
+_DEFAULT_AUTHOR_WIDTH = 60
+
+
+def _author_lines(author: str, width: int) -> list[str]:
+    """Markup lines for the author block: exactly ``_AUTHOR_LINES`` tall.
+
+    Wrapped to *width*; anything past the last line is cut off with "…", and a
+    shorter list is padded with blank lines.
+    """
+    if author.strip():
+        wrapped = textwrap.wrap(
+            author,
+            width=max(width, 10),
+            max_lines=_AUTHOR_LINES,
+            placeholder="…",
+        )
+        lines = [escape(line) for line in wrapped]
+    else:
+        lines = ["[dim](no author)[/dim]"]
+    return lines + [""] * (_AUTHOR_LINES - len(lines))
+
+
+def _render_entry(
+    entry: BibEntry,
+    colors: dict[str, str],
+    author_width: int = _DEFAULT_AUTHOR_WIDTH,
+) -> str:
     """Build a Rich-formatted string for the main body of the detail pane.
 
     *colors* is a dict with keys: title, key, required, optional, tag_fg,
     tag_bg, warning.  Values are Rich-compatible color strings (hex or names).
+    *author_width* is the width the author block wraps to.
     """
     c = colors
     lines: list[str] = []
 
-    # Title
+    # Title, with the authors directly beneath it
     lines.append(f"[bold {c['title']}]{entry.title or '(no title)'}[/]")
+    lines.extend(_author_lines(entry.get_field("author"), author_width))
     lines.append("")
 
     # Entry type badge
@@ -95,7 +130,6 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
             return f"[dim]{label:<12}[/dim] [dim](empty)[/dim]"
 
     standard_fields = [
-        ("Author", "author"),
         ("Year", "year"),
         ("Journal", "journal"),
         ("DOI", "doi"),
@@ -217,6 +251,7 @@ class EntryDetail(Widget):
         self._entry: BibEntry | None = None
         self._raw_mode: bool = False
         self._pdf_base_dir: str = ""
+        self._author_width: int = _DEFAULT_AUTHOR_WIDTH
         self._csl_styles = available_csl_styles()
         self._selected_csl_style = self._resolve_csl_style(default_csl_style)
 
@@ -231,6 +266,18 @@ class EntryDetail(Widget):
 
     def on_mount(self) -> None:
         self.app.theme_changed_signal.subscribe(self, self._on_theme_changed)
+
+    def on_resize(self, event) -> None:
+        """Re-wrap the author block when the pane's width changes."""
+        if (
+            self._entry is not None
+            and not self._raw_mode
+            and self._current_author_width() != self._author_width
+        ):
+            self._refresh_content()
+
+    def _current_author_width(self) -> int:
+        return self.scrollable_content_region.width or _DEFAULT_AUTHOR_WIDTH
 
     def _on_theme_changed(self, _theme) -> None:
         if self._entry is not None:
@@ -376,4 +423,5 @@ class EntryDetail(Widget):
             citation_panel.display = True
             if abstract_text:
                 abstract_widget.display = True
-            content.update(_render_entry(e, colors))
+            self._author_width = self._current_author_width()
+            content.update(_render_entry(e, colors, self._author_width))

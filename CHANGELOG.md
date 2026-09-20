@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Column picker matches the keyword picker** — columns are now a checklist toggled with <kbd>Enter</kbd> / <kbd>x</kbd> (Space no longer toggles), with a hint line in the same style as the other dialogs.
 - **Entry viewer** — the URL is now listed with the other fields (Author, Year, Journal, DOI, URL) in full, instead of a shortened link in the status row, and there is a blank line above the title.
 - **Steadier status row** — the Read / Urgency / Rating / PDF labels above the title now have fixed widths, so they stay put while you flick through entries instead of shifting sideways as each entry's values change.
+- **Authors under the title, fixed height** — the author list moved from the field list to directly below the title and always takes exactly three lines (long lists are cut off with "…"), so the rest of the entry no longer jumps up and down as you move between entries.
 
 ## [1.1.0] - 2026-09-14
 

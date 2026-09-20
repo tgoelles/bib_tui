@@ -37,9 +37,9 @@ def test_url_is_listed_after_doi_with_the_other_fields() -> None:
     labels = [
         ln.split()[0]
         for ln in lines
-        if ln.startswith(("Author", "Year", "Journal", "DOI", "URL"))
+        if ln.startswith(("Year", "Journal", "DOI", "URL"))
     ]
-    assert labels == ["Author", "Year", "Journal", "DOI", "URL"]
+    assert labels == ["Year", "Journal", "DOI", "URL"]
     url_line = next(ln for ln in lines if ln.startswith("URL"))
     # Full URL, not shortened like the old status-bar label was.
     assert url_line.endswith("https://example.org/a/long/path")
@@ -149,3 +149,83 @@ async def test_status_row_stays_one_line_for_an_oversized_value() -> None:
         detail.show_entry(_entry(read_state="reading-it-right-now-honest", rating=9))
         await pilot.pause()
         assert all(detail.query_one(i).region.height == 1 for i in _STATUS_IDS)
+
+
+# ── Author block ─────────────────────────────────────────────────────────
+
+_MANY_AUTHORS = " and ".join(f"Surname{i}, Firstname{i}" for i in range(40))
+
+
+def test_authors_sit_directly_below_the_title_not_in_the_field_list() -> None:
+    lines = _plain_lines(_entry(author="Smith, Jane and Doe, John"))
+    assert lines[0] == "A Title"
+    assert lines[1] == "Smith, Jane and Doe, John"
+    assert not any(ln.startswith("Author") for ln in lines)
+
+
+def test_author_block_is_always_exactly_three_lines() -> None:
+    from bibtui.widgets.entry_detail import _AUTHOR_LINES
+
+    for author in ("", "Smith, Jane", "Smith, Jane and Doe, John", _MANY_AUTHORS):
+        lines = _plain_lines(_entry(author=author))
+        # title, then the reserved author lines, then a blank separator line
+        assert lines[1 + _AUTHOR_LINES] == "", author
+        assert len(lines[1 : 1 + _AUTHOR_LINES]) == _AUTHOR_LINES
+
+
+def test_long_author_lists_are_truncated_with_an_ellipsis() -> None:
+    lines = _plain_lines(_entry(author=_MANY_AUTHORS))
+    authors = lines[1:4]
+    assert all(authors)  # all three lines are used
+    assert authors[-1].endswith("…")
+    assert "Surname39" not in " ".join(authors)  # the tail was cut off
+
+
+def test_author_lines_respect_the_given_width() -> None:
+    text = _render_entry(_entry(author=_MANY_AUTHORS), _COLORS, author_width=40)
+    authors = [Text.from_markup(ln).plain for ln in text.split("\n")[1:4]]
+    assert max(len(a) for a in authors) <= 40
+
+
+def test_short_author_lists_are_not_truncated() -> None:
+    lines = _plain_lines(_entry(author="Smith, Jane and Doe, John"))
+    assert "…" not in lines[1]
+    assert lines[2] == lines[3] == ""
+
+
+def test_missing_author_is_marked_and_still_reserves_the_space() -> None:
+    lines = _plain_lines(_entry(author=""))
+    assert lines[1] == "(no author)"
+    assert lines[2] == lines[3] == ""
+
+
+def test_markup_characters_in_authors_are_shown_literally() -> None:
+    lines = _plain_lines(_entry(author="Smith [Jane] and Doe"))
+    assert lines[1] == "Smith [Jane] and Doe"
+
+
+async def test_content_height_does_not_depend_on_author_count() -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one(EntryDetail)
+        content = detail.query_one("#detail-content", Static)
+        heights = set()
+        for author in ("", "Smith, Jane", "Smith, Jane and Doe, John", _MANY_AUTHORS):
+            detail.show_entry(_entry(author=author))
+            await pilot.pause()
+            heights.add(content.size.height)
+        assert len(heights) == 1, heights
+
+
+async def test_author_block_rewraps_when_the_pane_is_resized() -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one(EntryDetail)
+        detail.show_entry(_entry(author=_MANY_AUTHORS))
+        await pilot.pause()
+        wide = detail._author_width
+        await pilot.press("greater_than_sign", "greater_than_sign", "greater_than_sign")
+        await pilot.pause()
+        assert detail._author_width < wide
