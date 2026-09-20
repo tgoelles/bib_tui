@@ -8,6 +8,7 @@ from textual.markup import escape
 from textual.widget import Widget
 from textual.widgets import Label, Select, Static, TextArea
 
+from bibtui.bib.authors import AUTHOR_SEPARATOR, format_authors
 from bibtui.bib.citation_preview import (
     available_csl_styles,
     default_csl_style_key,
@@ -75,25 +76,34 @@ def _status_label(widget_id: str, width: int) -> Label:
 # author list can't push everything below it around while flicking through
 # entries.
 _AUTHOR_LINES = 3
+_NBSP = "\u00a0"
 _DEFAULT_AUTHOR_WIDTH = 60
 
 
 def _author_lines(author: str, width: int) -> list[str]:
     """Markup lines for the author block: exactly ``_AUTHOR_LINES`` tall.
 
-    Wrapped to *width*; anything past the last line is cut off with "…", and a
-    shorter list is padded with blank lines.
+    Shown JabRef-style as ``Last, First / Last, First`` and wrapped to *width*
+    without ever splitting a name across lines; anything past the last line is
+    cut off with "…", and a shorter list is padded with blank lines.
     """
-    if author.strip():
-        wrapped = textwrap.wrap(
-            author,
-            width=max(width, 10),
-            max_lines=_AUTHOR_LINES,
-            placeholder="…",
-        )
-        lines = [escape(line) for line in wrapped]
-    else:
-        lines = ["[dim](no author)[/dim]"]
+    names = format_authors(author)
+    if not names:
+        return ["[dim](no author)[/dim]"] + [""] * (_AUTHOR_LINES - 1)
+    width = max(width, 10)
+    # Each name (plus its trailing separator) is glued into one unbreakable
+    # word with non-breaking spaces, unless it is too wide to fit a line.
+    sep = AUTHOR_SEPARATOR.strip()
+    tokens = [f"{name} {sep}" for name in names[:-1]] + [names[-1]]
+    words = [t if len(t) > width else t.replace(" ", _NBSP) for t in tokens]
+    wrapped = textwrap.wrap(
+        " ".join(words),
+        width=width,
+        max_lines=_AUTHOR_LINES,
+        placeholder=" …",
+        break_on_hyphens=False,
+    )
+    lines = [escape(line.replace(_NBSP, " ")) for line in wrapped]
     return lines + [""] * (_AUTHOR_LINES - len(lines))
 
 

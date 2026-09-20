@@ -159,7 +159,7 @@ _MANY_AUTHORS = " and ".join(f"Surname{i}, Firstname{i}" for i in range(40))
 def test_authors_sit_directly_below_the_title_not_in_the_field_list() -> None:
     lines = _plain_lines(_entry(author="Smith, Jane and Doe, John"))
     assert lines[0] == "A Title"
-    assert lines[1] == "Smith, Jane and Doe, John"
+    assert lines[1] == "Smith, Jane / Doe, John"
     assert not any(ln.startswith("Author") for ln in lines)
 
 
@@ -201,7 +201,7 @@ def test_missing_author_is_marked_and_still_reserves_the_space() -> None:
 
 def test_markup_characters_in_authors_are_shown_literally() -> None:
     lines = _plain_lines(_entry(author="Smith [Jane] and Doe"))
-    assert lines[1] == "Smith [Jane] and Doe"
+    assert lines[1] == "Smith [Jane] / Doe"
 
 
 async def test_content_height_does_not_depend_on_author_count() -> None:
@@ -229,3 +229,43 @@ async def test_author_block_rewraps_when_the_pane_is_resized() -> None:
         await pilot.press("greater_than_sign", "greater_than_sign", "greater_than_sign")
         await pilot.pause()
         assert detail._author_width < wide
+
+
+def test_authors_render_jabref_style_on_one_line_when_there_is_room() -> None:
+    author = (
+        "Schlager, Birgit and Muckenhuber, Stefan and Schmidt, Simon and "
+        "Holzer, Hannes and Rott, Relindis and Maier, Franz Michael and "
+        "Saad, Kmeid"
+    )
+    text = _render_entry(_entry(author=author), _COLORS, author_width=200)
+    assert Text.from_markup(text.split("\n")[1]).plain == (
+        "Schlager, Birgit / Muckenhuber, Stefan / Schmidt, Simon / "
+        "Holzer, Hannes / Rott, Relindis / Maier, Franz Michael / Saad, Kmeid"
+    )
+
+
+def test_a_name_is_never_split_across_lines() -> None:
+    text = _render_entry(_entry(author=_MANY_AUTHORS), _COLORS, author_width=45)
+    lines = [Text.from_markup(ln).plain for ln in text.split("\n")[1:4]]
+    for line in lines:
+        # Every line holds whole "SurnameN, FirstnameN" names.
+        for name in line.removesuffix(" …").rstrip(" /").split(" / "):
+            assert name.startswith("Surname") and ", Firstname" in name, line
+
+
+def test_separator_stays_at_the_end_of_a_line_not_the_start() -> None:
+    text = _render_entry(_entry(author=_MANY_AUTHORS), _COLORS, author_width=45)
+    lines = [Text.from_markup(ln).plain for ln in text.split("\n")[1:4]]
+    assert not any(line.startswith("/") for line in lines)
+
+
+def test_truncation_reads_as_a_continued_list() -> None:
+    lines = _plain_lines(_entry(author=_MANY_AUTHORS))
+    assert lines[3].endswith(" / …")
+
+
+def test_latex_in_author_names_is_decoded() -> None:
+    lines = _plain_lines(
+        _entry(author='Sch{\\"o}ner, Wolfgang and Mo{\\v{c}}nik, Gri{\\v{s}}a')
+    )
+    assert lines[1] == "Schöner, Wolfgang / Močnik, Griša"
