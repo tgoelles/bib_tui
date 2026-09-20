@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sort order is remembered** — the column you sorted by (and its direction) is saved to `config.toml` and restored on the next start. The default is now **Added**, newest first, instead of file order. The sort also keeps applying if you hide its column.
 - **Reorganized `?` help screen** — grouped into Keybindings, Search & filters (search syntax and saved filters together) and Command palette, with clearly separated headings, wrapped lines that hang under the description column, and a much shorter Filters section.
 - **Column picker matches the keyword picker** — columns are now a checklist toggled with <kbd>Enter</kbd> / <kbd>x</kbd> (Space no longer toggles), with a hint line in the same style as the other dialogs.
+- **Entry viewer** — the URL is now listed with the other fields (Author, Year, Journal, DOI, URL) in full, instead of a shortened link in the status row, and there is a blank line above the title.
+- **Steadier status row** — the Read / Urgency / Rating / PDF labels above the title now have fixed widths, so they stay put while you flick through entries instead of shifting sideways as each entry's values change.
 
 ## [1.1.0] - 2026-09-14
 

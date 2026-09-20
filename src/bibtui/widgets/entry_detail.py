@@ -1,4 +1,5 @@
 from rich.syntax import Syntax
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
@@ -9,9 +10,62 @@ from bibtui.bib.citation_preview import (
     default_csl_style_key,
     render_citation_preview,
 )
-from bibtui.bib.models import BibEntry
+from bibtui.bib.models import PRIORITIES, READ_STATES, BibEntry
 from bibtui.bib.parser import entry_to_bibtex_str
 from bibtui.pdf.paths import pdf_link_state
+
+
+def _read_markup(entry: BibEntry) -> str:
+    return f"[bold]Read:[/bold] {entry.read_state_icon} {entry.read_state or 'unset'}"
+
+
+def _priority_markup(entry: BibEntry) -> str:
+    if entry.priority:
+        return f"[bold]Urgency:[/bold] {entry.priority_icon} {entry.priority_label}"
+    return "[dim]Urgency: —[/dim]"
+
+
+def _rating_markup(entry: BibEntry, color: str) -> str:
+    stars = entry.rating_stars or "[dim]unrated[/dim]"
+    return f"[bold]Rating:[/bold] [{color}]{stars}[/]"
+
+
+_PDF_MARKUP = {
+    "found": "[bold]PDF:[/bold] ■ linked",
+    "missing": "[dim]PDF: □ missing[/dim]",
+    "none": "[dim]PDF: — none[/dim]",
+}
+
+
+def _status_widths() -> dict[str, int]:
+    """Cell width each status-row label needs for its widest possible text.
+
+    The labels get these as fixed widths so the row keeps the same horizontal
+    layout while flicking through entries, instead of every label resizing to
+    its current text and shoving the ones after it sideways.
+    """
+
+    def widest(markups) -> int:
+        return max(Text.from_markup(m).cell_len for m in markups)
+
+    def probe(**fields) -> BibEntry:
+        return BibEntry(key="", entry_type="", **fields)
+
+    return {
+        "read": widest(_read_markup(probe(read_state=s)) for s in READ_STATES),
+        "priority": widest(_priority_markup(probe(priority=p)) for p in PRIORITIES),
+        "rating": widest(_rating_markup(probe(rating=r), "white") for r in range(6)),
+        "pdf": widest(_PDF_MARKUP.values()),
+    }
+
+
+_STATUS_WIDTHS = _status_widths()
+
+
+def _status_label(widget_id: str, width: int) -> Label:
+    label = Label("", id=widget_id)
+    label.styles.width = width
+    return label
 
 
 def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
@@ -45,6 +99,7 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
         ("Year", "year"),
         ("Journal", "journal"),
         ("DOI", "doi"),
+        ("URL", "url"),
     ]
 
     for label, key in standard_fields:
@@ -111,28 +166,13 @@ class EntryDetail(Widget):
     #detail-meta {
         height: auto;
         layout: horizontal;
-        margin-bottom: 0;
+        margin-bottom: 1;
     }
-    #detail-read-state {
-        width: auto;
+    #detail-meta Label {
+        height: 1;
         margin-right: 2;
-    }
-    #detail-rating {
-        width: auto;
-        margin-right: 2;
-    }
-    #detail-priority {
-        width: auto;
-        margin-right: 2;
-    }
-    #detail-pdf-status {
-        width: auto;
-        margin-right: 2;
-    }
-    #detail-url {
-        width: 1fr;
-        margin-left: 2;
-        color: $text-muted;
+        text-wrap: nowrap;
+        text-overflow: ellipsis;
     }
     #detail-csl-row {
         height: auto;
@@ -209,11 +249,10 @@ class EntryDetail(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="detail-meta"):
-            yield Label("", id="detail-read-state")
-            yield Label("", id="detail-priority")
-            yield Label("", id="detail-rating")
-            yield Label("", id="detail-pdf-status")
-            yield Label("", id="detail-url")
+            yield _status_label("detail-read-state", _STATUS_WIDTHS["read"])
+            yield _status_label("detail-priority", _STATUS_WIDTHS["priority"])
+            yield _status_label("detail-rating", _STATUS_WIDTHS["rating"])
+            yield _status_label("detail-pdf-status", _STATUS_WIDTHS["pdf"])
         yield Static("Select an entry to view details.", id="detail-content")
         with Vertical(id="detail-citation-panel"):
             yield Label("[bold]Citation[/bold]", id="detail-citation-title")
@@ -281,7 +320,6 @@ class EntryDetail(Widget):
         priority_label = self.query_one("#detail-priority", Label)
         rating_label = self.query_one("#detail-rating", Label)
         pdf_status_label = self.query_one("#detail-pdf-status", Label)
-        url_label = self.query_one("#detail-url", Label)
         citation_panel = self.query_one("#detail-citation-panel", Vertical)
         citation_preview_widget = self.query_one("#detail-citation-preview", Static)
         abstract_widget = self.query_one("#detail-abstract", Static)
@@ -292,7 +330,6 @@ class EntryDetail(Widget):
             priority_label.update("")
             rating_label.update("")
             pdf_status_label.update("")
-            url_label.update("")
             citation_panel.display = False
             citation_preview_widget.update("")
             abstract_widget.display = False
@@ -319,32 +356,12 @@ class EntryDetail(Widget):
             abstract_widget.display = False
             abstract_widget.update("")
 
-        state_label = e.read_state if e.read_state else "unset"
-        read_label.update(f"[bold]Read:[/bold] {e.read_state_icon} {state_label}")
-
-        if e.priority:
-            priority_label.update(
-                f"[bold]Urgency:[/bold] {e.priority_icon} {e.priority_label}"
-            )
-        else:
-            priority_label.update("[dim]Urgency: —[/dim]")
-
-        stars = e.rating_stars or "[dim]unrated[/dim]"
-        rating_label.update(f"[bold]Rating:[/bold] [{colors['warning']}]{stars}[/]")
-
-        state = pdf_link_state(e.file, e.key, self._pdf_base_dir)
-        if state == "found":
-            pdf_status_label.update("[bold]PDF:[/bold] ■ linked")
-        elif state == "missing":
-            pdf_status_label.update("[dim]PDF: □ missing[/dim]")
-        else:
-            pdf_status_label.update("[dim]PDF: — none[/dim]")
-
-        if e.url:
-            short = e.url if len(e.url) <= 34 else e.url[:31] + "…"
-            url_label.update(f"[bold]↗ URL:[/bold] {short}")
-        else:
-            url_label.update("[dim]↗ URL: —[/dim]")
+        read_label.update(_read_markup(e))
+        priority_label.update(_priority_markup(e))
+        rating_label.update(_rating_markup(e, colors["warning"]))
+        pdf_status_label.update(
+            _PDF_MARKUP[pdf_link_state(e.file, e.key, self._pdf_base_dir)]
+        )
 
         raw = self.query_one("#detail-raw", TextArea)
         if self._raw_mode:
