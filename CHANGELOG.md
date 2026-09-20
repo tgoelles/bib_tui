@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Entry viewer** — the URL is now listed with the other fields (Author, Year, Journal, DOI, URL) in full, instead of a shortened link in the status row, and there is a blank line above the title.
 - **Steadier status row** — the Read / Urgency / Rating / PDF labels above the title now have fixed widths, so they stay put while you flick through entries instead of shifting sideways as each entry's values change.
 - **Authors under the title, fixed height** — the author list moved from the field list to directly below the title and always takes exactly three lines (long lists are cut off with "…"), so the rest of the entry no longer jumps up and down as you move between entries. Authors are shown JabRef-style as `Last, First / Last, First`, with LaTeX escapes decoded (`Sch{\"o}ner` → `Schöner`) and a name never split across lines.
+- **LaTeX in the table's Author column** — the first-author surname in the entry table (and its sort order, and the PDF/.bib import reports) now shows decoded characters (`Sch{\"o}ner` → `Schöner`) instead of the raw LaTeX.
 
 ## [1.1.0] - 2026-09-14
 

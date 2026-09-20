@@ -10,12 +10,15 @@ an institution, so it is never reordered — but LaTeX escapes are decoded
 import re
 from functools import lru_cache
 
-from bibtui.bib.citation_preview import _decode_latex
+from bibtui.bib.latex import decode_latex
 
 AUTHOR_SEPARATOR = " / "
 
 _AND = re.compile(r"\s+and\s+", re.IGNORECASE)
 _COMMA = re.compile(r"\s*,\s*")
+# Only names containing these can need LaTeX decoding — skipping the decoder for
+# the rest keeps building a whole table of surnames cheap.
+_LATEX_CHARS = re.compile(r"[\\{}~]")
 
 
 def split_authors(raw: str) -> list[str]:
@@ -47,11 +50,27 @@ def split_authors(raw: str) -> list[str]:
 def _display_name(name: str) -> str:
     if name.lower() == "others":
         return "et al."
-    text = " ".join(_decode_latex(name).split())
-    return _COMMA.sub(", ", text)
+    if _LATEX_CHARS.search(name):
+        name = decode_latex(name)
+    return _COMMA.sub(", ", " ".join(name.split()))
 
 
 @lru_cache(maxsize=1024)
 def format_authors(raw: str) -> tuple[str, ...]:
     """Display names for a BibTeX author field, in order."""
     return tuple(_display_name(name) for name in split_authors(raw))
+
+
+@lru_cache(maxsize=4096)
+def first_surname(raw: str) -> str:
+    """Surname of the first author (``""`` when there is none), decoded."""
+    names = split_authors(raw)
+    if not names:
+        return ""
+    first = _display_name(names[0])
+    if first == "et al.":
+        return ""
+    if "," in first:
+        return first.split(",")[0].strip()
+    words = first.split()
+    return words[-1] if words else first

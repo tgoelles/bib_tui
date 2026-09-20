@@ -1,5 +1,6 @@
 """Layout of the entry viewer: URL lives with the other fields, title has air above."""
 
+import pytest
 from rich.text import Text
 from textual.css.query import NoMatches
 from textual.widgets import Label, Static
@@ -9,6 +10,17 @@ from bibtui.bib.models import BibEntry
 from bibtui.widgets.entry_detail import EntryDetail, _render_entry
 
 BIB = "tests/bib_examples/MyCollection.bib"
+
+
+@pytest.fixture(autouse=True)
+def _isolated_config(tmp_path, monkeypatch):
+    """Never read or write the developer's real ~/.config/bibtui/config.toml —
+    the app saves settings such as the split size and recent files."""
+    config_file = tmp_path / "config.toml"
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    config_file.write_text("[updates]\ncheck_for_updates = false\n", encoding="utf-8")
+
+
 _COLORS = {
     "title": "cyan",
     "key": "yellow",
