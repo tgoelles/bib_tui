@@ -540,7 +540,7 @@ class BibTuiApp(App):
         entry_list = self.query_one(EntryList)
         entry_list.refresh_entries(self._entries)
         self.query_one(EntryDetail).show_entry(result)
-        self.notify("Entry updated. Press [w] to write.", timeout=3)
+        self.notify("Entry updated. Press [bold]w[/bold] to write.", timeout=3)
 
     def action_new_entry(self) -> None:
         self.push_screen(NewEntryChooserModal(), self._on_new_entry_choice)
@@ -1638,4 +1638,4 @@ class BibTuiApp(App):
         self._dirty = True
         self.query_one(EntryList).refresh_entries(self._entries)
         self.query_one(EntryDetail).show_entry(entry)
-        self.notify("Keywords updated. Press [w] to write.", timeout=3)
+        self.notify("Keywords updated. Press [bold]w[/bold] to write.", timeout=3)

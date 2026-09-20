@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Authors under the title, fixed height** — the author list moved from the field list to directly below the title and always takes exactly three lines (long lists are cut off with "…"), so the rest of the entry no longer jumps up and down as you move between entries. Authors are shown JabRef-style as `Last, First / Last, First`, with LaTeX escapes decoded (`Sch{\"o}ner` → `Schöner`) and a name never split across lines.
 - **LaTeX in the table's Author column** — the first-author surname in the entry table (and its sort order, and the PDF/.bib import reports) now shows decoded characters (`Sch{\"o}ner` → `Schöner`) instead of the raw LaTeX.
 
+### Fixed
+
+- **"Press w to write" hint** — after editing an entry or its keywords, the confirmation read "Press  to write." because `[w]` was swallowed as markup; it now shows the key.
+
 ## [1.1.0] - 2026-09-14
 
 ### Added
