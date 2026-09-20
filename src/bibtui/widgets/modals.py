@@ -1735,19 +1735,6 @@ _HELP_PARTS = [
                 ],
             ),
             (
-                "Fetch PDF — sources, in order",
-                [
-                    ("1", "arXiv — arXiv DOI or arxiv.org URL"),
-                    (
-                        "2",
-                        "Unpaywall — open access by DOI (set your email in Settings)",
-                    ),
-                    ("3", "Direct URL — the entry's URL, if it points to a PDF"),
-                    (None, "Saved to the base directory from Settings."),
-                    (None, "Some publishers block automated downloads."),
-                ],
-            ),
-            (
                 "Copy",
                 [
                     (
@@ -1759,7 +1746,6 @@ _HELP_PARTS = [
                         "ctrl+y",
                         "Copy the current BibTeX entry (also ctrl+shift+c / ⌘⇧c)",
                     ),
-                    (None, "Uses the OS clipboard tool, falling back to OSC 52."),
                     (
                         None,
                         "Citation styles are loaded from ~/.config/bibtui/csl — "
