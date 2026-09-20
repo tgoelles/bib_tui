@@ -1476,9 +1476,9 @@ class ColumnConfigModal(_BaseModal["list[str] | None"]):
     """Choose which entry-table columns are shown and in what order.
 
     Configures the read-only browsing table (left pane / maximized "Max table"
-    view) — not the entry-editing forms. Space toggles a column on/off;
-    Shift+↑/↓ (or the ▲/▼ buttons) reorder the highlighted column. The result
-    is the ordered list of enabled column keys.
+    view) — not the entry-editing forms. A checklist like the keyword picker:
+    Enter/x toggle a column on/off; Shift+↑/↓ (or the ▲/▼ buttons) reorder the
+    highlighted column. The result is the ordered list of enabled column keys.
     """
 
     BINDINGS = [
@@ -1491,7 +1491,7 @@ class ColumnConfigModal(_BaseModal["list[str] | None"]):
         width: 60;
         height: 80%;
     }
-    ColumnConfigModal OptionList {
+    ColumnConfigModal SelectionList {
         height: 1fr;
         border: solid $panel;
     }
@@ -1520,10 +1520,9 @@ class ColumnConfigModal(_BaseModal["list[str] | None"]):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label("[bold]Configure Table Columns[/bold]", classes="modal-title")
-            yield OptionList(id="col-list")
+            yield PreviewSelectionList(id="col-list")
             yield Static(
-                "[dim]● shown · ○ hidden — Space toggle · Shift+↑/↓ move · "
-                "sets the entry table view[/dim]",
+                "[dim]Esc close  |  ↓/↑ navigate · Enter/x toggle · Shift+↑/↓ move[/dim]",
                 id="col-hints",
             )
             with Horizontal(classes="move-buttons"):
@@ -1536,45 +1535,31 @@ class ColumnConfigModal(_BaseModal["list[str] | None"]):
 
     def on_mount(self) -> None:
         self._rebuild(0)
-        self.call_after_refresh(self.query_one("#col-list", OptionList).focus)
+        self.call_after_refresh(self.query_one("#col-list", SelectionList).focus)
 
-    def _option_text(self, key: str) -> Text:
-        """Style a row by state: a filled marker + theme accent when shown,
-        a hollow marker + dimmed text when hidden (color *and* shape so the
-        state reads without relying on color alone)."""
-        name = self._names.get(key, key)
-        if key in self._active:
-            color = self.app.current_theme.success
-            return Text(f"● {name}", style=f"bold {color}")
-        return Text(f"○ {name}", style="dim")
+    def _sync_from_list(self) -> None:
+        """Pull the current checkbox state into self._active."""
+        selected_now = set(self.query_one("#col-list", SelectionList).selected)
+        self._active = {k for k in self._order if k in selected_now}
 
     def _rebuild(self, highlight: int) -> None:
-        ol = self.query_one("#col-list", OptionList)
-        ol.clear_options()
+        sl = self.query_one("#col-list", SelectionList)
+        sl.clear_options()
         for key in self._order:
-            ol.add_option(Option(self._option_text(key)))
+            sl.add_option(Selection(self._names.get(key, key), key, key in self._active))
         if self._order:
-            ol.highlighted = max(0, min(highlight, len(self._order) - 1))
+            sl.highlighted = max(0, min(highlight, len(self._order) - 1))
 
     @property
     def _highlighted_index(self) -> int:
-        highlighted = self.query_one("#col-list", OptionList).highlighted
+        highlighted = self.query_one("#col-list", SelectionList).highlighted
         return highlighted if highlighted is not None else -1
-
-    def _toggle(self, index: int) -> None:
-        if not 0 <= index < len(self._order):
-            return
-        key = self._order[index]
-        if key in self._active:
-            self._active.discard(key)
-        else:
-            self._active.add(key)
-        self._rebuild(index)
 
     def _move(self, index: int, delta: int) -> None:
         target = index + delta
         if not (0 <= index < len(self._order) and 0 <= target < len(self._order)):
             return
+        self._sync_from_list()
         self._order[index], self._order[target] = (
             self._order[target],
             self._order[index],
@@ -1588,10 +1573,7 @@ class ColumnConfigModal(_BaseModal["list[str] | None"]):
         self._rebuild(0)
 
     def on_key(self, event: events.Key) -> None:
-        if event.key == "space":
-            self._toggle(self._highlighted_index)
-            event.stop()
-        elif event.key == "shift+up":
+        if event.key == "shift+up":
             self._move(self._highlighted_index, -1)
             event.stop()
         elif event.key == "shift+down":
@@ -1612,6 +1594,7 @@ class ColumnConfigModal(_BaseModal["list[str] | None"]):
             self._reset()
 
     def _save(self) -> None:
+        self._sync_from_list()
         chosen = [k for k in self._order if k in self._active]
         if not chosen:
             self.app.notify("Select at least one column.", severity="warning")

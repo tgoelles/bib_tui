@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Sort order is remembered** — the column you sorted by (and its direction) is saved to `config.toml` and restored on the next start. The default is now **Added**, newest first, instead of file order. The sort also keeps applying if you hide its column.
 - **Reorganized `?` help screen** — grouped into Keybindings, Search & filters (search syntax and saved filters together) and Command palette, with clearly separated headings, wrapped lines that hang under the description column, and a much shorter Filters section.
+- **Column picker matches the keyword picker** — columns are now a checklist toggled with <kbd>Enter</kbd> / <kbd>x</kbd> (Space no longer toggles), with a hint line in the same style as the other dialogs.
 
 ## [1.1.0] - 2026-09-14
 
