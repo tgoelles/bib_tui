@@ -3710,12 +3710,17 @@ class FilePickerModal(_BaseModal["str | None"]):
             with Horizontal(classes="modal-buttons"):
                 yield Button("Cancel", id="btn-cancel")
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         if self._recent:
             lv = self.query_one("#fp-recent-list", ListView)
-            for path_str in self._recent:
-                p = Path(path_str)
-                lv.append(ListItem(Label(f"{p.name}  [dim]{p.parent}[/dim]")))
+            await lv.extend(
+                ListItem(Label(f"{Path(r).name}  [dim]{Path(r).parent}[/dim]"))
+                for r in self._recent
+            )
+            # Recent files are newest first: pre-select the last one used so
+            # Enter reopens it.
+            lv.index = 0
+            lv.focus()
 
     @on(ListView.Selected, "#fp-recent-list")
     def on_recent_selected(self, event: ListView.Selected) -> None:
