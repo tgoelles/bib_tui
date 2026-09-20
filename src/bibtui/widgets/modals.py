@@ -1,5 +1,6 @@
 import copy
 import re
+import textwrap
 import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
@@ -8,6 +9,7 @@ from typing import TypeVar
 from rich.text import Text
 
 from textual import events, on, work
+from textual.actions import SkipAction
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -1623,219 +1625,334 @@ class ColumnConfigModal(_BaseModal["list[str] | None"]):
         self.dismiss(None)
 
 
-# Layout constants for the keybindings reference. Keys are rendered in a
-# fixed-width gutter so every description starts at the same column regardless
-# of how long the key combo is.
-_HELP_KEY_WIDTH = 12
-_HELP_GAP = 1
-_HELP_DESC_INDENT = 2 + _HELP_KEY_WIDTH + _HELP_GAP
-_HELP_HEADER_WIDTH = 50
+# Layout constants for the help reference. Inside a section, keys are rendered
+# in a fixed-width gutter (as wide as the section's longest key, at least
+# _HELP_KEY_MIN) so every description starts at the same column; long
+# descriptions wrap with a hanging indent under that column.
+_HELP_KEY_MIN = 12
+_HELP_GAP = 2
+_HELP_INDENT = 2
+_HELP_HEADER_WIDTH = 60
+# Widest a rendered line may be: the 90-cell dialog minus border, padding and
+# the scrollbar.
+_HELP_WRAP_WIDTH = 80
 
-# Each section is (title, items). An item is one of:
+# The help screen is a list of parts (big banner headings), each holding
+# sections. A section is (title, items). An item is one of:
 #   (key, desc)      -> a key row (key rendered bold in the gutter)
 #   (None, note)     -> a dim note, aligned under the description column
 #   (line,)          -> a free-form line (markup allowed), indented 2 spaces
-_HELP_SECTIONS = [
+_HELP_PARTS = [
     (
-        "Core",
+        "Keybindings",
         [
-            ("q", "Quit"),
-            ("w", "Write"),
-            ("s", "Search"),
-            ("f", "Filters — pick, save, edit or delete a saved filter"),
-            ("e", "Edit entry (field form or raw BibTeX)"),
-            ("k", "Edit keywords"),
-            ("m", "Maximize/restore table pane"),
-            (None, "Press m again to restore split view."),
-            ("< / >", "Grow / shrink the detail pane (5% steps, saved)"),
-            ("v", "Toggle raw / formatted view"),
-        ],
-    ),
-    (
-        "Copy",
-        [
-            ("ctrl+c / ⌘c", "Copy selected text (or cite key if none focused)"),
-            (None, "Copy uses the OS clipboard tool, falling back to OSC 52"),
-            (None, "Default copy variant for entries: cite key"),
-            ("Shift+c", "Copy formatted citation (current citation style)"),
-            (None, "Alternative copy variant: rendered citation text"),
-            (None, "Citation styles are loaded from ~/.config/bibtui/csl"),
-            (None, "Add more styles: github.com/citation-style-language/styles"),
-            ("ctrl+y", "Copy current BibTeX entry"),
-            (None, "Also: ctrl+shift+c / ⌘⇧c (terminal-dependent)"),
             (
-                None,
-                "⌘ shortcuts need a Kitty-protocol terminal — see Keybindings "
-                "in the online docs for details",
+                "General",
+                [
+                    ("?", "Show this help"),
+                    ("ctrl+d", "Open the online documentation in your browser"),
+                    ("ctrl+p / ⌘p", "Command palette (settings, library actions)"),
+                    ("w", "Write the .bib file"),
+                    ("q", "Quit"),
+                    ("Esc", "Clear the search / close a modal"),
+                    (None, "In every modal: Ctrl+S / ⌘S saves, Esc cancels."),
+                ],
+            ),
+            (
+                "Table & layout",
+                [
+                    ("m", "Maximize / restore the table pane"),
+                    ("< / >", "Grow / shrink the detail pane (5% steps, saved)"),
+                    ("v", "Toggle raw / formatted view"),
+                    ("Click header", "Sort by that column; click again to reverse"),
+                    (None, "Default is Added, newest first. Your sort is remembered."),
+                    (
+                        None,
+                        "The sorted column is marked ▲ (ascending) or ▼ (descending).",
+                    ),
+                    (
+                        None,
+                        "Default columns: ◉ state, ! prio, ◫ PDF, ↗ URL, Type, Year, "
+                        "Author, Journal, Title, Added, ★. Change them via "
+                        "Ctrl+P → Table: Configure columns.",
+                    ),
+                ],
+            ),
+            (
+                "Entries",
+                [
+                    ("e", "Edit entry (field form or raw BibTeX)"),
+                    ("k", "Edit keywords"),
+                    ("Del / ⌫", "Delete the selected entry (asks first)"),
+                    ("r", "Cycle read state"),
+                    ("u", "Cycle urgency"),
+                    ("1 – 5", "Set star rating"),
+                    ("0", "Mark unrated"),
+                    ("b", "Open URL in browser (http/https only)"),
+                    ("Shift+b", "Search OpenAlex (title first, then DOI)"),
+                ],
+            ),
+            (
+                "Add entry — press n, then",
+                [
+                    ("m", "Fill out manually — pick a type, fill in the fields"),
+                    ("d", "Import by DOI — fetches metadata online"),
+                    (
+                        "p",
+                        "Import from PDF — finds a DOI/arXiv id and reports the "
+                        "outcome per file before writing anything",
+                    ),
+                    (
+                        "b",
+                        "Import a .bib file — one entry is added directly, several "
+                        "show a report first",
+                    ),
+                    ("v", "Paste BibTeX from the clipboard"),
+                    (None, "Duplicate cite keys are always rejected."),
+                    ("ctrl+v", "Anywhere: a pasted BibTeX entry is detected"),
+                ],
+            ),
+            (
+                "PDFs",
+                [
+                    ("␣", "Show PDF"),
+                    ("p", "PDF actions menu (below)"),
+                ],
+            ),
+            (
+                "PDF actions — press p, then",
+                [
+                    ("o", "Open the linked PDF"),
+                    ("f", "Fetch the open-access PDF automatically"),
+                    ("a", "Add — link an existing PDF from disk"),
+                    ("c", "Copy the PDF file to the clipboard"),
+                    ("p", "Copy the file's path as text"),
+                    ("d", "Delete the file and unlink it"),
+                    (
+                        None,
+                        "Actions that don't fit the entry's PDF state are grayed out.",
+                    ),
+                ],
+            ),
+            (
+                "Fetch PDF — sources, in order",
+                [
+                    ("1", "arXiv — arXiv DOI or arxiv.org URL"),
+                    (
+                        "2",
+                        "Unpaywall — open access by DOI (set your email in Settings)",
+                    ),
+                    ("3", "Direct URL — the entry's URL, if it points to a PDF"),
+                    (None, "Saved to the base directory from Settings."),
+                    (None, "Some publishers block automated downloads."),
+                ],
+            ),
+            (
+                "Copy",
+                [
+                    (
+                        "ctrl+c / ⌘c",
+                        "Copy selected text, or the cite key if none focused",
+                    ),
+                    ("Shift+c", "Copy formatted citation (current citation style)"),
+                    (
+                        "ctrl+y",
+                        "Copy the current BibTeX entry (also ctrl+shift+c / ⌘⇧c)",
+                    ),
+                    (None, "Uses the OS clipboard tool, falling back to OSC 52."),
+                    (
+                        None,
+                        "Citation styles are loaded from ~/.config/bibtui/csl — "
+                        "more at github.com/citation-style-language/styles.",
+                    ),
+                    (
+                        None,
+                        "⌘ shortcuts need a Kitty-protocol terminal — see "
+                        "Keybindings in the online docs.",
+                    ),
+                ],
+            ),
+            (
+                "Keywords modal — press k",
+                [
+                    ("Enter", "Add the typed keyword (while the filter is focused)"),
+                    (
+                        "Enter / x",
+                        "Toggle the highlighted keyword (while the list is focused)",
+                    ),
+                    ("⌫", "Delete the highlighted keyword from all entries"),
+                    ("↓ / ↑", "Move between filter and list"),
+                ],
             ),
         ],
     ),
     (
-        "Add new entry",
+        "Search & filters",
         [
-            ("n", "New entry — choose how:"),
-            (None, "  m  Fill out manually — pick a type, fill in the fields"),
-            (None, "  d  Import by DOI — fetches metadata online"),
-            (None, "  p  Import from PDF — finds a DOI/arXiv id, reports the"),
-            (None, "     outcome per file before writing anything"),
-            (None, "  b  Import .bib File — one entry is added directly;"),
-            (None, "     several show a report, DOI duplicates are skipped"),
-            (None, "  v  Paste BibTeX — from clipboard"),
-            (None, "All methods reject duplicate cite keys."),
-            ("ctrl+v", "Also auto-detects a pasted BibTeX entry anywhere"),
-        ],
-    ),
-    (
-        "Delete entry",
-        [
-            ("Del / ⌫", "Delete the selected entry (confirmation required)"),
-        ],
-    ),
-    (
-        "Keywords modal",
-        [
-            ("Enter", "Add the typed keyword (while the filter is focused)"),
-            ("Enter / x", "Toggle the highlighted keyword (while the list is focused)"),
-            ("⌫", "Delete highlighted keyword from all entries"),
-            ("↓ / ↑", "Move between filter and list"),
-        ],
-    ),
-    (
-        "Filters modal",
-        [
-            ("0", "Select 'All entries' (clears the active filter)"),
-            ("1 – 9", "Jump straight to that saved filter"),
-            ("Enter", "Select the highlighted row"),
-            ("w", "Write the current search as a new (or updated) filter"),
-            (None, "An existing name updates that filter — confirmed first."),
-            ("e", "Edit the highlighted filter's name/query"),
-            (None, "Renaming onto another filter's name also confirms first."),
-            ("d", "Delete the highlighted filter (confirmation required)"),
-            (None, "Deleting always drops back to 'All entries', even if"),
-            (None, "the deleted filter wasn't the active one."),
-            (None, "'All entries' (row 0) can't be deleted."),
-            (None, "The active filter is marked ● and highlighted on open."),
             (
-                None,
-                "A filter narrows the library; the search box then refines "
-                "further within it.",
-            ),
-            (None, "Esc in the main view clears only the search — the active"),
-            (None, "filter stays on until you pick a different one here."),
-        ],
-    ),
-    (
-        "Entry state",
-        [
-            ("r", "Cycle read state"),
-            ("u", "Cycle urgency"),
-            ("␣", "Show PDF"),
-            ("b", "Open URL in browser (validates http/https)"),
-            ("Shift+b", "Search OpenAlex (title first, then DOI)"),
-        ],
-    ),
-    (
-        "PDF actions",
-        [
-            ("p", "PDF actions — choose:"),
-            (None, "  o  Open — open the linked PDF"),
-            (None, "  f  Fetch — download the open-access PDF automatically"),
-            (None, "  a  Add — link an existing PDF from disk"),
-            (None, "  c  Copy PDF — copy the file to the clipboard"),
-            (None, "  p  Copy path — copy the file's path as text"),
-            (None, "  d  Delete — remove the file and unlink it"),
-            (None, "Actions that don't apply to the entry's current PDF state are grayed out."),
-        ],
-    ),
-    (
-        "Fetch PDF",
-        [
-            ("Sources tried in order:",),
-            ("[bold]1.[/bold] arXiv      — arXiv DOI or arxiv.org URL",),
-            ("[bold]2.[/bold] Unpaywall  — OA by DOI (set email in Ctrl+P)",),
-            ("[bold]3.[/bold] Direct URL — entry URL pointing to a PDF",),
-            ("PDF saved to base directory from Settings.",),
-            ("[dim]Some publishers block automated downloads.[/dim]",),
-        ],
-    ),
-    (
-        "Library actions",
-        [
-            ("ctrl+p / ⌘p", "Open command palette"),
-            ("[bold]Table: Configure columns[/bold]",),
-            (None, "Choose which columns show and their order; saved to config."),
-            ("[bold]Library: Fetch missing PDFs[/bold]",),
-            (None, "Shows a toggle for: Overwrite broken links."),
-            ("[bold]Library: Unify citekeys (AuthorYear)[/bold]",),
-            (None, "Entries already matching AuthorYear are left unchanged."),
-            (None, "Changing citekeys may break existing LaTeX documents."),
-            ("[bold]Check for updates[/bold]",),
-            (None, "Checks PyPI for a newer bibtui release."),
-        ],
-    ),
-    (
-        "Rating",
-        [
-            ("1 – 5", "Set star rating"),
-            ("0", "Mark unrated"),
-        ],
-    ),
-    (
-        "Other",
-        [
-            ("?", "Show this help"),
-            ("ctrl+d", "Open the online documentation in your browser"),
-            ("ctrl+p / ⌘p", "Command palette (Settings + Library actions)"),
-            ("maximize", "(palette) maximize focused pane"),
-            ("Esc", "Clear search / close modal"),
-            (None, "In all modals: Ctrl+S / ⌘S = Write/Save, Esc = Cancel"),
-        ],
-    ),
-    (
-        "Sorting",
-        [
-            ("Click any column header to sort by that column.",),
-            ("Click the same header again to reverse the order.",),
-            ("The default is Added, newest first; your sort is remembered.",),
-            (
-                "Active sort column is marked with "
-                "[bold]▲[/bold] (asc) or [bold]▼[/bold] (desc).",
+                "Search — press s",
+                [
+                    ("s", "Focus the search box"),
+                    ("Esc", "Clear the search (the active filter stays on)"),
+                    (
+                        None,
+                        "Plain text searches title, author, keywords and key. "
+                        "Several terms are ANDed (writing AND is optional). "
+                        'Quote a value with spaces: k:"sea ice".',
+                    ),
+                ],
             ),
             (
-                "Default cols: [bold]◉[/bold] state  [bold]![/bold] prio  "
-                "[bold]◫[/bold] PDF  [bold]↗[/bold] URL  Type  Year  "
-                "Author  Journal  Title  Added  [bold]★[/bold]",
+                "Field prefixes",
+                [
+                    ("a: / author:", "Filter by author"),
+                    ("t: / title:", "Filter by title"),
+                    ("j: / journal:", "Filter by journal"),
+                    ("k: / kw:", "Filter by keyword"),
+                    ("y: / year:", "Filter by year, range or comparison"),
+                    ("u: / url:", "Filter by URL"),
+                    ("c: / citekey:", "Filter by cite key"),
+                    ("r: / state:", "Filter by read state"),
+                    ("pr: / urgency:", "Filter by urgency"),
+                ],
             ),
             (
-                "[dim]Customize via Ctrl+P → Table: Configure columns.[/dim]",
+                "Year filters",
+                [
+                    ("y:2015-2023", "Closed range"),
+                    ("y:2015-", "2015 or later"),
+                    ("y:-2015", "Up to 2015"),
+                    ("y:>2015", "Greater than (>= for or equal)"),
+                    ("y:<2015", "Less than (<= for or equal)"),
+                ],
+            ),
+            (
+                "Examples",
+                [
+                    ("glacier", "All fields"),
+                    ("a:smith t:glacier", "Combined"),
+                    ("j:nature AND y:2025", "Journal + year"),
+                    ("k:ice a:jones", "Keyword + author"),
+                    ("c:smith2020", "Exact cite key"),
+                    ("r:to-read", "Entries still to read"),
+                    ("pr:high", "High-urgency entries"),
+                ],
+            ),
+            (
+                "Saved filters — press f",
+                [
+                    ("f", "Open Filters: a named search you can jump back to"),
+                    ("0", "Select 'All entries' (clears the active filter)"),
+                    ("1 – 9", "Jump straight to that saved filter"),
+                    ("Enter", "Select the highlighted row"),
+                    ("w", "Write the current search as a filter"),
+                    ("e", "Edit the highlighted filter's name/query"),
+                    ("d", "Delete the highlighted filter (asks first)"),
+                    (None, "Overwriting or renaming onto an existing name asks first."),
+                    (
+                        None,
+                        "The active filter is marked ●. The search box refines "
+                        "further within it; Esc clears only the search.",
+                    ),
+                ],
+            ),
+        ],
+    ),
+    (
+        "Command palette (Ctrl+P)",
+        [
+            (
+                "Library actions",
+                [
+                    ("[bold]Table: Configure columns[/bold]",),
+                    (
+                        None,
+                        "Choose which columns show and their order; saved to config.",
+                    ),
+                    ("[bold]Library: Fetch missing PDFs[/bold]",),
+                    (None, "Has a toggle for overwriting broken links."),
+                    ("[bold]Library: Unify citekeys (AuthorYear)[/bold]",),
+                    (
+                        None,
+                        "Entries already matching AuthorYear are left unchanged. "
+                        "Changing citekeys may break existing LaTeX documents.",
+                    ),
+                    ("[bold]Check for updates[/bold]",),
+                    (None, "Checks PyPI for a newer bibtui release."),
+                ],
             ),
         ],
     ),
 ]
 
 
-def _build_help_keys() -> str:
-    """Render the keybindings reference with a consistent key/description column."""
+def _wrap(text: str, indent: int) -> list[str]:
+    """Wrap *text* to the help width, hanging every line at column *indent*."""
+    pad = " " * indent
+    return textwrap.wrap(
+        text,
+        width=_HELP_WRAP_WIDTH,
+        initial_indent=pad,
+        subsequent_indent=pad,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+
+
+def _build_help_section(title: str, items: list[tuple]) -> list[str]:
+    """Render one help section as markup lines."""
+    keys = [len(item[0]) for item in items if len(item) == 2 and item[0] is not None]
+    key_width = max([_HELP_KEY_MIN, *keys])
+    desc_indent = _HELP_INDENT + key_width + _HELP_GAP
+    dashes = "─" * max(3, _HELP_HEADER_WIDTH - len(title) - 4)
+    lines = [f"[bold]── {title} {dashes}[/bold]"]
+    for item in items:
+        if len(item) == 1:
+            lines.append(" " * _HELP_INDENT + item[0])
+        elif item[0] is None:
+            lines += [f"[dim]{line}[/dim]" for line in _wrap(item[1], desc_indent)]
+        else:
+            key, desc = item
+            wrapped = _wrap(desc, desc_indent)
+            # Put the bold key in the gutter of the first wrapped line.
+            first = wrapped[0][desc_indent:]
+            lead = " " * _HELP_INDENT + f"[bold]{key}[/bold]"
+            gap = " " * (desc_indent - _HELP_INDENT - len(key))
+            lines.append(lead + gap + first)
+            lines += wrapped[1:]
+    return lines
+
+
+def _build_help_part(sections: list[tuple[str, list[tuple]]]) -> str:
+    """Render one help part: its sections separated by a blank line."""
     lines: list[str] = []
-    for index, (title, items) in enumerate(_HELP_SECTIONS):
+    for index, (title, items) in enumerate(sections):
         if index:
             lines.append("")
-        dashes = "─" * max(3, _HELP_HEADER_WIDTH - len(title) - 4)
-        lines.append(f"[bold]── {title} {dashes}[/bold]")
-        for item in items:
-            if len(item) == 1:
-                lines.append("  " + item[0])
-            elif item[0] is None:
-                lines.append(" " * _HELP_DESC_INDENT + f"[dim]{item[1]}[/dim]")
-            else:
-                key, desc = item
-                pad = _HELP_KEY_WIDTH + _HELP_GAP - len(key)
-                lines.append("  " + f"[bold]{key}[/bold]" + " " * pad + desc)
+        lines += _build_help_section(title, items)
     return "\n".join(lines)
 
 
+class _InstantScroll(VerticalScroll):
+    """A scroll container whose arrow keys move one line at a time, instantly.
+
+    Textual animates every arrow-key step by default; holding the key restarts
+    that ease-in animation on each repeat, which makes long text stutter.
+    """
+
+    def action_scroll_up(self) -> None:
+        if not self.allow_vertical_scroll:
+            raise SkipAction()
+        self.scroll_up(animate=False)
+
+    def action_scroll_down(self) -> None:
+        if not self.allow_vertical_scroll:
+            raise SkipAction()
+        self.scroll_down(animate=False)
+
+
 class HelpModal(_BaseModal[None]):
-    """Keybinding reference overlay."""
+    """Keybinding and search-syntax reference overlay."""
 
     BINDINGS = [
         Binding("escape", "dismiss_help", "Close", show=False),
@@ -1845,8 +1962,16 @@ class HelpModal(_BaseModal[None]):
     HelpModal > Vertical {
         width: 90; height: 80%;
     }
-    HelpModal VerticalScroll { height: 1fr; }
+    HelpModal _InstantScroll { height: 1fr; }
     HelpModal #help-about { margin-bottom: 1; color: $text-muted; }
+    HelpModal .help-part {
+        width: 100%;
+        margin: 1 0;
+        padding: 0 1;
+        background: $accent;
+        color: $text;
+        text-style: bold;
+    }
     """
 
     def _make_about(self) -> str:
@@ -1863,55 +1988,14 @@ class HelpModal(_BaseModal[None]):
             "[dim]Repo:[/dim]   https://github.com/tgoelles/bib_tui"
         )
 
-    _SEARCH = """\
-[bold]── Plain text ────────────────────────[/bold]
-  Searches title, author, keywords, and key.
-  Multiple tokens are ANDed (AND keyword optional).
-  Quote a value to include a space: [dim]k:"sea ice"[/dim]
-
-[bold]── Field prefixes ────────────────────[/bold]
-  [bold]a:[/bold] / [bold]author:[/bold]      filter by author
-  [bold]t:[/bold] / [bold]title:[/bold]       filter by title
-  [bold]j:[/bold] / [bold]journal:[/bold]     filter by journal
-  [bold]k:[/bold] / [bold]kw:[/bold]          filter by keyword
-  [bold]y:[/bold] / [bold]year:[/bold]        filter by year, range or comparison
-  [bold]u:[/bold] / [bold]url:[/bold]         filter by URL
-  [bold]c:[/bold] / [bold]citekey:[/bold]     filter by cite key
-  [bold]r:[/bold] / [bold]state:[/bold]       filter by read state
-  [bold]pr:[/bold] / [bold]urgency:[/bold]    filter by urgency
-
-[bold]── Year filters ──────────────────────[/bold]
-  [dim]y:2015-2023[/dim]                closed range
-  [dim]y:2015-[/dim]                    2015 or later
-  [dim]y:-2015[/dim]                    up to 2015
-  [dim]y:>2015[/dim] / [dim]y:>=2015[/dim]        greater than / or equal
-  [dim]y:<2015[/dim] / [dim]y:<=2015[/dim]        less than / or equal
-
-[bold]── Examples ──────────────────────────[/bold]
-  [dim]glacier[/dim]                    all fields
-  [dim]a:smith t:glacier[/dim]          combined
-  [dim]j:nature AND y:2025[/dim]        journal + year
-  [dim]k:ice a:jones[/dim]              keyword + author
-  [dim]c:smith2020[/dim]                exact cite key search
-  [dim]r:to-read[/dim]                  entries still to read
-  [dim]pr:high[/dim]                    high-urgency entries
-
-[bold]── Saved filters ─────────────────────[/bold]
-  Press [bold]f[/bold] to open Filters — a permanent, named search you can
-  jump back to. Type a search, press [bold]f[/bold] then [bold]w[/bold] to
-  write it as a filter, then pick it by number any time. The search box
-  then refines further inside the active filter; Esc clears only the
-  search, not the filter."""
-
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label("[bold]Help[/bold]", classes="modal-title")
-            with VerticalScroll():
+            with _InstantScroll():
                 yield Static(self._make_about(), id="help-about")
-                yield Label("[bold]Keybindings[/bold]", classes="modal-title")
-                yield Static(_build_help_keys())
-                yield Label("[bold]Search syntax[/bold]", classes="modal-title")
-                yield Static(self._SEARCH)
+                for part_title, sections in _HELP_PARTS:
+                    yield Label(part_title, classes="help-part")
+                    yield Static(_build_help_part(sections))
             with Horizontal(classes="modal-buttons"):
                 yield Button("Close", variant="primary", id="btn-close")
 
