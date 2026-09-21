@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Sort order is remembered** — the column you sorted by (and its direction) is saved to `config.toml` and restored on the next start. The default is now **Added**, newest first, instead of file order. The sort also keeps applying if you hide its column.
+- **Reorganized `?` help screen** — grouped into Keybindings, Search & filters (search syntax and saved filters together) and Command palette, with clearly separated headings, wrapped lines that hang under the description column, and a much shorter Filters section.
+- **Column picker matches the keyword picker** — columns are now a checklist toggled with <kbd>Enter</kbd> / <kbd>x</kbd> (Space no longer toggles), with a hint line in the same style as the other dialogs.
+- **Entry viewer** — the URL is now listed with the other fields (Author, Year, Journal, DOI, URL) instead of as a shortened link in the status row, and there is a blank line above the title. URLs — including ones in *Other fields*, such as `bdsk-url-1` — stay on a single line, cut with "…" when the detail pane is too narrow to show them whole, rather than wrapping onto the next line.
+- **Steadier status row** — the Read / Urgency / Rating / PDF labels above the title now have fixed widths, so they stay put while you flick through entries instead of shifting sideways as each entry's values change. In a narrow detail pane the four labels stack into two rows rather than running off the edge.
+- **Authors under the title, fixed height** — the author list moved from the field list to directly below the title and always takes exactly three lines (long lists are cut off with "…"), so the rest of the entry no longer jumps up and down as you move between entries. Authors are shown JabRef-style as `Last, First / Last, First`, with LaTeX escapes decoded (`Sch{\"o}ner` → `Schöner`) and names kept whole on one line wherever they fit.
+- **LaTeX in the table's Author column** — the first-author surname in the entry table (and its sort order, and the PDF/.bib import reports) now shows decoded characters (`Sch{\"o}ner` → `Schöner`) instead of the raw LaTeX.
+- **Start-up file picker preselects your last file** — when you launch bibtui without a file, the most recently opened one is already highlighted, so <kbd>Enter</kbd> reopens it.
+
+- **LaTeX in abstracts is rendered** — abstracts now show `±`, `μ`, `∼` and `°` instead of `$\pm$`, `\ensuremath{\mu}`, `$\sim$` and `$^{\circ}$`, and `--` becomes a proper en dash. The same decoding already applied to author names now also covers maths and spacing macros, so titles and citation previews improve too.
+- **Roomier entry viewer** — the text now keeps clear of the scroll bar instead of running right up against it, the abstract wraps to the width of the pane (it used to wrap at a fixed column and then get folded a second time, leaving every other line hanging at the left margin), and the rule under the fields spans the pane.
+
+### Fixed
+
+- **"Press w to write" hint** — after editing an entry or its keywords, the confirmation read "Press  to write." because `[w]` was swallowed as markup; it now shows the key.
+- **Square brackets in abstracts** — an abstract containing something like `[1]` or `[Ca2+]` had it silently swallowed as markup; it now shows literally.
+
 ## [1.1.0] - 2026-09-14
 
 ### Added

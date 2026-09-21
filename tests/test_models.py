@@ -52,6 +52,30 @@ def test_authors_short_unknown_when_empty() -> None:
     assert e.authors_short == "Unknown"
 
 
+def test_authors_short_decodes_latex() -> None:
+    e = BibEntry(key="k", entry_type="article", author='Sch{\\"o}ner, Wolfgang and X, Y')
+    assert e.authors_short == "Schöner"
+
+
+def test_authors_short_decodes_latex_without_a_comma() -> None:
+    e = BibEntry(key="k", entry_type="article", author="Wolfgang Mo{\\v{c}}nik")
+    assert e.authors_short == "Močnik"
+
+
+def test_authors_short_drops_braces_around_an_institution() -> None:
+    e = BibEntry(key="k", entry_type="article", author="{World Health Organization}")
+    assert e.authors_short == "Organization"
+
+
+def test_authors_short_respects_and_inside_braces() -> None:
+    e = BibEntry(key="k", entry_type="article", author="{Barnes and Noble}, Inc")
+    assert e.authors_short == "Barnes and Noble"
+
+
+def test_authors_short_unknown_for_only_et_al() -> None:
+    assert BibEntry(key="k", entry_type="article", author="others").authors_short == "Unknown"
+
+
 # ---------------------------------------------------------------------------
 # title_short
 # ---------------------------------------------------------------------------

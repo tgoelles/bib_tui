@@ -43,15 +43,15 @@ columns.
 
 | Key                                          | Action                                |
 | -------------------------------------------- | ------------------------------------- |
-| <kbd>Space</kbd>                             | Show / hide the highlighted column    |
+| <kbd>Enter</kbd> / <kbd>x</kbd>              | Show / hide the highlighted column    |
 | <kbd>Shift</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd> | Move the highlighted column up / down |
 | **▲ / ▼** buttons                            | Move the highlighted column up / down |
 | **Reset**                                    | Restore the default layout            |
 | <kbd>Ctrl</kbd>+<kbd>S</kbd>                 | Save                                  |
 
-Shown columns are marked with a filled `●` in the theme's accent colour; hidden
-ones are dimmed. Your layout is saved to `config.toml` (under
-`[ui] table_columns`) and applied immediately, so it persists across restarts.
+Shown columns are ticked with an `X`, like in the keyword picker. Your layout
+is saved to `config.toml` (under `[ui] table_columns`) and applied immediately,
+so it persists across restarts.
 The **Title** column always stretches to fill the remaining width — it's widest
 in the maximized *Max table* view (<kbd>m</kbd>).
 

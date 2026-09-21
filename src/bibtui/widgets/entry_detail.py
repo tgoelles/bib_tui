@@ -1,30 +1,172 @@
+import textwrap
+
 from rich.syntax import Syntax
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.markup import escape
 from textual.widget import Widget
 from textual.widgets import Label, Select, Static, TextArea
 
+from bibtui.bib.authors import AUTHOR_SEPARATOR, format_authors
+from bibtui.bib.latex import decode_latex
 from bibtui.bib.citation_preview import (
     available_csl_styles,
     default_csl_style_key,
     render_citation_preview,
 )
-from bibtui.bib.models import BibEntry
+from bibtui.bib.models import PRIORITIES, READ_STATES, BibEntry
 from bibtui.bib.parser import entry_to_bibtex_str
 from bibtui.pdf.paths import pdf_link_state
 
 
-def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
+def _read_markup(entry: BibEntry) -> str:
+    return f"[bold]Read:[/bold] {entry.read_state_icon} {entry.read_state or 'unset'}"
+
+
+def _priority_markup(entry: BibEntry) -> str:
+    if entry.priority:
+        return f"[bold]Urgency:[/bold] {entry.priority_icon} {entry.priority_label}"
+    return "[dim]Urgency: —[/dim]"
+
+
+def _rating_markup(entry: BibEntry, color: str) -> str:
+    stars = entry.rating_stars or "[dim]unrated[/dim]"
+    return f"[bold]Rating:[/bold] [{color}]{stars}[/]"
+
+
+_PDF_MARKUP = {
+    "found": "[bold]PDF:[/bold] ■ linked",
+    "missing": "[dim]PDF: □ missing[/dim]",
+    "none": "[dim]PDF: — none[/dim]",
+}
+
+
+def _status_widths() -> dict[str, int]:
+    """Cell width each status-row label needs for its widest possible text.
+
+    The labels get these as fixed widths so the row keeps the same horizontal
+    layout while flicking through entries, instead of every label resizing to
+    its current text and shoving the ones after it sideways.
+    """
+
+    def widest(markups) -> int:
+        return max(Text.from_markup(m).cell_len for m in markups)
+
+    def probe(**fields) -> BibEntry:
+        return BibEntry(key="", entry_type="", **fields)
+
+    return {
+        "read": widest(_read_markup(probe(read_state=s)) for s in READ_STATES),
+        "priority": widest(_priority_markup(probe(priority=p)) for p in PRIORITIES),
+        "rating": widest(_rating_markup(probe(rating=r), "white") for r in range(6)),
+        "pdf": widest(_PDF_MARKUP.values()),
+    }
+
+
+_STATUS_WIDTHS = _status_widths()
+
+# The status labels in row order, as (widget id, key into _STATUS_WIDTHS).
+_STATUS_LABELS = (
+    ("detail-read-state", "read"),
+    ("detail-priority", "priority"),
+    ("detail-rating", "rating"),
+    ("detail-pdf-status", "pdf"),
+)
+
+# Cells the one-line row needs: every label at its fixed width plus the 2-cell
+# margin after it. The fixed widths keep the row from shifting about as values
+# change, but they also stop it shrinking, so in a pane narrower than this the
+# last labels would be pushed outside the pane and vanish. Below this width the
+# row stacks into a 2x2 grid instead — see `_apply_status_layout`.
+_STATUS_ROW_WIDTH = sum(_STATUS_WIDTHS.values()) + 2 * len(_STATUS_WIDTHS)
+
+
+def _status_label(widget_id: str, width: int) -> Label:
+    label = Label("", id=widget_id)
+    label.styles.width = width
+    return label
+
+
+# The author block under the title is always this many lines tall, so a long
+# author list can't push everything below it around while flicking through
+# entries.
+_AUTHOR_LINES = 3
+_NBSP = "\u00a0"
+_DEFAULT_CONTENT_WIDTH = 60
+
+# Breathing room between the text and the scroll bar. The pane's own padding
+# sits outside the scroll bar, so without this the longest line of every entry
+# ends up jammed against it. Keep in step with the `padding-right` on the
+# scrollable children in `EntryDetail.DEFAULT_CSS`.
+_SCROLLBAR_GUTTER = 2
+
+# Width of the field-name gutter in the detail body, before the value starts.
+_FIELD_LABEL_WIDTH = 12
+
+# A wrapped URL is unreadable and can't be clicked anyway, so URL-valued fields
+# are cut to one line with an ellipsis instead of flowing on to the next line.
+_URL_PREFIXES = ("http://", "https://", "ftp://", "ftps://", "www.")
+
+
+def _is_url(value: str) -> bool:
+    return value.lower().startswith(_URL_PREFIXES)
+
+
+def _one_line(value: str, width: int) -> str:
+    """*value* cut to *width* cells with a trailing "\u2026" so it never wraps."""
+    if width < 2:
+        return "\u2026"
+    if len(value) <= width:
+        return value
+    return value[: width - 1] + "\u2026"
+
+
+def _author_lines(author: str, width: int) -> list[str]:
+    """Markup lines for the author block: exactly ``_AUTHOR_LINES`` tall.
+
+    Shown JabRef-style as ``Last, First / Last, First`` and wrapped to *width*
+    without ever splitting a name across lines; anything past the last line is
+    cut off with "…", and a shorter list is padded with blank lines.
+    """
+    names = format_authors(author)
+    if not names:
+        return ["[dim](no author)[/dim]"] + [""] * (_AUTHOR_LINES - 1)
+    width = max(width, 10)
+    # Each name (plus its trailing separator) is glued into one unbreakable
+    # word with non-breaking spaces, unless it is too wide to fit a line.
+    sep = AUTHOR_SEPARATOR.strip()
+    tokens = [f"{name} {sep}" for name in names[:-1]] + [names[-1]]
+    words = [t if len(t) > width else t.replace(" ", _NBSP) for t in tokens]
+    wrapped = textwrap.wrap(
+        " ".join(words),
+        width=width,
+        max_lines=_AUTHOR_LINES,
+        placeholder=" …",
+        break_on_hyphens=False,
+    )
+    lines = [escape(line.replace(_NBSP, " ")) for line in wrapped]
+    return lines + [""] * (_AUTHOR_LINES - len(lines))
+
+
+def _render_entry(
+    entry: BibEntry,
+    colors: dict[str, str],
+    content_width: int = _DEFAULT_CONTENT_WIDTH,
+) -> str:
     """Build a Rich-formatted string for the main body of the detail pane.
 
     *colors* is a dict with keys: title, key, required, optional, tag_fg,
     tag_bg, warning.  Values are Rich-compatible color strings (hex or names).
+    *content_width* is the pane's usable width: the author block wraps to it
+    and URL values are cut to it.
     """
     c = colors
     lines: list[str] = []
 
-    # Title
+    # Title, with the authors directly beneath it
     lines.append(f"[bold {c['title']}]{entry.title or '(no title)'}[/]")
+    lines.extend(_author_lines(entry.get_field("author"), content_width))
     lines.append("")
 
     # Entry type badge
@@ -35,23 +177,24 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
 
     # Key fields
     def field_line(label: str, value: str) -> str:
-        if value:
-            return f"[{c['required']}]{label:<12}[/] {value}"
-        else:
-            return f"[dim]{label:<12}[/dim] [dim](empty)[/dim]"
+        if not value:
+            return f"[dim]{label:<{_FIELD_LABEL_WIDTH}}[/dim] [dim](empty)[/dim]"
+        if _is_url(value):
+            value = _one_line(value, content_width - _FIELD_LABEL_WIDTH - 1)
+        return f"[{c['required']}]{label:<{_FIELD_LABEL_WIDTH}}[/] {value}"
 
     standard_fields = [
-        ("Author", "author"),
         ("Year", "year"),
         ("Journal", "journal"),
         ("DOI", "doi"),
+        ("URL", "url"),
     ]
 
     for label, key in standard_fields:
         lines.append(field_line(label, entry.get_field(key)))
 
     lines.append("")
-    lines.append("─" * 50)
+    lines.append("─" * max(content_width, 10))
     lines.append("")
 
     # Keywords as badges
@@ -68,30 +211,39 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
         lines.append("")
         lines.append("[dim]── Other fields ──[/dim]")
         for k, v in entry.raw_fields.items():
-            if v:
-                lines.append(f"  [dim]{k:<12}[/dim] {v[:80]}")
+            if not v:
+                continue
+            # A key longer than the gutter pushes its value further right.
+            gutter = 2 + max(_FIELD_LABEL_WIDTH, len(k)) + 1
+            value = _one_line(v, content_width - gutter) if _is_url(v) else v[:80]
+            lines.append(f"  [dim]{k:<{_FIELD_LABEL_WIDTH}}[/dim] {value}")
 
     return "\n".join(lines)
 
 
-def _render_abstract(entry: BibEntry) -> str:
-    """Render abstract block separately so citation controls can sit above it."""
+_ABSTRACT_INDENT = 2
+
+
+def _render_abstract(
+    entry: BibEntry,
+    content_width: int = _DEFAULT_CONTENT_WIDTH,
+) -> str:
+    """Render abstract block separately so citation controls can sit above it.
+
+    Wrapped to *content_width* rather than a fixed column, so the text doesn't
+    get folded a second time by the pane and left half-indented.
+    """
     if not entry.abstract:
         return ""
 
-    lines: list[str] = ["[bold]Abstract:[/bold]"]
-    words = entry.abstract.split()
-    current = ""
-    for word in words:
-        if len(current) + len(word) + 1 > 70:
-            lines.append(f"  {current}")
-            current = word
-        else:
-            current = f"{current} {word}".strip()
-    if current:
-        lines.append(f"  {current}")
-
-    return "\n".join(lines)
+    indent = " " * _ABSTRACT_INDENT
+    body = textwrap.wrap(
+        decode_latex(entry.abstract),
+        width=max(content_width, _ABSTRACT_INDENT + 20),
+        initial_indent=indent,
+        subsequent_indent=indent,
+    )
+    return "\n".join(["[bold]Abstract:[/bold]", *(escape(line) for line in body)])
 
 
 def _render_raw(entry: BibEntry) -> Syntax:
@@ -111,28 +263,19 @@ class EntryDetail(Widget):
     #detail-meta {
         height: auto;
         layout: horizontal;
-        margin-bottom: 0;
+        margin-bottom: 1;
     }
-    #detail-read-state {
-        width: auto;
+    #detail-meta.-stacked {
+        layout: grid;
+        grid-size: 2;
+        grid-rows: 1 1;
+        height: 2;
+    }
+    #detail-meta Label {
+        height: 1;
         margin-right: 2;
-    }
-    #detail-rating {
-        width: auto;
-        margin-right: 2;
-    }
-    #detail-priority {
-        width: auto;
-        margin-right: 2;
-    }
-    #detail-pdf-status {
-        width: auto;
-        margin-right: 2;
-    }
-    #detail-url {
-        width: 1fr;
-        margin-left: 2;
-        color: $text-muted;
+        text-wrap: nowrap;
+        text-overflow: ellipsis;
     }
     #detail-csl-row {
         height: auto;
@@ -170,6 +313,10 @@ class EntryDetail(Widget):
         display: none;
         height: 1fr;
     }
+    /* Keep the text clear of the scroll bar — see _SCROLLBAR_GUTTER. */
+    #detail-content, #detail-abstract, #detail-citation-preview {
+        padding-right: 2;
+    }
     """
 
     def __init__(self, default_csl_style: str = "", **kwargs):
@@ -177,6 +324,9 @@ class EntryDetail(Widget):
         self._entry: BibEntry | None = None
         self._raw_mode: bool = False
         self._pdf_base_dir: str = ""
+        self._content_width: int = _DEFAULT_CONTENT_WIDTH
+        # None until the first resize, so the first call always applies a layout.
+        self._status_stacked: bool | None = None
         self._csl_styles = available_csl_styles()
         self._selected_csl_style = self._resolve_csl_style(default_csl_style)
 
@@ -191,6 +341,39 @@ class EntryDetail(Widget):
 
     def on_mount(self) -> None:
         self.app.theme_changed_signal.subscribe(self, self._on_theme_changed)
+
+    def on_resize(self, event) -> None:
+        """Re-lay out the status row and author block when the width changes."""
+        self._apply_status_layout(self._current_content_width())
+        if (
+            self._entry is not None
+            and not self._raw_mode
+            and self._current_content_width() != self._content_width
+        ):
+            self._refresh_content()
+
+    def _apply_status_layout(self, width: int) -> None:
+        """Keep the status row on one line, or stack it into a 2x2 grid.
+
+        Stacking costs a line of height but is the only way the whole row stays
+        inside a narrow pane — the labels are fixed-width so that they hold
+        still while flicking through entries, which also means they can't
+        shrink to fit. The height stays the same for every entry either way.
+        """
+        stacked = width < _STATUS_ROW_WIDTH
+        if stacked == self._status_stacked:
+            return
+        self._status_stacked = stacked
+        self.query_one("#detail-meta").set_class(stacked, "-stacked")
+        for widget_id, key in _STATUS_LABELS:
+            label = self.query_one(f"#{widget_id}", Label)
+            label.styles.width = "1fr" if stacked else _STATUS_WIDTHS[key]
+
+    def _current_content_width(self) -> int:
+        width = self.scrollable_content_region.width
+        if not width:
+            return _DEFAULT_CONTENT_WIDTH
+        return max(width - _SCROLLBAR_GUTTER, 10)
 
     def _on_theme_changed(self, _theme) -> None:
         if self._entry is not None:
@@ -209,11 +392,8 @@ class EntryDetail(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="detail-meta"):
-            yield Label("", id="detail-read-state")
-            yield Label("", id="detail-priority")
-            yield Label("", id="detail-rating")
-            yield Label("", id="detail-pdf-status")
-            yield Label("", id="detail-url")
+            for widget_id, key in _STATUS_LABELS:
+                yield _status_label(widget_id, _STATUS_WIDTHS[key])
         yield Static("Select an entry to view details.", id="detail-content")
         with Vertical(id="detail-citation-panel"):
             yield Label("[bold]Citation[/bold]", id="detail-citation-title")
@@ -281,7 +461,6 @@ class EntryDetail(Widget):
         priority_label = self.query_one("#detail-priority", Label)
         rating_label = self.query_one("#detail-rating", Label)
         pdf_status_label = self.query_one("#detail-pdf-status", Label)
-        url_label = self.query_one("#detail-url", Label)
         citation_panel = self.query_one("#detail-citation-panel", Vertical)
         citation_preview_widget = self.query_one("#detail-citation-preview", Static)
         abstract_widget = self.query_one("#detail-abstract", Static)
@@ -292,7 +471,6 @@ class EntryDetail(Widget):
             priority_label.update("")
             rating_label.update("")
             pdf_status_label.update("")
-            url_label.update("")
             citation_panel.display = False
             citation_preview_widget.update("")
             abstract_widget.display = False
@@ -304,6 +482,9 @@ class EntryDetail(Widget):
 
         e = self._entry
         colors = self._theme_colors()
+        # Both the abstract and the body below wrap to this, so measure once up
+        # front rather than after the abstract has already been rendered.
+        self._content_width = self._current_content_width()
         citation_preview = render_citation_preview(e, self._selected_csl_style)
         citation_panel.display = True
         if citation_preview:
@@ -311,7 +492,7 @@ class EntryDetail(Widget):
         else:
             citation_preview_widget.update("[dim](unavailable)[/dim]")
 
-        abstract_text = _render_abstract(e)
+        abstract_text = _render_abstract(e, self._content_width)
         if abstract_text:
             abstract_widget.display = True
             abstract_widget.update(abstract_text)
@@ -319,32 +500,12 @@ class EntryDetail(Widget):
             abstract_widget.display = False
             abstract_widget.update("")
 
-        state_label = e.read_state if e.read_state else "unset"
-        read_label.update(f"[bold]Read:[/bold] {e.read_state_icon} {state_label}")
-
-        if e.priority:
-            priority_label.update(
-                f"[bold]Urgency:[/bold] {e.priority_icon} {e.priority_label}"
-            )
-        else:
-            priority_label.update("[dim]Urgency: —[/dim]")
-
-        stars = e.rating_stars or "[dim]unrated[/dim]"
-        rating_label.update(f"[bold]Rating:[/bold] [{colors['warning']}]{stars}[/]")
-
-        state = pdf_link_state(e.file, e.key, self._pdf_base_dir)
-        if state == "found":
-            pdf_status_label.update("[bold]PDF:[/bold] ■ linked")
-        elif state == "missing":
-            pdf_status_label.update("[dim]PDF: □ missing[/dim]")
-        else:
-            pdf_status_label.update("[dim]PDF: — none[/dim]")
-
-        if e.url:
-            short = e.url if len(e.url) <= 34 else e.url[:31] + "…"
-            url_label.update(f"[bold]↗ URL:[/bold] {short}")
-        else:
-            url_label.update("[dim]↗ URL: —[/dim]")
+        read_label.update(_read_markup(e))
+        priority_label.update(_priority_markup(e))
+        rating_label.update(_rating_markup(e, colors["warning"]))
+        pdf_status_label.update(
+            _PDF_MARKUP[pdf_link_state(e.file, e.key, self._pdf_base_dir)]
+        )
 
         raw = self.query_one("#detail-raw", TextArea)
         if self._raw_mode:
@@ -359,4 +520,4 @@ class EntryDetail(Widget):
             citation_panel.display = True
             if abstract_text:
                 abstract_widget.display = True
-            content.update(_render_entry(e, colors))
+            content.update(_render_entry(e, colors, self._content_width))
