@@ -329,23 +329,19 @@ class EntryList(Widget):
         self._update_header_labels()
         self.post_message(self.SortChanged(spec_key, self._sort_reverse))
 
-    def _apply_sort(self) -> None:
+    def _sorted(self, entries: list[BibEntry]) -> list[BibEntry]:
+        """*entries* in the active sort order, or unchanged if nothing is sorted."""
         if self._sort_spec_key is None:
-            return
+            return entries
         spec = next(
             (s for s in self._specs if s.key == self._sort_spec_key),
             None,
         ) or spec_for(self._sort_spec_key)
-        self._filtered = sorted(
-            self._filtered,
-            key=spec.sort_key,
-            reverse=self._sort_reverse,
-        )
-        # Rebuild the table rows in new order without re-fetching data
-        table = self.query_one(DataTable)
-        table.clear()
-        for e in self._filtered:
-            table.add_row(*self._row_for_entry(e), key=e.key)
+        return sorted(entries, key=spec.sort_key, reverse=self._sort_reverse)
+
+    def _apply_sort(self) -> None:
+        """Reorder the rows already on screen, without re-filtering."""
+        self._populate_table(self._sorted(self._filtered))
 
     def _update_header_labels(self) -> None:
         """Put ▲/▼ on the active sort column, restore others."""
@@ -373,8 +369,7 @@ class EntryList(Widget):
         search = self.query_one("#search-input", Input).value.strip()
         if search:
             base = [e for e in base if matches_query(e, search)]
-        self._populate_table(base)
-        self._apply_sort()
+        self._populate_table(self._sorted(base))
         self._update_preset_bar()
 
     def _update_preset_bar(self) -> None:

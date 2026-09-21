@@ -110,3 +110,10 @@ async def test_arrow_keys_scroll_help_without_animation(tmp_path, monkeypatch) -
         await pilot.press("down", "down", "down", "up")
         assert animate_args == [False, False, False, False]
         assert scroll.scroll_y == 2
+
+
+def test_an_empty_description_does_not_crash_the_help_screen() -> None:
+    """``_HELP_PARTS`` is hand-edited; a key left without a description used to
+    raise IndexError and take the whole ``?`` screen down."""
+    lines = _build_help_section("Demo", [("k", "")])[1:]
+    assert Text.from_markup(lines[0]).plain.rstrip() == "  k"

@@ -163,6 +163,58 @@ async def test_status_row_stays_one_line_for_an_oversized_value() -> None:
         assert all(detail.query_one(i).region.height == 1 for i in _STATUS_IDS)
 
 
+@pytest.mark.parametrize("width", [80, 100, 120, 140, 160, 180, 200, 240])
+async def test_every_status_label_stays_inside_the_pane(width: int) -> None:
+    """The labels are fixed-width, so a narrow pane must stack them rather than
+    push the last ones out of sight."""
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(width, 40)) as pilot:
+        for _ in range(3):  # let the split and the stacking settle
+            await pilot.pause()
+        detail = app.query_one(EntryDetail)
+        detail.show_entry(_entry(read_state="skimmed", priority=2, rating=5))
+        await pilot.pause()
+        right_edge = detail.region.x + detail.region.width
+        for i in _STATUS_IDS:
+            region = detail.query_one(i).region
+            assert region.x + region.width <= right_edge, f"{i} at width {width}"
+
+
+async def test_status_row_stacks_only_when_the_pane_is_too_narrow() -> None:
+    from bibtui.widgets.entry_detail import _STATUS_ROW_WIDTH
+
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(240, 40)) as pilot:
+        for _ in range(3):
+            await pilot.pause()
+        detail = app.query_one(EntryDetail)
+        meta = detail.query_one("#detail-meta")
+        assert detail.scrollable_content_region.width >= _STATUS_ROW_WIDTH
+        assert not meta.has_class("-stacked")
+        assert meta.region.height == 1
+
+        app.query_one(EntryDetail).styles.width = 30
+        for _ in range(3):
+            await pilot.pause()
+        assert meta.has_class("-stacked")
+        assert meta.region.height == 2
+
+
+async def test_status_row_height_is_the_same_for_every_entry() -> None:
+    """Stacking may cost a line, but it must not depend on the entry shown."""
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one(EntryDetail)
+        meta = detail.query_one("#detail-meta")
+        heights = set()
+        for entry in (_entry(), _entry(read_state="skimmed", priority=2, rating=5)):
+            detail.show_entry(entry)
+            await pilot.pause()
+            heights.add(meta.region.height)
+        assert len(heights) == 1, heights
+
+
 # ── Author block ─────────────────────────────────────────────────────────
 
 _MANY_AUTHORS = " and ".join(f"Surname{i}, Firstname{i}" for i in range(40))

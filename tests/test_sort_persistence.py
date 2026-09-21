@@ -150,3 +150,25 @@ async def test_sort_survives_hiding_its_column(tmp_path, monkeypatch) -> None:
         entry_list.set_columns(["title", "year"])  # no "added" column
         await pilot.pause()
         assert _keys(app) == ["New2019", "Mid2020", "Old2021"]  # still newest first
+
+
+async def test_rows_are_built_once_per_refresh(tmp_path, monkeypatch) -> None:
+    """The default sort used to re-populate the table a second time: rows were
+    built, cleared, then built again on startup and on every keystroke."""
+    bib = _setup(tmp_path, monkeypatch)
+    app = BibTuiApp(str(bib))
+    async with app.run_test(size=(120, 30)) as pilot:
+        await pilot.pause()
+        entry_list = app.query_one(EntryList)
+        built: list[str] = []
+        original = type(entry_list)._row_for_entry
+        monkeypatch.setattr(
+            type(entry_list),
+            "_row_for_entry",
+            lambda self, e: (built.append(e.key), original(self, e))[1],
+        )
+
+        entry_list._apply_filters()
+        await pilot.pause()
+        assert len(built) == 3, built
+        assert _keys(app) == ["New2019", "Mid2020", "Old2021"]  # still sorted

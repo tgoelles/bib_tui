@@ -1882,7 +1882,9 @@ def _build_help_section(title: str, items: list[tuple]) -> list[str]:
             lines += [f"[dim]{line}[/dim]" for line in _wrap(item[1], desc_indent)]
         else:
             key, desc = item
-            wrapped = _wrap(desc, desc_indent)
+            # An empty description wraps to no lines at all; keep one so the
+            # key still gets a row of its own.
+            wrapped = _wrap(desc, desc_indent) or [""]
             # Put the bold key in the gutter of the first wrapped line.
             first = wrapped[0][desc_indent:]
             lead = " " * _HELP_INDENT + f"[bold]{key}[/bold]"

@@ -49,8 +49,9 @@ columns.
 | **Reset**                                    | Restore the default layout            |
 | <kbd>Ctrl</kbd>+<kbd>S</kbd>                 | Save                                  |
 
-Shown columns are ticked with an `X`, like in the keyword picker. Your layout is saved to `config.toml` (under
-`[ui] table_columns`) and applied immediately, so it persists across restarts.
+Shown columns are ticked with an `X`, like in the keyword picker. Your layout
+is saved to `config.toml` (under `[ui] table_columns`) and applied immediately,
+so it persists across restarts.
 The **Title** column always stretches to fill the remaining width — it's widest
 in the maximized *Max table* view (<kbd>m</kbd>).
 

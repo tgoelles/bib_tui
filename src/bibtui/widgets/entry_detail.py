@@ -65,6 +65,21 @@ def _status_widths() -> dict[str, int]:
 
 _STATUS_WIDTHS = _status_widths()
 
+# The status labels in row order, as (widget id, key into _STATUS_WIDTHS).
+_STATUS_LABELS = (
+    ("detail-read-state", "read"),
+    ("detail-priority", "priority"),
+    ("detail-rating", "rating"),
+    ("detail-pdf-status", "pdf"),
+)
+
+# Cells the one-line row needs: every label at its fixed width plus the 2-cell
+# margin after it. The fixed widths keep the row from shifting about as values
+# change, but they also stop it shrinking, so in a pane narrower than this the
+# last labels would be pushed outside the pane and vanish. Below this width the
+# row stacks into a 2x2 grid instead — see `_apply_status_layout`.
+_STATUS_ROW_WIDTH = sum(_STATUS_WIDTHS.values()) + 2 * len(_STATUS_WIDTHS)
+
 
 def _status_label(widget_id: str, width: int) -> Label:
     label = Label("", id=widget_id)
@@ -212,6 +227,12 @@ class EntryDetail(Widget):
         layout: horizontal;
         margin-bottom: 1;
     }
+    #detail-meta.-stacked {
+        layout: grid;
+        grid-size: 2;
+        grid-rows: 1 1;
+        height: 2;
+    }
     #detail-meta Label {
         height: 1;
         margin-right: 2;
@@ -262,6 +283,8 @@ class EntryDetail(Widget):
         self._raw_mode: bool = False
         self._pdf_base_dir: str = ""
         self._author_width: int = _DEFAULT_AUTHOR_WIDTH
+        # None until the first resize, so the first call always applies a layout.
+        self._status_stacked: bool | None = None
         self._csl_styles = available_csl_styles()
         self._selected_csl_style = self._resolve_csl_style(default_csl_style)
 
@@ -278,13 +301,31 @@ class EntryDetail(Widget):
         self.app.theme_changed_signal.subscribe(self, self._on_theme_changed)
 
     def on_resize(self, event) -> None:
-        """Re-wrap the author block when the pane's width changes."""
+        """Re-lay out the status row and author block when the width changes."""
+        self._apply_status_layout(self._current_author_width())
         if (
             self._entry is not None
             and not self._raw_mode
             and self._current_author_width() != self._author_width
         ):
             self._refresh_content()
+
+    def _apply_status_layout(self, width: int) -> None:
+        """Keep the status row on one line, or stack it into a 2x2 grid.
+
+        Stacking costs a line of height but is the only way the whole row stays
+        inside a narrow pane — the labels are fixed-width so that they hold
+        still while flicking through entries, which also means they can't
+        shrink to fit. The height stays the same for every entry either way.
+        """
+        stacked = width < _STATUS_ROW_WIDTH
+        if stacked == self._status_stacked:
+            return
+        self._status_stacked = stacked
+        self.query_one("#detail-meta").set_class(stacked, "-stacked")
+        for widget_id, key in _STATUS_LABELS:
+            label = self.query_one(f"#{widget_id}", Label)
+            label.styles.width = "1fr" if stacked else _STATUS_WIDTHS[key]
 
     def _current_author_width(self) -> int:
         return self.scrollable_content_region.width or _DEFAULT_AUTHOR_WIDTH
@@ -306,10 +347,8 @@ class EntryDetail(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="detail-meta"):
-            yield _status_label("detail-read-state", _STATUS_WIDTHS["read"])
-            yield _status_label("detail-priority", _STATUS_WIDTHS["priority"])
-            yield _status_label("detail-rating", _STATUS_WIDTHS["rating"])
-            yield _status_label("detail-pdf-status", _STATUS_WIDTHS["pdf"])
+            for widget_id, key in _STATUS_LABELS:
+                yield _status_label(widget_id, _STATUS_WIDTHS[key])
         yield Static("Select an entry to view details.", id="detail-content")
         with Vertical(id="detail-citation-panel"):
             yield Label("[bold]Citation[/bold]", id="detail-citation-title")
