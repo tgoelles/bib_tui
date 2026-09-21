@@ -409,3 +409,63 @@ async def test_url_occupies_a_single_row_in_a_narrow_pane() -> None:
         url_rows = [r for r in rows if "http" in r or r.startswith("URL")]
         assert len(url_rows) == 1, url_rows
         assert url_rows[0].endswith("…")
+
+
+# ── Scroll-bar gutter & abstract ─────────────────────────────────────────
+
+_ABSTRACT = (
+    "We investigated the interactions of air and snow over one entire winter "
+    "accumulation period as well as the importance of chemical markers in a "
+    "pristine free-tropospheric environment to explain variation in a "
+    "microbiological dataset."
+)
+
+
+@pytest.mark.parametrize("width", [40, 60, 80])
+def test_abstract_wraps_to_the_pane_width(width: int) -> None:
+    from bibtui.widgets.entry_detail import _render_abstract
+
+    text = _render_abstract(_entry(abstract=_ABSTRACT), width)
+    body = text.split("\n")[1:]
+    assert len(body) > 1
+    for line in body:
+        plain = Text.from_markup(line).plain
+        assert len(plain) <= width, plain
+        # Every wrapped line keeps the same hanging indent.
+        assert plain.startswith("  ") and not plain.startswith("   ")
+
+
+def test_abstract_shows_markup_characters_literally() -> None:
+    from bibtui.widgets.entry_detail import _render_abstract
+
+    text = _render_abstract(_entry(abstract="Measured [1] at 95% CI"), 60)
+    assert "[1]" in Text.from_markup(text).plain
+
+
+def test_separator_matches_the_content_width() -> None:
+    text = _render_entry(_entry(), _COLORS, 48)
+    rule = next(ln for ln in text.split("\n") if ln.startswith("─"))
+    assert len(rule) == 48
+
+
+async def test_text_never_touches_the_scroll_bar() -> None:
+    from textual.geometry import Region
+
+    from bibtui.widgets.entry_detail import _SCROLLBAR_GUTTER
+
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(140, 45)) as pilot:
+        for _ in range(3):
+            await pilot.pause()
+        detail = app.query_one(EntryDetail)
+        detail.show_entry(_entry(url=_LONG_URL, abstract=_ABSTRACT))
+        for _ in range(3):
+            await pilot.pause()
+        limit = detail.scrollable_content_region.width - _SCROLLBAR_GUTTER
+        assert limit > 0
+        for widget_id in ("#detail-content", "#detail-abstract"):
+            widget = detail.query_one(widget_id, Static)
+            rows = widget.render_lines(Region(0, 0, widget.region.width, 40))
+            for row in rows:
+                plain = "".join(s.text for s in row).rstrip()
+                assert len(plain) <= limit, (widget_id, plain)

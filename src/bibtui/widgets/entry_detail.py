@@ -94,6 +94,12 @@ _AUTHOR_LINES = 3
 _NBSP = "\u00a0"
 _DEFAULT_CONTENT_WIDTH = 60
 
+# Breathing room between the text and the scroll bar. The pane's own padding
+# sits outside the scroll bar, so without this the longest line of every entry
+# ends up jammed against it. Keep in step with the `padding-right` on the
+# scrollable children in `EntryDetail.DEFAULT_CSS`.
+_SCROLLBAR_GUTTER = 2
+
 # Width of the field-name gutter in the detail body, before the value starts.
 _FIELD_LABEL_WIDTH = 12
 
@@ -187,7 +193,7 @@ def _render_entry(
         lines.append(field_line(label, entry.get_field(key)))
 
     lines.append("")
-    lines.append("─" * 50)
+    lines.append("─" * max(content_width, 10))
     lines.append("")
 
     # Keywords as badges
@@ -214,24 +220,29 @@ def _render_entry(
     return "\n".join(lines)
 
 
-def _render_abstract(entry: BibEntry) -> str:
-    """Render abstract block separately so citation controls can sit above it."""
+_ABSTRACT_INDENT = 2
+
+
+def _render_abstract(
+    entry: BibEntry,
+    content_width: int = _DEFAULT_CONTENT_WIDTH,
+) -> str:
+    """Render abstract block separately so citation controls can sit above it.
+
+    Wrapped to *content_width* rather than a fixed column, so the text doesn't
+    get folded a second time by the pane and left half-indented.
+    """
     if not entry.abstract:
         return ""
 
-    lines: list[str] = ["[bold]Abstract:[/bold]"]
-    words = entry.abstract.split()
-    current = ""
-    for word in words:
-        if len(current) + len(word) + 1 > 70:
-            lines.append(f"  {current}")
-            current = word
-        else:
-            current = f"{current} {word}".strip()
-    if current:
-        lines.append(f"  {current}")
-
-    return "\n".join(lines)
+    indent = " " * _ABSTRACT_INDENT
+    body = textwrap.wrap(
+        entry.abstract,
+        width=max(content_width, _ABSTRACT_INDENT + 20),
+        initial_indent=indent,
+        subsequent_indent=indent,
+    )
+    return "\n".join(["[bold]Abstract:[/bold]", *(escape(line) for line in body)])
 
 
 def _render_raw(entry: BibEntry) -> Syntax:
@@ -301,6 +312,10 @@ class EntryDetail(Widget):
         display: none;
         height: 1fr;
     }
+    /* Keep the text clear of the scroll bar — see _SCROLLBAR_GUTTER. */
+    #detail-content, #detail-abstract, #detail-citation-preview {
+        padding-right: 2;
+    }
     """
 
     def __init__(self, default_csl_style: str = "", **kwargs):
@@ -354,7 +369,10 @@ class EntryDetail(Widget):
             label.styles.width = "1fr" if stacked else _STATUS_WIDTHS[key]
 
     def _current_content_width(self) -> int:
-        return self.scrollable_content_region.width or _DEFAULT_CONTENT_WIDTH
+        width = self.scrollable_content_region.width
+        if not width:
+            return _DEFAULT_CONTENT_WIDTH
+        return max(width - _SCROLLBAR_GUTTER, 10)
 
     def _on_theme_changed(self, _theme) -> None:
         if self._entry is not None:
@@ -463,6 +481,9 @@ class EntryDetail(Widget):
 
         e = self._entry
         colors = self._theme_colors()
+        # Both the abstract and the body below wrap to this, so measure once up
+        # front rather than after the abstract has already been rendered.
+        self._content_width = self._current_content_width()
         citation_preview = render_citation_preview(e, self._selected_csl_style)
         citation_panel.display = True
         if citation_preview:
@@ -470,7 +491,7 @@ class EntryDetail(Widget):
         else:
             citation_preview_widget.update("[dim](unavailable)[/dim]")
 
-        abstract_text = _render_abstract(e)
+        abstract_text = _render_abstract(e, self._content_width)
         if abstract_text:
             abstract_widget.display = True
             abstract_widget.update(abstract_text)
@@ -498,5 +519,4 @@ class EntryDetail(Widget):
             citation_panel.display = True
             if abstract_text:
                 abstract_widget.display = True
-            self._content_width = self._current_content_width()
             content.update(_render_entry(e, colors, self._content_width))

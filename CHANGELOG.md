@@ -18,9 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **LaTeX in the table's Author column** — the first-author surname in the entry table (and its sort order, and the PDF/.bib import reports) now shows decoded characters (`Sch{\"o}ner` → `Schöner`) instead of the raw LaTeX.
 - **Start-up file picker preselects your last file** — when you launch bibtui without a file, the most recently opened one is already highlighted, so <kbd>Enter</kbd> reopens it.
 
+- **Roomier entry viewer** — the text now keeps clear of the scroll bar instead of running right up against it, the abstract wraps to the width of the pane (it used to wrap at a fixed column and then get folded a second time, leaving every other line hanging at the left margin), and the rule under the fields spans the pane.
+
 ### Fixed
 
 - **"Press w to write" hint** — after editing an entry or its keywords, the confirmation read "Press  to write." because `[w]` was swallowed as markup; it now shows the key.
+- **Square brackets in abstracts** — an abstract containing something like `[1]` or `[Ca2+]` had it silently swallowed as markup; it now shows literally.
 
 ## [1.1.0] - 2026-09-14
 
