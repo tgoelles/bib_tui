@@ -246,7 +246,7 @@ def test_long_author_lists_are_truncated_with_an_ellipsis() -> None:
 
 
 def test_author_lines_respect_the_given_width() -> None:
-    text = _render_entry(_entry(author=_MANY_AUTHORS), _COLORS, author_width=40)
+    text = _render_entry(_entry(author=_MANY_AUTHORS), _COLORS, content_width=40)
     authors = [Text.from_markup(ln).plain for ln in text.split("\n")[1:4]]
     assert max(len(a) for a in authors) <= 40
 
@@ -289,10 +289,10 @@ async def test_author_block_rewraps_when_the_pane_is_resized() -> None:
         detail = app.query_one(EntryDetail)
         detail.show_entry(_entry(author=_MANY_AUTHORS))
         await pilot.pause()
-        wide = detail._author_width
+        wide = detail._content_width
         await pilot.press("greater_than_sign", "greater_than_sign", "greater_than_sign")
         await pilot.pause()
-        assert detail._author_width < wide
+        assert detail._content_width < wide
 
 
 def test_authors_render_jabref_style_on_one_line_when_there_is_room() -> None:
@@ -301,7 +301,7 @@ def test_authors_render_jabref_style_on_one_line_when_there_is_room() -> None:
         "Holzer, Hannes and Rott, Relindis and Maier, Franz Michael and "
         "Saad, Kmeid"
     )
-    text = _render_entry(_entry(author=author), _COLORS, author_width=200)
+    text = _render_entry(_entry(author=author), _COLORS, content_width=200)
     assert Text.from_markup(text.split("\n")[1]).plain == (
         "Schlager, Birgit / Muckenhuber, Stefan / Schmidt, Simon / "
         "Holzer, Hannes / Rott, Relindis / Maier, Franz Michael / Saad, Kmeid"
@@ -309,7 +309,7 @@ def test_authors_render_jabref_style_on_one_line_when_there_is_room() -> None:
 
 
 def test_a_name_is_never_split_across_lines() -> None:
-    text = _render_entry(_entry(author=_MANY_AUTHORS), _COLORS, author_width=45)
+    text = _render_entry(_entry(author=_MANY_AUTHORS), _COLORS, content_width=45)
     lines = [Text.from_markup(ln).plain for ln in text.split("\n")[1:4]]
     for line in lines:
         # Every line holds whole "SurnameN, FirstnameN" names.
@@ -318,7 +318,7 @@ def test_a_name_is_never_split_across_lines() -> None:
 
 
 def test_separator_stays_at_the_end_of_a_line_not_the_start() -> None:
-    text = _render_entry(_entry(author=_MANY_AUTHORS), _COLORS, author_width=45)
+    text = _render_entry(_entry(author=_MANY_AUTHORS), _COLORS, content_width=45)
     lines = [Text.from_markup(ln).plain for ln in text.split("\n")[1:4]]
     assert not any(line.startswith("/") for line in lines)
 
@@ -333,3 +333,79 @@ def test_latex_in_author_names_is_decoded() -> None:
         _entry(author='Sch{\\"o}ner, Wolfgang and Mo{\\v{c}}nik, Gri{\\v{s}}a')
     )
     assert lines[1] == "Schöner, Wolfgang / Močnik, Griša"
+
+
+# ── URLs ─────────────────────────────────────────────────────────────────
+
+_LONG_URL = (
+    "https://journals.ametsoc.org/view/journals/bams/96/12/bams-d-14-00110.1.xml"
+)
+
+
+# Widths at which the 74-character URL cannot fit; see the test below for one
+# that does fit.
+@pytest.mark.parametrize("width", [30, 40, 55, 70])
+def test_a_long_url_is_cut_to_one_line(width: int) -> None:
+    text = _render_entry(_entry(url=_LONG_URL), _COLORS, width)
+    line = next(
+        ln for ln in text.split("\n") if Text.from_markup(ln).plain.startswith("URL")
+    )
+    plain = Text.from_markup(line).plain
+    assert len(plain) <= width, plain
+    assert plain.endswith("…")
+
+
+@pytest.mark.parametrize("width", [30, 40, 55, 70])
+def test_url_valued_extra_fields_are_cut_too(width: int) -> None:
+    entry = _entry(raw_fields={"bdsk-url-1": _LONG_URL})
+    text = _render_entry(entry, _COLORS, width)
+    line = next(ln for ln in text.split("\n") if "bdsk-url-1" in ln)
+    plain = Text.from_markup(line).plain
+    assert len(plain) <= width, plain
+    assert plain.endswith("…")
+
+
+def test_a_url_that_fits_is_left_alone() -> None:
+    text = _render_entry(_entry(url="https://example.org/a"), _COLORS, 60)
+    line = next(
+        ln for ln in text.split("\n") if Text.from_markup(ln).plain.startswith("URL")
+    )
+    plain = Text.from_markup(line).plain
+    assert plain.endswith("https://example.org/a")
+    assert "…" not in plain
+
+
+def test_non_url_fields_are_not_ellipsised() -> None:
+    """Only URLs get cut — a long journal name stays readable."""
+    journal = "Bulletin of the American Meteorological Society"
+    text = _render_entry(_entry(journal=journal), _COLORS, 40)
+    line = next(
+        ln
+        for ln in text.split("\n")
+        if Text.from_markup(ln).plain.startswith("Journal")
+    )
+    assert Text.from_markup(line).plain.endswith(journal)
+
+
+async def test_url_occupies_a_single_row_in_a_narrow_pane() -> None:
+    from textual.geometry import Region
+
+    app = BibTuiApp(BIB)
+    async with app.run_test(size=(120, 40)) as pilot:
+        for _ in range(3):
+            await pilot.pause()
+        detail = app.query_one(EntryDetail)
+        detail.styles.width = 46  # a deliberately cramped pane
+        for _ in range(3):
+            await pilot.pause()
+        detail.show_entry(_entry(url=_LONG_URL))
+        for _ in range(3):
+            await pilot.pause()
+        content = detail.query_one("#detail-content", Static)
+        rows = [
+            "".join(s.text for s in row).rstrip()
+            for row in content.render_lines(Region(0, 0, content.region.width, 60))
+        ]
+        url_rows = [r for r in rows if "http" in r or r.startswith("URL")]
+        assert len(url_rows) == 1, url_rows
+        assert url_rows[0].endswith("…")

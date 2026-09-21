@@ -92,7 +92,27 @@ def _status_label(widget_id: str, width: int) -> Label:
 # entries.
 _AUTHOR_LINES = 3
 _NBSP = "\u00a0"
-_DEFAULT_AUTHOR_WIDTH = 60
+_DEFAULT_CONTENT_WIDTH = 60
+
+# Width of the field-name gutter in the detail body, before the value starts.
+_FIELD_LABEL_WIDTH = 12
+
+# A wrapped URL is unreadable and can't be clicked anyway, so URL-valued fields
+# are cut to one line with an ellipsis instead of flowing on to the next line.
+_URL_PREFIXES = ("http://", "https://", "ftp://", "ftps://", "www.")
+
+
+def _is_url(value: str) -> bool:
+    return value.lower().startswith(_URL_PREFIXES)
+
+
+def _one_line(value: str, width: int) -> str:
+    """*value* cut to *width* cells with a trailing "\u2026" so it never wraps."""
+    if width < 2:
+        return "\u2026"
+    if len(value) <= width:
+        return value
+    return value[: width - 1] + "\u2026"
 
 
 def _author_lines(author: str, width: int) -> list[str]:
@@ -125,20 +145,21 @@ def _author_lines(author: str, width: int) -> list[str]:
 def _render_entry(
     entry: BibEntry,
     colors: dict[str, str],
-    author_width: int = _DEFAULT_AUTHOR_WIDTH,
+    content_width: int = _DEFAULT_CONTENT_WIDTH,
 ) -> str:
     """Build a Rich-formatted string for the main body of the detail pane.
 
     *colors* is a dict with keys: title, key, required, optional, tag_fg,
     tag_bg, warning.  Values are Rich-compatible color strings (hex or names).
-    *author_width* is the width the author block wraps to.
+    *content_width* is the pane's usable width: the author block wraps to it
+    and URL values are cut to it.
     """
     c = colors
     lines: list[str] = []
 
     # Title, with the authors directly beneath it
     lines.append(f"[bold {c['title']}]{entry.title or '(no title)'}[/]")
-    lines.extend(_author_lines(entry.get_field("author"), author_width))
+    lines.extend(_author_lines(entry.get_field("author"), content_width))
     lines.append("")
 
     # Entry type badge
@@ -149,10 +170,11 @@ def _render_entry(
 
     # Key fields
     def field_line(label: str, value: str) -> str:
-        if value:
-            return f"[{c['required']}]{label:<12}[/] {value}"
-        else:
-            return f"[dim]{label:<12}[/dim] [dim](empty)[/dim]"
+        if not value:
+            return f"[dim]{label:<{_FIELD_LABEL_WIDTH}}[/dim] [dim](empty)[/dim]"
+        if _is_url(value):
+            value = _one_line(value, content_width - _FIELD_LABEL_WIDTH - 1)
+        return f"[{c['required']}]{label:<{_FIELD_LABEL_WIDTH}}[/] {value}"
 
     standard_fields = [
         ("Year", "year"),
@@ -182,8 +204,12 @@ def _render_entry(
         lines.append("")
         lines.append("[dim]── Other fields ──[/dim]")
         for k, v in entry.raw_fields.items():
-            if v:
-                lines.append(f"  [dim]{k:<12}[/dim] {v[:80]}")
+            if not v:
+                continue
+            # A key longer than the gutter pushes its value further right.
+            gutter = 2 + max(_FIELD_LABEL_WIDTH, len(k)) + 1
+            value = _one_line(v, content_width - gutter) if _is_url(v) else v[:80]
+            lines.append(f"  [dim]{k:<{_FIELD_LABEL_WIDTH}}[/dim] {value}")
 
     return "\n".join(lines)
 
@@ -282,7 +308,7 @@ class EntryDetail(Widget):
         self._entry: BibEntry | None = None
         self._raw_mode: bool = False
         self._pdf_base_dir: str = ""
-        self._author_width: int = _DEFAULT_AUTHOR_WIDTH
+        self._content_width: int = _DEFAULT_CONTENT_WIDTH
         # None until the first resize, so the first call always applies a layout.
         self._status_stacked: bool | None = None
         self._csl_styles = available_csl_styles()
@@ -302,11 +328,11 @@ class EntryDetail(Widget):
 
     def on_resize(self, event) -> None:
         """Re-lay out the status row and author block when the width changes."""
-        self._apply_status_layout(self._current_author_width())
+        self._apply_status_layout(self._current_content_width())
         if (
             self._entry is not None
             and not self._raw_mode
-            and self._current_author_width() != self._author_width
+            and self._current_content_width() != self._content_width
         ):
             self._refresh_content()
 
@@ -327,8 +353,8 @@ class EntryDetail(Widget):
             label = self.query_one(f"#{widget_id}", Label)
             label.styles.width = "1fr" if stacked else _STATUS_WIDTHS[key]
 
-    def _current_author_width(self) -> int:
-        return self.scrollable_content_region.width or _DEFAULT_AUTHOR_WIDTH
+    def _current_content_width(self) -> int:
+        return self.scrollable_content_region.width or _DEFAULT_CONTENT_WIDTH
 
     def _on_theme_changed(self, _theme) -> None:
         if self._entry is not None:
@@ -472,5 +498,5 @@ class EntryDetail(Widget):
             citation_panel.display = True
             if abstract_text:
                 abstract_widget.display = True
-            self._author_width = self._current_author_width()
-            content.update(_render_entry(e, colors, self._author_width))
+            self._content_width = self._current_content_width()
+            content.update(_render_entry(e, colors, self._content_width))
