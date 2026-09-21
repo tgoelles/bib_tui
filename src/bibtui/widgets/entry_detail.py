@@ -9,6 +9,7 @@ from textual.widget import Widget
 from textual.widgets import Label, Select, Static, TextArea
 
 from bibtui.bib.authors import AUTHOR_SEPARATOR, format_authors
+from bibtui.bib.latex import decode_latex
 from bibtui.bib.citation_preview import (
     available_csl_styles,
     default_csl_style_key,
@@ -237,7 +238,7 @@ def _render_abstract(
 
     indent = " " * _ABSTRACT_INDENT
     body = textwrap.wrap(
-        entry.abstract,
+        decode_latex(entry.abstract),
         width=max(content_width, _ABSTRACT_INDENT + 20),
         initial_indent=indent,
         subsequent_indent=indent,

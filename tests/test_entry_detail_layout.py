@@ -469,3 +469,13 @@ async def test_text_never_touches_the_scroll_bar() -> None:
             for row in rows:
                 plain = "".join(s.text for s in row).rstrip()
                 assert len(plain) <= limit, (widget_id, plain)
+
+
+def test_abstract_latex_is_decoded() -> None:
+    from bibtui.widgets.entry_detail import _render_abstract
+
+    raw = r"Measured 0.5 $\pm$ 0.3 \ensuremath{\mu}g at 1.8$^{\circ}$C"
+    plain = Text.from_markup(_render_abstract(_entry(abstract=raw), 80)).plain
+    assert "0.5 ± 0.3 μg" in plain
+    assert "1.8°C" in plain
+    assert "\\" not in plain
