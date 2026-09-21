@@ -5,7 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.1] - 2026-09-21
+
+Many small quality of life changes and bug fixes.
 
 ### Changed
 
@@ -17,7 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Authors under the title, fixed height** — the author list moved from the field list to directly below the title and always takes exactly three lines (long lists are cut off with "…"), so the rest of the entry no longer jumps up and down as you move between entries. Authors are shown JabRef-style as `Last, First / Last, First`, with LaTeX escapes decoded (`Sch{\"o}ner` → `Schöner`) and names kept whole on one line wherever they fit.
 - **LaTeX in the table's Author column** — the first-author surname in the entry table (and its sort order, and the PDF/.bib import reports) now shows decoded characters (`Sch{\"o}ner` → `Schöner`) instead of the raw LaTeX.
 - **Start-up file picker preselects your last file** — when you launch bibtui without a file, the most recently opened one is already highlighted, so <kbd>Enter</kbd> reopens it.
-
 - **LaTeX in abstracts is rendered** — abstracts now show `±`, `μ`, `∼` and `°` instead of `$\pm$`, `\ensuremath{\mu}`, `$\sim$` and `$^{\circ}$`, and `--` becomes a proper en dash. The same decoding already applied to author names now also covers maths and spacing macros, so titles and citation previews improve too.
 - **Roomier entry viewer** — the text now keeps clear of the scroll bar instead of running right up against it, the abstract wraps to the width of the pane (it used to wrap at a fixed column and then get folded a second time, leaving every other line hanging at the left margin), and the rule under the fields spans the pane.
 
