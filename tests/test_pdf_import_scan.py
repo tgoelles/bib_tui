@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from bibtui.bib.models import BibEntry
-from bibtui.pdf.import_scan import ImportStatus, process_pdf
+from bibtui.pdf.import_scan import ImportStatus, entry_identity_keys, process_pdf
 
 
 @pytest.fixture(autouse=True)
@@ -15,13 +15,20 @@ def _no_retry_delay(monkeypatch):
 
 
 def _fake_identify(
-    doi=None, arxiv_id=None, ambiguous=False, candidates=None, no_text=False, unreadable=False
+    doi=None,
+    arxiv_id=None,
+    ambiguous=False,
+    candidates=None,
+    no_text=False,
+    unreadable=False,
+    isbns=None,
 ):
     from bibtui.pdf.identify import IdentifyResult
 
     return IdentifyResult(
         doi=doi,
         arxiv_id=arxiv_id,
+        isbns=isbns or [],
         ambiguous=ambiguous,
         candidates=candidates or [],
         no_text=no_text,
@@ -58,7 +65,8 @@ def test_matched_when_doi_resolves(tmp_path) -> None:
     assert row.filename == "paper.pdf"
 
 
-def test_arxiv_id_is_looked_up_as_a_crossref_doi(tmp_path) -> None:
+def test_arxiv_id_is_looked_up_on_arxiv_not_crossref(tmp_path) -> None:
+    """arXiv DOIs are DataCite DOIs, so CrossRef 404s on them (#71)."""
     pdf = tmp_path / "preprint.pdf"
     pdf.write_bytes(b"fake")
     with (
@@ -66,15 +74,101 @@ def test_arxiv_id_is_looked_up_as_a_crossref_doi(tmp_path) -> None:
             "bibtui.pdf.import_scan.extract_identifier",
             return_value=_fake_identify(arxiv_id="2301.12345"),
         ),
+        patch("bibtui.pdf.import_scan.fetch_by_doi") as mock_doi,
         patch(
-            "bibtui.pdf.import_scan.fetch_by_doi",
+            "bibtui.pdf.import_scan.fetch_by_arxiv_id",
             return_value=_entry("10.48550/arXiv.2301.12345"),
-        ) as mock_fetch,
+        ) as mock_arxiv,
     ):
         row = _process(pdf)
 
-    mock_fetch.assert_called_once_with("10.48550/arXiv.2301.12345")
+    mock_doi.assert_not_called()
+    mock_arxiv.assert_called_once_with("2301.12345")
     assert row.status == ImportStatus.MATCHED
+
+
+def test_arxiv_preprint_already_in_library_by_eprint(tmp_path) -> None:
+    pdf = tmp_path / "preprint.pdf"
+    pdf.write_bytes(b"fake")
+    existing = BibEntry(key="Vaswani2017", entry_type="misc")
+    existing.raw_fields.update({"eprint": "1706.03762", "archiveprefix": "arXiv"})
+    by_key = {k: existing for k in entry_identity_keys(existing)}
+    with (
+        patch(
+            "bibtui.pdf.import_scan.extract_identifier",
+            return_value=_fake_identify(arxiv_id="1706.03762"),
+        ),
+        patch("bibtui.pdf.import_scan.fetch_by_arxiv_id") as mock_arxiv,
+    ):
+        row = _process(pdf, existing_by_doi=by_key)
+
+    mock_arxiv.assert_not_called()
+    assert row.status == ImportStatus.LINK_EXISTING
+    assert row.entry is existing
+
+
+def test_book_isbns_are_tried_in_order_until_one_resolves(tmp_path) -> None:
+    pdf = tmp_path / "book.pdf"
+    pdf.write_bytes(b"fake")
+    book = BibEntry(key="Goodfellow2017", entry_type="book")
+    with (
+        patch(
+            "bibtui.pdf.import_scan.extract_identifier",
+            return_value=_fake_identify(isbns=["9783030515867", "9780262035613"]),
+        ),
+        patch(
+            "bibtui.pdf.import_scan.fetch_by_isbn",
+            side_effect=[LookupError("no record"), book],
+        ) as mock_isbn,
+    ):
+        row = _process(pdf)
+
+    # A "no record" answer isn't retried — straight on to the next ISBN.
+    assert [c.args[0] for c in mock_isbn.call_args_list] == [
+        "9783030515867",
+        "9780262035613",
+    ]
+    assert row.status == ImportStatus.MATCHED
+    assert row.entry is book
+
+
+def test_book_lookup_failure_names_every_isbn(tmp_path) -> None:
+    pdf = tmp_path / "book.pdf"
+    pdf.write_bytes(b"fake")
+    with (
+        patch(
+            "bibtui.pdf.import_scan.extract_identifier",
+            return_value=_fake_identify(isbns=["9783030515867", "9780262035613"]),
+        ),
+        patch(
+            "bibtui.pdf.import_scan.fetch_by_isbn",
+            side_effect=LookupError("no record"),
+        ),
+    ):
+        row = _process(pdf)
+
+    assert row.status == ImportStatus.LOOKUP_FAILED
+    assert "9783030515867" in row.message
+    assert "9780262035613" in row.message
+
+
+def test_book_already_in_library_by_isbn(tmp_path) -> None:
+    pdf = tmp_path / "book.pdf"
+    pdf.write_bytes(b"fake")
+    existing = BibEntry(key="Goodfellow2017", entry_type="book")
+    existing.raw_fields["isbn"] = "0-262-03561-8"  # ISBN-10 form of the same book
+    by_key = {k: existing for k in entry_identity_keys(existing)}
+    with (
+        patch(
+            "bibtui.pdf.import_scan.extract_identifier",
+            return_value=_fake_identify(isbns=["9780262035613"]),
+        ),
+        patch("bibtui.pdf.import_scan.fetch_by_isbn") as mock_isbn,
+    ):
+        row = _process(pdf, existing_by_doi=by_key)
+
+    mock_isbn.assert_not_called()
+    assert row.status == ImportStatus.LINK_EXISTING
 
 
 def test_no_identifier_when_extraction_finds_nothing(tmp_path) -> None:

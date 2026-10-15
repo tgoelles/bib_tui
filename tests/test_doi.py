@@ -305,3 +305,12 @@ def test_preprint_publisher_stored() -> None:
     with patch("bibtui.bib.doi.Crossref", return_value=_mock_cr(_make_preprint_msg())):
         e = fetch_by_doi("10.5194/essd-2025-745")
     assert e.raw_fields.get("publisher") == "Copernicus GmbH"
+
+
+def test_fetch_by_doi_strips_resolver_url() -> None:
+    """Pasting https://doi.org/... must store the bare DOI (issue #73)."""
+    cr = _mock_cr(_make_msg(DOI="10.5194/egusphere-2026-3551"))
+    with patch("bibtui.bib.doi.Crossref", return_value=cr):
+        e = fetch_by_doi("https://doi.org/10.5194/egusphere-2026-3551")
+    assert e.doi == "10.5194/egusphere-2026-3551"
+    cr.works.assert_called_once_with(ids="10.5194/egusphere-2026-3551")

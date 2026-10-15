@@ -133,3 +133,10 @@ def test_file_column_render_uses_base_dir(tmp_path) -> None:
     missing = _entry(key="Missing2099", file=":nope.pdf:PDF")
     assert spec.render(missing, str(tmp_path)) == "□"  # linked but absent
     assert spec.render(_entry(file=""), str(tmp_path)) == " "  # no link
+
+
+def test_author_column_renders_and_sorts_decoded_latex() -> None:
+    spec = BUILTIN_COLUMNS["author"]
+    e = _entry(author='Sch{\\"o}ner, Wolfgang and Winiwarter, Wilfried')
+    assert spec.render(e, "") == "Schöner"
+    assert spec.sort_key(e) == "schöner"

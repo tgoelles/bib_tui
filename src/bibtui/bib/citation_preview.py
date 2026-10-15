@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from bibtexparser.middlewares import LatexDecodingMiddleware
 from citeproc import (  # type: ignore[import-untyped]
     Citation,
     CitationItem,
@@ -14,6 +13,7 @@ from citeproc import (  # type: ignore[import-untyped]
 from citeproc.model import FormatNumber  # type: ignore[import-untyped]
 from citeproc.source.json import CiteProcJSON  # type: ignore[import-untyped]
 
+from bibtui.bib.latex import decode_latex as _decode_latex
 from bibtui.bib.models import BibEntry
 from bibtui.utils.config import csl_dir, ensure_csl_styles
 
@@ -36,18 +36,6 @@ def _safe_format_last_page(self, first, last):  # type: ignore[no-untyped-def]
 
 
 FormatNumber._format_last_page = _safe_format_last_page
-
-
-_LATEX_DECODER = LatexDecodingMiddleware(allow_inplace_modification=False)
-
-
-def _decode_latex(value: str) -> str:
-    if not value:
-        return ""
-    try:
-        return _LATEX_DECODER._decoder.latex_to_text(value)
-    except Exception:
-        return value
 
 
 def _configured_csl_dir() -> Path:

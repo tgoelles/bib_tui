@@ -11,11 +11,17 @@ Run all including network tests:
     uv run pytest tests/test_pdf_fetcher.py
 """
 
+import io
+import json
+import os
+import stat
+
 import pytest
 
 from bibtui.bib.models import BibEntry
 from bibtui.pdf import fetcher as pdf_fetcher
 from bibtui.pdf.fetcher import (
+    FetchCancelled,
     FetchError,
     FetchResult,
     _arxiv_id,
@@ -185,6 +191,11 @@ def test_fetch_pdf_no_doi_or_url_all_strategies_fail(tmp_path):
             "10.5194/egusphere-2026-485",
             "https://egusphere.copernicus.org/preprints/2026/egusphere-2026-485/egusphere-2026-485.pdf",
         ),
+        # DOI stored as a resolver URL (issue #73)
+        (
+            "https://doi.org/10.5194/egusphere-2026-3551",
+            "https://egusphere.copernicus.org/preprints/2026/egusphere-2026-3551/egusphere-2026-3551.pdf",
+        ),
     ],
 )
 def test_copernicus_pdf_url(doi: str, expected: str) -> None:
@@ -210,6 +221,73 @@ def test_try_copernicus_non_copernicus_doi(tmp_path) -> None:
     reason = _try_copernicus(e, str(tmp_path / "x.pdf"))
     assert reason is not None
     assert "not a recognised Copernicus DOI" in reason
+
+
+class _FakeResponse(io.BytesIO):
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.headers = {
+            "Content-Type": "application/pdf",
+            "Content-Length": str(len(data)),
+        }
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+
+def test_download_reports_progress(monkeypatch, tmp_path) -> None:
+    data = b"%PDF" + b"x" * 200_000
+    monkeypatch.setattr(
+        pdf_fetcher.urllib.request,
+        "urlopen",
+        lambda req, timeout=0: _FakeResponse(data),
+    )
+    calls: list[tuple[str, int, int | None]] = []
+    entry = BibEntry(key="x", entry_type="misc", doi="10.5194/egusphere-2026-3551")
+
+    result = fetch_pdf(entry, str(tmp_path), progress=lambda *args: calls.append(args))
+
+    assert result.provider == "Copernicus"
+    assert calls[-1][1:] == (len(data), len(data))
+    assert [c[1] for c in calls] == sorted(c[1] for c in calls)
+    assert len(calls) > 1
+
+
+def test_downloaded_pdf_respects_umask(monkeypatch, tmp_path) -> None:
+    data = b"%PDF" + b"x" * 1000
+    monkeypatch.setattr(
+        pdf_fetcher.urllib.request,
+        "urlopen",
+        lambda req, timeout=0: _FakeResponse(data),
+    )
+    old_umask = os.umask(0o022)
+    try:
+        dest = tmp_path / "x.pdf"
+        pdf_fetcher._download("https://example.org/x.pdf", str(dest))
+    finally:
+        os.umask(old_umask)
+    assert stat.S_IMODE(dest.stat().st_mode) == 0o644
+
+
+def test_fetch_pdf_cancel_aborts_and_removes_partial(monkeypatch, tmp_path) -> None:
+    data = b"%PDF" + b"x" * 200_000
+    monkeypatch.setattr(
+        pdf_fetcher.urllib.request,
+        "urlopen",
+        lambda req, timeout=0: _FakeResponse(data),
+    )
+    entry = BibEntry(key="x", entry_type="misc", doi="10.5194/egusphere-2026-3551")
+
+    def cancel(url: str, downloaded: int, total: int | None) -> None:
+        raise FetchCancelled()
+
+    with pytest.raises(FetchCancelled):
+        fetch_pdf(entry, str(tmp_path), progress=cancel)
+
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_try_direct_url_falls_back_to_get_when_head_fails(monkeypatch, tmp_path):
@@ -685,17 +763,38 @@ def test_try_openalex_downloads_pdf_by_title_without_doi(openalex_api_key, tmp_p
         assert f.read(4) == b"%PDF"
 
 
-@pytest.mark.network
 def test_try_unpaywall_reports_landing_page_only(
-    zeitz2021_entry, unpaywall_email, tmp_path
+    zeitz2021_entry, monkeypatch, tmp_path
 ):
-    """Zeitz2021: Unpaywall has url_for_pdf=None — only a landing page.
+    """Unpaywall knows only landing pages (url_for_pdf=None everywhere).
     The strategy should report this clearly rather than trying to download HTML.
+
+    Mocked rather than live: Unpaywall's record for Zeitz2021 later gained a
+    url_for_pdf (a DOI that redirects to HTML), so the live data no longer
+    exercised this path.
     """
+    record = {
+        "best_oa_location": {
+            "url_for_pdf": None,
+            "url_for_landing_page": "https://doi.org/10.5194/tc-15-5739-2021",
+        },
+        "oa_locations": [
+            {
+                "url_for_pdf": None,
+                "url_for_landing_page": "https://doi.org/10.5194/tc-15-5739-2021",
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        pdf_fetcher.urllib.request,
+        "urlopen",
+        lambda req, timeout=0: _FakeResponse(json.dumps(record).encode()),
+    )
     dest = str(tmp_path / f"{zeitz2021_entry.key}.pdf")
-    reason = _try_unpaywall(zeitz2021_entry, dest, unpaywall_email)
+    reason = _try_unpaywall(zeitz2021_entry, dest, "test@example.org")
     assert reason is not None, "Expected failure but got success"
     assert "no direct PDF" in reason
+    assert not os.path.exists(dest)
 
 
 @pytest.mark.network

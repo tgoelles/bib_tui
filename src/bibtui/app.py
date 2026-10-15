@@ -215,7 +215,13 @@ class BibTuiApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="main-content"):
-            yield EntryList([], columns=self._config.table_columns, id="entry-list")
+            yield EntryList(
+                [],
+                columns=self._config.table_columns,
+                sort_column=self._config.sort_column,
+                sort_reverse=self._config.sort_reverse,
+                id="entry-list",
+            )
             yield EntryDetail(
                 default_csl_style=self._config.default_citation_style,
                 id="entry-detail",
@@ -534,7 +540,7 @@ class BibTuiApp(App):
         entry_list = self.query_one(EntryList)
         entry_list.refresh_entries(self._entries)
         self.query_one(EntryDetail).show_entry(result)
-        self.notify("Entry updated. Press [w] to write.", timeout=3)
+        self.notify("Entry updated. Press [bold]w[/bold] to write.", timeout=3)
 
     def action_new_entry(self) -> None:
         self.push_screen(NewEntryChooserModal(), self._on_new_entry_choice)
@@ -590,13 +596,23 @@ class BibTuiApp(App):
         )
 
     def _existing_entries_by_doi(self) -> dict[str, BibEntry]:
-        """Map normalized DOI to the matching entry already in the library.
+        """Map identity keys to the matching entry already in the library.
+
+        Keys are normalized DOIs, plus arXiv DOIs for ``eprint``-only
+        preprints and ``isbn:<ISBN-13>`` for books — see
+        :func:`bibtui.pdf.import_scan.entry_identity_keys`.
 
         Values are the live entry objects (not copies) so PDF-import can
         link a PDF to an already-existing entry in place — see
         ``_on_pdf_import_review_done`` and ``PdfImportReviewModal``.
         """
-        return {normalize_doi(e.doi): e for e in self._entries if e.doi.strip()}
+        from bibtui.pdf.import_scan import entry_identity_keys
+
+        by_key: dict[str, BibEntry] = {}
+        for e in self._entries:
+            for key in entry_identity_keys(e):
+                by_key.setdefault(key, e)
+        return by_key
 
     def _on_pdf_import_review_done(self, result: dict | None) -> None:
         if not result:
@@ -1197,6 +1213,11 @@ class BibTuiApp(App):
         self.query_one(EntryList).set_columns(keys)
         self.notify("Table columns updated.", timeout=3)
 
+    def on_entry_list_sort_changed(self, event: EntryList.SortChanged) -> None:
+        self._config.sort_column = event.column
+        self._config.sort_reverse = event.reverse
+        save_config(self._config)
+
     def action_reset_theme(self) -> None:
         self._config.theme = ""
         save_config(self._config)
@@ -1627,4 +1648,4 @@ class BibTuiApp(App):
         self._dirty = True
         self.query_one(EntryList).refresh_entries(self._entries)
         self.query_one(EntryDetail).show_entry(entry)
-        self.notify("Keywords updated. Press [w] to write.", timeout=3)
+        self.notify("Keywords updated. Press [bold]w[/bold] to write.", timeout=3)

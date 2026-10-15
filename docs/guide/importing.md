@@ -99,17 +99,26 @@ Papers/Zotero library. The picker reuses "Add PDF"'s browse-and-filter list
 path in to browse elsewhere) but as a checklist, so you can pick several files
 at once instead of one per entry.
 
-Each selected PDF is scanned for a DOI or arXiv id — first in the embedded
-document metadata, then in the text of its first two pages — and the
-identifier is validated and its metadata fetched through the same CrossRef
-pipeline as "Import by DOI". Nothing is written until you confirm: a report
+Each selected PDF is scanned for an identifier — first in the embedded
+document metadata, then in the text of its first pages — and its metadata is
+fetched from the matching service:
+
+- **DOI** (first two pages) — CrossRef, the same pipeline as "Import by DOI".
+- **arXiv id** such as `arXiv:2301.12345` or `hep-th/9711200` — the arXiv API.
+  The entry is stored as `@misc` with `eprint`, `archiveprefix` and
+  `primaryclass` set, and the arXiv DOI (`10.48550/arXiv.…`).
+- **ISBN** for books (an `ISBN`-labelled number in the first ten pages, where
+  the copyright page sits) — Open Library. Books often list several ISBNs
+  (print, e-book); each is tried until one is found.
+
+Nothing is written until you confirm: a report
 screen lists every file with a ✓/✗ mark and the reason a file failed (an
 ambiguous file's candidate DOIs are shown too, so you can copy one out and use
 "Import by DOI" yourself). Press <kbd>Space</kbd> on any row, success or
 failure, to preview its PDF. One "Import N Entries" click then commits every
 ✓ row at once.
 
-- If the DOI already matches an entry in your library, no duplicate entry is
+- If the DOI (or arXiv id, or ISBN) already matches an entry in your library, no duplicate entry is
   created; if that entry has no PDF linked yet, this PDF is linked to it (✓)
   instead of being silently skipped — including duplicate PDFs within the
   same selection.
@@ -117,7 +126,7 @@ failure, to preview its PDF. One "Import N Entries" click then commits every
   configured PDF folder under any name, it's reused instead of being copied in
   again; otherwise matched PDFs are moved into the PDF folder and linked, the
   same as "Add PDF".
-- Files with no extractable text, or where CrossRef can't be reached, are
+- Files with no extractable text, or where the lookup service can't be reached, are
   reported per-file and never block the rest of the batch.
 
 ## Import a `.bib` file

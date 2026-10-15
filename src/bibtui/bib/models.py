@@ -1,6 +1,8 @@
 import re
 from dataclasses import dataclass, field
 
+from bibtui.bib.authors import first_surname
+
 # A brace not preceded by a backslash: BibTeX grouping / case protection, as
 # opposed to an escaped literal brace (``\{``).
 _GROUPING_BRACE_RE = re.compile(r"(?<!\\)[{}]")
@@ -165,15 +167,8 @@ class BibEntry:
 
     @property
     def authors_short(self) -> str:
-        """Return first author surname or 'Unknown'."""
-        if not self.author:
-            return "Unknown"
-        parts = self.author.split(" and ")
-        first = parts[0].strip()
-        if "," in first:
-            return first.split(",")[0].strip()
-        words = first.split()
-        return words[-1] if words else first
+        """Return the first author's surname (LaTeX decoded) or 'Unknown'."""
+        return first_surname(self.author) or "Unknown"
 
     @property
     def title_plain(self) -> str:
