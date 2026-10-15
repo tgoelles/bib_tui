@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Changing an entry's cite key in the raw BibTeX editor lost the edit** ([#77](https://github.com/tgoelles/bib_tui/issues/77)) — the editor said "Entry updated" but nothing changed. Worse, renaming to a key another entry already had overwrote *that* entry. The edit now always applies to the entry you opened, and renaming onto an existing key is refused with an error.
+
 ## [1.1.0] - 2026-09-14
 
 ### Added
