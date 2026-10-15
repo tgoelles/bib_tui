@@ -37,8 +37,21 @@ just test   # uv run pytest -v tests
 just lint   # uv run ruff check src/
 ```
 
-CI additionally runs the suite without the `network`-marked tests
-(`uv run pytest -m "not network"`) across Python 3.12–3.14.
+By default pytest skips two groups of tests:
+
+- `network`: tests that make real HTTP requests (CrossRef, Unpaywall, …), which
+  can fail when a remote service changes. Run them with `uv run pytest -m network`.
+- `slow`: the exhaustive save-integrity sweep that edits every entry in the
+  example libraries (about 20 s). Run it with `uv run pytest -m slow`.
+
+CI runs everything except `network` (`uv run pytest -m "not network"`) across
+Python 3.12–3.14, so the slow sweep runs there.
+
+The save-integrity tests (`tests/test_save_integrity.py`) edit entries,
+save, reload and check that only the edited field changed, both in the data and
+in the file text. When you hit a `.bib` layout that breaks saving, add it as an
+entry to `tests/bib_examples/edge_cases.bib`; it is then tested with every edit
+automatically.
 
 ## Working on the docs
 

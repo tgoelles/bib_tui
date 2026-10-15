@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import bibtexparser
@@ -147,79 +148,104 @@ def _patch_entry_block(
 ) -> str:
     """Return *block_text* with only the changed/added/removed fields patched.
 
-    Uses bibtexparser ``Field.start_line`` (absolute file line, 0-indexed)
-    minus ``Entry.start_line`` to get the field's line offset within
-    *block_text*.  All other
-    text — entry type, citekey, field casing, spacing, order — is left
-    byte-for-byte identical.  Falls back to full-entry serialization if
-    positional info is unusable.
+    Each field owns the lines from its ``Field.start_line`` (absolute, so made
+    relative via ``Entry.start_line``) up to the line before the next field
+    starts, minus trailing blank lines — so multi-line values are replaced or
+    removed as a whole. Everything else — citekey, field casing, spacing,
+    order — is left byte-for-byte identical. Layouts that can't be patched
+    line-wise (several fields on one line, a field on the ``@type{key,`` line,
+    a closing brace sharing a line with a value) fall back to serializing the
+    whole entry.
     """
     entry_start_line = bp_entry.start_line
     indent = _detect_indent(block_text)
+    lines = block_text.split("\n")
 
-    existing: dict[str, bpmodel.Field] = {}
+    close_idx = None
+    for i in range(len(lines) - 1, -1, -1):
+        if lines[i].strip() in ("}", ")"):
+            close_idx = i
+            break
+    if close_idx is None:
+        return _serialize_entry(desired)
+
+    starts: list[tuple[int, str]] = []
     for f in bp_entry.fields:
-        existing[f.key.lower()] = f
+        rel_line = f.start_line - entry_start_line
+        if rel_line <= 0 or rel_line >= close_idx:
+            return _serialize_entry(desired)
+        starts.append((rel_line, f.key.lower()))
+    starts.sort()
+    if len({line for line, _ in starts}) != len(starts):
+        return _serialize_entry(desired)
+
+    # key -> (first line, last line) of the field, inclusive.
+    spans: dict[str, tuple[int, int]] = {}
+    for n, (first, key_lower) in enumerate(starts):
+        last = (starts[n + 1][0] if n + 1 < len(starts) else close_idx) - 1
+        while last > first and not lines[last].strip():
+            last -= 1
+        spans[key_lower] = (first, last)
 
     desired_fields = _bp_field_map(_to_bp_entry(desired))
     # Normalise the original through the same BibEntry pipeline as *desired*, so
     # only genuine edits differ and untouched fields are never rewritten.
     current_fields = _bp_field_map(_to_bp_entry(_to_bib_entry(bp_entry)))
 
-    patched_lines = block_text.split("\n")
     deletions: set[int] = set()
     replacements: dict[int, str] = {}
 
-    for key_lower, field in existing.items():
-        rel_line = field.start_line - entry_start_line
-        if rel_line < 0 or rel_line >= len(patched_lines):
+    if bp_entry.entry_type.lower() != desired.entry_type.lower():
+        header = re.match(r"(\s*@)(\w+)", lines[0])
+        if header is None:
             return _serialize_entry(desired)
+        replacements[0] = (
+            header.group(1) + desired.entry_type + lines[0][header.end() :]
+        )
 
-        original_line = patched_lines[rel_line]
-
+    for key_lower, (first, last) in spans.items():
         if key_lower not in desired_fields:
-            deletions.add(rel_line)
+            deletions.update(range(first, last + 1))
             continue
 
         new_value = desired_fields[key_lower]
         if new_value == current_fields.get(key_lower):
             continue
 
-        eq_idx = original_line.find("=")
+        eq_idx = lines[first].find("=")
         if eq_idx == -1:
             return _serialize_entry(desired)
-
-        key_part = original_line[:eq_idx].rstrip()
-        replacements[rel_line] = f"{key_part} = {{{new_value}}},"
+        key_part = lines[first][:eq_idx].rstrip()
+        comma = "," if lines[last].rstrip().endswith(",") else ""
+        replacements[first] = f"{key_part} = {{{new_value}}}{comma}"
+        deletions.update(range(first + 1, last + 1))
 
     result_lines = []
-    for i, line in enumerate(patched_lines):
+    for i, line in enumerate(lines):
         if i in deletions:
             continue
-        result_lines.append(replacements[i] if i in replacements else line)
+        result_lines.append(replacements.get(i, line))
 
-    added = {k: v for k, v in desired_fields.items() if k not in existing}
+    added = {k: v for k, v in desired_fields.items() if k not in spans}
     if added:
-        close_idx = None
-        for i in range(len(result_lines) - 1, -1, -1):
-            if result_lines[i].strip() in ("}", ")"):
-                close_idx = i
-                break
-        if close_idx is None:
-            return _serialize_entry(desired)
+        close_idx = next(
+            i
+            for i in range(len(result_lines) - 1, -1, -1)
+            if result_lines[i].strip() in ("}", ")")
+        )
 
         prev_idx = close_idx - 1
-        while prev_idx >= 0 and not result_lines[prev_idx].strip():
+        while prev_idx > 0 and not result_lines[prev_idx].strip():
             prev_idx -= 1
 
+        # Keep the entry's trailing-comma style; a value spanning several lines
+        # ends on a line without "=", so check the comma, not the "=".
         had_trailing_comma = True
-        if prev_idx >= 0:
-            prev_line = result_lines[prev_idx]
-            prev_trimmed = prev_line.rstrip()
-            if "=" in prev_trimmed:
-                had_trailing_comma = prev_trimmed.endswith(",")
-                if not had_trailing_comma:
-                    result_lines[prev_idx] = f"{prev_trimmed},"
+        if prev_idx > 0:
+            prev_trimmed = result_lines[prev_idx].rstrip()
+            had_trailing_comma = prev_trimmed.endswith(",")
+            if not had_trailing_comma:
+                result_lines[prev_idx] = f"{prev_trimmed},"
 
         added_items = list(added.items())
         insert_lines = []
@@ -277,11 +303,45 @@ def _validate_entry_text(entry_text: str, expected_key: str) -> bool:
     return lib.entries[0].key == expected_key
 
 
-def _full_rewrite(entries: list[BibEntry], path: str) -> None:
+def _entry_text_matches(entry_text: str, expected: BibEntry) -> bool:
+    """Return True if *entry_text* parses back to exactly *expected*.
+
+    Stricter than :func:`_validate_entry_text`: besides the key it compares the
+    entry type and every field value, so a patch that parses but carries the
+    wrong data (a swallowed field, a clobbered value) is rejected.
+    """
+    try:
+        text = entry_text if entry_text.endswith("\n") else entry_text + "\n"
+        lib = bibtexparser.parse_string(text)
+    except Exception:
+        return False
+    if len(lib.entries) != 1:
+        return False
+    got = lib.entries[0]
+    return (
+        got.key == expected.key
+        and got.entry_type.lower() == expected.entry_type.lower()
+        and _bp_field_map(_to_bp_entry(_to_bib_entry(got)))
+        == _bp_field_map(_to_bp_entry(expected))
+    )
+
+
+def _detect_newline(raw_text: str) -> str:
+    """Return the file's line ending: ``"\\r\\n"`` if it uses CRLF, else ``"\\n"``."""
+    return "\r\n" if "\r\n" in raw_text else "\n"
+
+
+def _write_text(path: Path, text: str, newline: str) -> None:
+    """Write *text* (``\\n`` line endings) to *path* using *newline* endings."""
+    with path.open("w", encoding="utf-8", newline=newline) as f:
+        f.write(text)
+
+
+def _full_rewrite(entries: list[BibEntry], path: str, newline: str = "\n") -> None:
     lib = bibtexparser.Library()
     for entry in entries:
         lib.add(_to_bp_entry(entry))
-    bibtexparser.write_file(path, lib)
+    _write_text(Path(path), bibtexparser.write_string(lib), newline)
 
 
 # Identifier-like fields where an enclosing brace group is never meaningful.
@@ -482,32 +542,37 @@ def load(path: str) -> list[BibEntry]:
 def save(entries: list[BibEntry], path: str) -> None:
     path_obj = Path(path)
     try:
-        original_text = path_obj.read_text(encoding="utf-8")
+        # newline="" keeps "\r\n" so the file's line ending can be preserved;
+        # all processing below works on "\n".
+        with path_obj.open(encoding="utf-8", newline="") as f:
+            raw_text = f.read()
     except OSError:
         _full_rewrite(entries, path)
         return
+    newline = _detect_newline(raw_text)
+    original_text = raw_text.replace("\r\n", "\n")
 
     try:
         source_lib = bibtexparser.parse_string(original_text)
     except Exception:
-        _full_rewrite(entries, path)
+        _full_rewrite(entries, path, newline)
         return
 
     source_keys = [e.key for e in source_lib.entries]
     if len(source_keys) != len(set(source_keys)):
         # Duplicate keys: cannot safely patch incrementally.
-        _full_rewrite(entries, path)
+        _full_rewrite(entries, path, newline)
         return
 
     blocks = _parse_source_blocks(original_text, src_lib=source_lib)
     if not any(block.kind == "entry" for block in blocks):
-        _full_rewrite(entries, path)
+        _full_rewrite(entries, path, newline)
         return
 
     current_by_key: dict[str, BibEntry] = {}
     for entry in entries:
         if entry.key in current_by_key:
-            _full_rewrite(entries, path)
+            _full_rewrite(entries, path, newline)
             return
         current_by_key[entry.key] = entry
 
@@ -533,11 +598,12 @@ def save(entries: list[BibEntry], path: str) -> None:
             else:
                 candidate = _serialize_entry(current)
 
-            # Validate changed blocks before writing to avoid emitting broken BibTeX.
-            if not _validate_entry_text(candidate, current.key):
+            # Validate changed blocks before writing: the patch must parse back to
+            # exactly the desired entry, otherwise serialize the entry instead.
+            if not _entry_text_matches(candidate, current):
                 fallback = _serialize_entry(current)
                 if not _validate_entry_text(fallback, current.key):
-                    _full_rewrite(entries, path)
+                    _full_rewrite(entries, path, newline)
                     return
                 candidate = fallback
 
@@ -557,4 +623,4 @@ def save(entries: list[BibEntry], path: str) -> None:
 
     rewritten = "".join(output)
     if rewritten != original_text:
-        path_obj.write_text(rewritten, encoding="utf-8")
+        _write_text(path_obj, rewritten, newline)
