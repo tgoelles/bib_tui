@@ -388,7 +388,7 @@ def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
         if not works and not entry.doi and entry.title:
             works = cast(
                 list[dict[str, Any]],
-                pyalex.Works().search(entry.title).get(per_page=1),
+                pyalex.Works().search(entry.title_plain).get(per_page=1),
             )
 
         if not works:

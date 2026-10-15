@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Editing one field could strip case-protection braces from another** ([#70](https://github.com/tgoelles/bib_tui/issues/70)) — e.g. changing the author rewrote `title = {{LiDAR-Based Forest Inventory}}` as `{LiDAR-Based Forest Inventory}`. Worse, a value that merely started and ended with a brace group (`{Starts} with … {with}`) was cut into an unbalanced string, then saved as invalid BibTeX. Field values are now kept exactly as written, and saving an edited entry only rewrites the fields you actually changed. Titles are shown, searched and looked up (OpenAlex, duplicate-title check) without the protection braces.
+
 ## [1.1.0] - 2026-09-14
 
 ### Added

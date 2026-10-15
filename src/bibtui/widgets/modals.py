@@ -426,7 +426,7 @@ class DOIModal(_BaseModal[BibEntry | None]):
     def _on_fetch_success(self, entry: BibEntry) -> None:
         status = self.query_one("#doi-status", Static)
         status.set_classes("success")
-        status.update(f"Found: {entry.title[:60]}")
+        status.update(f"Found: {entry.title_short}")
         self.app.call_later(self._confirm, entry)
 
     def _on_fetch_error(self, message: str) -> None:

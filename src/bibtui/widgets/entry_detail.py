@@ -24,7 +24,7 @@ def _render_entry(entry: BibEntry, colors: dict[str, str]) -> str:
     lines: list[str] = []
 
     # Title
-    lines.append(f"[bold {c['title']}]{entry.title or '(no title)'}[/]")
+    lines.append(f"[bold {c['title']}]{entry.title_plain or '(no title)'}[/]")
     lines.append("")
 
     # Entry type badge

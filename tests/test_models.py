@@ -8,6 +8,7 @@ from bibtui.bib.models import (
     READ_STATE_ICONS,
     READ_STATES,
     BibEntry,
+    strip_braces,
 )
 
 # ---------------------------------------------------------------------------
@@ -225,3 +226,28 @@ def test_set_field_unknown_goes_to_raw() -> None:
     e = BibEntry(key="k", entry_type="article")
     e.set_field("volume", "7")
     assert e.raw_fields["volume"] == "7"
+
+
+# ---------------------------------------------------------------------------
+# strip_braces / title_plain
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("{LiDAR-Based Forest Inventory}", "LiDAR-Based Forest Inventory"),
+        ("{American} Independence and {GPS}", "American Independence and GPS"),
+        ("Plain title", "Plain title"),
+        (r"Costs in \{braces\}", r"Costs in \{braces\}"),
+    ],
+)
+def test_strip_braces(value: str, expected: str) -> None:
+    assert strip_braces(value) == expected
+
+
+def test_title_plain_and_short_drop_protection_braces() -> None:
+    entry = BibEntry(key="k", entry_type="article", title="{{LiDAR}} Survey")
+    assert entry.title == "{{LiDAR}} Survey"  # stored value untouched
+    assert entry.title_plain == "LiDAR Survey"
+    assert entry.title_short == "LiDAR Survey"

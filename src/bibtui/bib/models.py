@@ -1,4 +1,20 @@
+import re
 from dataclasses import dataclass, field
+
+# A brace not preceded by a backslash: BibTeX grouping / case protection, as
+# opposed to an escaped literal brace (``\{``).
+_GROUPING_BRACE_RE = re.compile(r"(?<!\\)[{}]")
+
+
+def strip_braces(value: str) -> str:
+    """Return *value* without BibTeX grouping braces, for display and search.
+
+    ``{{LiDAR}} for {GPS}`` → ``LiDAR for GPS``. Escaped braces (``\\{``) and
+    LaTeX commands are left alone. Never use this on a value that is written
+    back to the ``.bib`` file — the braces carry meaning there.
+    """
+    return _GROUPING_BRACE_RE.sub("", value)
+
 
 READ_STATES: list[str] = ["", "to-read", "skimmed", "read"]
 
@@ -160,10 +176,16 @@ class BibEntry:
         return words[-1] if words else first
 
     @property
+    def title_plain(self) -> str:
+        """Title without BibTeX grouping braces, for display and lookups."""
+        return strip_braces(self.title)
+
+    @property
     def title_short(self) -> str:
-        if len(self.title) <= 60:
-            return self.title
-        return self.title[:57] + "..."
+        title = self.title_plain
+        if len(title) <= 60:
+            return title
+        return title[:57] + "..."
 
     @property
     def read_state_icon(self) -> str:
