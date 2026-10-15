@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PDF fetch for DOIs pasted as links** — importing `https://doi.org/10.5194/egusphere-…` stored the whole link as the DOI, so the Copernicus/EGUsphere and Unpaywall lookups failed and no PDF was downloaded. The bare DOI is now stored, and existing link-form DOIs are handled too ([#73](https://github.com/tgoelles/bib_tui/issues/73)).
 - **Download progress and a working Cancel** — the Fetch PDF dialog shows how much has been downloaded (e.g. `20.5 / 41.1 MB (50%)`), so large preprints no longer look stuck. Cancel now really stops the download and removes the partial file.
 - **Permissions of downloaded PDFs** — fetched PDFs were readable only by you (`0600`); they now get normal permissions according to your umask.
+- **Saving could corrupt or lose edits for some entry layouts** ([#78](https://github.com/tgoelles/bib_tui/issues/78)):
+  - setting a rating or read state on an entry whose last field spans several lines (e.g. a multi-line `annote`) produced invalid BibTeX and the change was lost on reload;
+  - editing a field that shares a line with another (`title = {…}, author = {…},`) overwrote the other field;
+  - changing the entry type (e.g. article → book) was silently not saved;
+  - editing or removing a multi-line field reformatted the whole entry.
+
+  Fields are now patched as whole multi-line spans, the entry type is updated in place, and every patched entry is checked to reload with exactly the intended values before it is written (otherwise just that entry is re-serialized).
+- **Saving converted Windows (CRLF) `.bib` files to LF** ([#79](https://github.com/tgoelles/bib_tui/issues/79)), so a one-field edit changed every line of the file. The file's line endings are now kept.
+- **Changing an entry's cite key in the raw BibTeX editor lost the edit** ([#77](https://github.com/tgoelles/bib_tui/issues/77)) — the editor said "Entry updated" but nothing changed. Worse, renaming to a key another entry already had overwrote *that* entry. The edit now always applies to the entry you opened, and renaming onto an existing key is refused with an error.
 
 ## [1.1.1] - 2026-09-21
 
@@ -42,14 +51,6 @@ Many small quality of life changes and bug fixes.
 
 - **"Press w to write" hint** — after editing an entry or its keywords, the confirmation read "Press  to write." because `[w]` was swallowed as markup; it now shows the key.
 - **Square brackets in abstracts** — an abstract containing something like `[1]` or `[Ca2+]` had it silently swallowed as markup; it now shows literally.
-- **Saving could corrupt or lose edits for some entry layouts** ([#78](https://github.com/tgoelles/bib_tui/issues/78)):
-  - setting a rating or read state on an entry whose last field spans several lines (e.g. a multi-line `annote`) produced invalid BibTeX and the change was lost on reload;
-  - editing a field that shares a line with another (`title = {…}, author = {…},`) overwrote the other field;
-  - changing the entry type (e.g. article → book) was silently not saved;
-  - editing or removing a multi-line field reformatted the whole entry.
-
-  Fields are now patched as whole multi-line spans, the entry type is updated in place, and every patched entry is checked to reload with exactly the intended values before it is written (otherwise just that entry is re-serialized).
-- **Saving converted Windows (CRLF) `.bib` files to LF** ([#79](https://github.com/tgoelles/bib_tui/issues/79)), so a one-field edit changed every line of the file. The file's line endings are now kept.
 
 ## [1.1.0] - 2026-09-14
 

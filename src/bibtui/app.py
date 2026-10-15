@@ -524,23 +524,40 @@ class BibTuiApp(App):
         if entry is None:
             self.notify("No entry selected.", severity="warning")
             return
-        if self.query_one(EntryDetail).raw_mode:
-            self.push_screen(RawEditModal(entry), self._on_edit_done)
-        else:
-            self.push_screen(EditModal(entry), self._on_edit_done)
+        modal = (
+            RawEditModal(entry)
+            if self.query_one(EntryDetail).raw_mode
+            else EditModal(entry)
+        )
+        self.push_screen(modal, lambda result: self._on_edit_done(result, entry))
 
-    def _on_edit_done(self, result: BibEntry | None) -> None:
+    def _on_edit_done(self, result: BibEntry | None, original: BibEntry) -> None:
         if result is None:
             return
-        # Update in master list
-        for i, e in enumerate(self._entries):
-            if e.key == result.key:
-                self._entries[i] = result
-                break
+        # The raw editor lets the user change the cite key, so locate the entry
+        # that was opened by identity — matching on result.key would miss a
+        # renamed entry, or hit a different entry that already owns the new key.
+        idx = next((i for i, e in enumerate(self._entries) if e is original), None)
+        if idx is None:
+            self.notify("Entry no longer exists; edit discarded.", severity="error")
+            return
+        if result.key != original.key and any(
+            e.key == result.key for e in self._entries
+        ):
+            self.notify(
+                f"Cite key '{result.key}' is already used by another entry; "
+                "edit discarded.",
+                severity="error",
+            )
+            return
+        self._entries[idx] = result
         self._dirty = True
-        entry_list = self.query_one(EntryList)
-        entry_list.refresh_entries(self._entries)
-        self.query_one(EntryDetail).show_entry(result)
+        self.query_one(EntryList).refresh_entries(self._entries)
+        if result.key != original.key:
+            # refresh_entries restores the cursor by the old key, which is gone.
+            self.call_after_refresh(self._jump_to_entry, result)
+        else:
+            self.query_one(EntryDetail).show_entry(result)
         self.notify("Entry updated. Press [bold]w[/bold] to write.", timeout=3)
 
     def action_new_entry(self) -> None:
