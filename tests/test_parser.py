@@ -291,6 +291,37 @@ def test_save_appends_new_entry_without_touching_existing_text(tmp_path) -> None
     assert "@article{KeyC," in out
 
 
+_THREE = (
+    "% header\n\n"
+    "@article{A,\n  title = {1},\n}\n\n"
+    "@article{B,\n  title = {2},\n}\n\n"
+    "@article{C,\n  title = {3},\n}\n"
+)
+_BLOCK = {k: f"@article{{{k},\n  title = {{{n}}},\n}}\n" for k, n in zip("ABC", "123")}
+
+
+@pytest.mark.parametrize(
+    ("deleted", "expected"),
+    [
+        ("B", "% header\n\n" + _BLOCK["A"] + "\n" + _BLOCK["C"]),
+        ("C", "% header\n\n" + _BLOCK["A"] + "\n" + _BLOCK["B"]),
+        ("A", "% header\n\n" + _BLOCK["B"] + "\n" + _BLOCK["C"]),
+        ("BC", "% header\n\n" + _BLOCK["A"]),
+        ("AB", "% header\n\n" + _BLOCK["C"]),
+    ],
+)
+def test_save_delete_does_not_leave_extra_blank_lines(
+    tmp_path, deleted, expected
+) -> None:
+    path = tmp_path / "del.bib"
+    path.write_text(_THREE, encoding="utf-8")
+
+    entries = [e for e in load(str(path)) if e.key not in deleted]
+    save(entries, str(path))
+
+    assert path.read_text(encoding="utf-8") == expected
+
+
 def test_save_patches_only_changed_field(tmp_path) -> None:
     """Changing one field on one entry must leave every other line untouched."""
     source = """\

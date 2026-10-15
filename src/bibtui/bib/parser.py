@@ -483,14 +483,29 @@ def save(entries: list[BibEntry], path: str) -> None:
     output: list[str] = []
     used_keys: set[str] = set()
 
-    for block in blocks:
+    def _is_blank(block: _SourceBlock) -> bool:
+        return block.kind != "entry" and not block.text.strip()
+
+    last_entry_idx = max(i for i, b in enumerate(blocks) if b.kind == "entry")
+    skip_blank = False
+
+    for i, block in enumerate(blocks):
         if block.kind != "entry" or block.key is None:
-            output.append(block.text)
+            if not (skip_blank and _is_blank(block)):
+                output.append(block.text)
+            skip_blank = False
             continue
+        skip_blank = False
 
         current = current_by_key.get(block.key)
         if current is None:
-            # Entry was deleted: drop just this block, keep surrounding text untouched.
+            # Entry was deleted: drop the block together with one blank-line
+            # separator — the one after it, or before it when it was the last
+            # entry — so repeated deletes don't pile up empty lines.
+            if i < last_entry_idx:
+                skip_blank = True
+            elif output and not output[-1].strip():
+                output.pop()
             continue
 
         used_keys.add(block.key)

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **"Delete keyword everywhere" rewrote the keywords of every entry** — entries that never had the deleted keyword had their keyword list reformatted (`firn,ice` → `firn, ice`), adding unrelated changes all over the `.bib` file. Now only entries that contained the keyword are touched.
+- **Deleting entries left extra blank lines behind** — each deleted entry left its blank-line separator in the file, so blank lines piled up between entries and at the end of the file.
+
 ## [1.1.0] - 2026-09-14
 
 ### Added
