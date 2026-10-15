@@ -1,10 +1,12 @@
 import copy
 import re
 import textwrap
+import threading
 import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import TypeVar
+from urllib.parse import urlparse
 
 from rich.text import Text
 
@@ -2709,6 +2711,10 @@ class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
         # instead of a bare "could not fetch" that reads like nothing happened.
         self._just_created = just_created
         self._saved_result: tuple[str, str] | None = None
+        # Set on Cancel/Escape; the worker thread's progress callback checks it
+        # and aborts the download (large PDFs can take minutes).
+        self._cancelled = threading.Event()
+        self._last_progress_update = 0.0
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -2727,7 +2733,7 @@ class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
 
     @work(thread=True)
     def _do_fetch(self) -> None:
-        from bibtui.pdf.fetcher import FetchError, fetch_pdf
+        from bibtui.pdf.fetcher import FetchCancelled, FetchError, fetch_pdf
 
         try:
             result = fetch_pdf(
@@ -2736,12 +2742,50 @@ class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
                 self._email,
                 openalex_api_key=self._openalex_api_key,
                 overwrite=self._overwrite,
+                progress=self._on_progress,
             )  # type: ignore[call-arg]
-            self.app.call_from_thread(self._on_success, result.path, result.provider)
+        except FetchCancelled:
+            return
         except FetchError as exc:
-            self.app.call_from_thread(self._on_error, str(exc))
+            self._call_if_open(self._on_error, str(exc))
+            return
         except Exception as exc:  # noqa: BLE001
-            self.app.call_from_thread(self._on_error, f"Unexpected error: {exc}")
+            self._call_if_open(self._on_error, f"Unexpected error: {exc}")
+            return
+        self._call_if_open(self._on_success, result.path, result.provider)
+
+    def _call_if_open(self, callback: Callable, *args) -> None:
+        """Run *callback* on the UI thread unless the modal was dismissed."""
+        if not self._cancelled.is_set():
+            self.app.call_from_thread(callback, *args)
+
+    def _on_progress(self, url: str, downloaded: int, total: int | None) -> None:
+        """Worker-thread progress hook: abort on cancel, throttle UI updates."""
+        from bibtui.pdf.fetcher import FetchCancelled
+
+        if self._cancelled.is_set():
+            raise FetchCancelled()
+        now = time.monotonic()
+        if now - self._last_progress_update < 0.2 and downloaded != total:
+            return
+        self._last_progress_update = now
+        self._call_if_open(
+            self._show_progress, self._format_progress(url, downloaded, total)
+        )
+
+    def _show_progress(self, text: str) -> None:
+        self.query_one("#fetch-status", Static).update(text)
+
+    @staticmethod
+    def _format_progress(url: str, downloaded: int, total: int | None) -> str:
+        host = urlparse(url).netloc or url
+        done_mb = downloaded / 1_000_000
+        if total:
+            pct = downloaded * 100 // total
+            size = f"{done_mb:.1f} / {total / 1_000_000:.1f} MB ({pct}%)"
+        else:
+            size = f"{done_mb:.1f} MB"
+        return f"Downloading from {host}…\n{size}"
 
     def _on_success(self, path: str, provider: str) -> None:
         self.query_one("#fetch-loading", LoadingIndicator).display = False
@@ -2791,11 +2835,12 @@ class FetchPDFModal(_BaseModal["tuple[str, str] | None"]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-cancel":
-            self.dismiss(None)
+            self.action_cancel()
         elif event.button.id == "btn-close":
             self.dismiss(self._saved_result)
 
     def action_cancel(self) -> None:
+        self._cancelled.set()
         self.dismiss(None)
 
 

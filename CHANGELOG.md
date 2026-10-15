@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **PDF fetch for DOIs pasted as links** — importing `https://doi.org/10.5194/egusphere-…` stored the whole link as the DOI, so the Copernicus/EGUsphere and Unpaywall lookups failed and no PDF was downloaded. The bare DOI is now stored, and existing link-form DOIs are handled too ([#73](https://github.com/tgoelles/bib_tui/issues/73)).
+- **Download progress and a working Cancel** — the Fetch PDF dialog shows how much has been downloaded (e.g. `20.5 / 41.1 MB (50%)`), so large preprints no longer look stuck. Cancel now really stops the download and removes the partial file.
+- **Permissions of downloaded PDFs** — fetched PDFs were readable only by you (`0600`); they now get normal permissions according to your umask.
+
 ## [1.1.1] - 2026-09-21
 
 Many small quality of life changes and bug fixes.
