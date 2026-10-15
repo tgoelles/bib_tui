@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Editing one field could strip case-protection braces from another** ([#70](https://github.com/tgoelles/bib_tui/issues/70)) — e.g. changing the author rewrote `title = {{LiDAR-Based Forest Inventory}}` as `{LiDAR-Based Forest Inventory}`. Worse, a value that merely started and ended with a brace group (`{Starts} with … {with}`) was cut into an unbalanced string, then saved as invalid BibTeX. Field values are now kept exactly as written, and saving an edited entry only rewrites the fields you actually changed. Titles are shown, searched and looked up (OpenAlex, duplicate-title check) without the protection braces.
+- **Saving could corrupt or lose edits for some entry layouts** ([#78](https://github.com/tgoelles/bib_tui/issues/78)):
+  - setting a rating or read state on an entry whose last field spans several lines (e.g. a multi-line `annote`) produced invalid BibTeX and the change was lost on reload;
+  - editing a field that shares a line with another (`title = {…}, author = {…},`) overwrote the other field;
+  - changing the entry type (e.g. article → book) was silently not saved;
+  - editing or removing a multi-line field reformatted the whole entry.
+
+  Fields are now patched as whole multi-line spans, the entry type is updated in place, and every patched entry is checked to reload with exactly the intended values before it is written (otherwise just that entry is re-serialized).
+- **Saving converted Windows (CRLF) `.bib` files to LF** ([#79](https://github.com/tgoelles/bib_tui/issues/79)), so a one-field edit changed every line of the file. The file's line endings are now kept.
 
 ## [1.1.0] - 2026-09-14
 

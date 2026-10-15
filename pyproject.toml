@@ -62,10 +62,11 @@ docs = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=src/bibtui --cov-report=term-missing"
+addopts = "--cov=src/bibtui --cov-report=term-missing -m 'not network and not slow'"
 asyncio_mode = "auto"
 markers = [
-    "network: tests that make real HTTP requests (deselect with -m 'not network')",
+    "network: tests that make real HTTP requests (run with -m network)",
+    "slow: exhaustive sweeps, e.g. editing every entry of the example libraries (run with -m slow)",
 ]
 
 [tool.coverage.run]
