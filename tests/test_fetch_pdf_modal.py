@@ -62,3 +62,26 @@ def test_manual_fetch_pdf_does_not_mark_just_created(monkeypatch) -> None:
 
     assert len(pushed) == 1
     assert pushed[0]._just_created is False
+
+
+def test_format_progress_with_total() -> None:
+    text = FetchPDFModal._format_progress(
+        "https://egusphere.copernicus.org/x.pdf", 20_500_000, 41_000_000
+    )
+    assert text == "Downloading from egusphere.copernicus.org…\n20.5 / 41.0 MB (50%)"
+
+
+def test_format_progress_without_total() -> None:
+    text = FetchPDFModal._format_progress("https://example.org/x.pdf", 1_500_000, None)
+    assert text.endswith("1.5 MB")
+
+
+def test_progress_raises_after_cancel() -> None:
+    import pytest
+
+    from bibtui.pdf.fetcher import FetchCancelled
+
+    modal = FetchPDFModal(_entry(), "/tmp/pdfs")
+    modal._cancelled.set()
+    with pytest.raises(FetchCancelled):
+        modal._on_progress("https://example.org/x.pdf", 1, 10)

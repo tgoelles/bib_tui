@@ -3,6 +3,7 @@ import re
 from habanero import Crossref
 
 from bibtui.utils.dates import now_date_added_value
+from bibtui.utils.doi import normalize_doi
 
 from .citekeys import author_year_base
 from .models import BibEntry
@@ -67,6 +68,9 @@ def _journal_for_preprint(msg: dict, doi: str, cr: Crossref) -> str:
 
 
 def fetch_by_doi(doi: str) -> BibEntry:
+    # Accept pasted resolver URLs (https://doi.org/...) but store the bare DOI —
+    # downstream code (PDF fetching, duplicate checks) expects ``10.xxxx/...``.
+    doi = normalize_doi(doi, lower=False)
     cr = Crossref()
     result = cr.works(ids=doi)
     msg = result["message"]
