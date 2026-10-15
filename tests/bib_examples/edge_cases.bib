@@ -1,0 +1,80 @@
+% Hand-picked layouts that the incremental save must handle. Each entry is
+% edited in isolation by tests/test_save_integrity.py.
+@string{jgr = "J. Geophys. Res."}
+@preamble{"\newcommand{\noopsort}[1]{}"}
+@comment{jabref-meta: databaseType:bibtex;}
+
+@article{DoubleBraces2020,
+  title = {{LiDAR-Based Forest Inventory}},
+  author = {Doe, J},
+  year = {2020},
+}
+
+@article{BraceEdges2020,
+  title = {T},
+  author = {Doe, J},
+  abstract = {{Starts} with braces and ends {with}},
+}
+
+@article{Quoted2020,
+  title = "Quoted {GPS} Title",
+  author = "Doe, J",
+  year = 2020,
+}
+
+@article{Macro2020,
+  title = {T},
+  author = {Doe, J},
+  journal = jgr,
+  month = jan,
+  year = {2020},
+}
+
+@misc{Concat2020,
+  title = {T},
+  author = {Doe, J},
+  note = "first" # " second",
+}
+
+@unpublished{MultilineLast2020,
+  title = {T},
+  author = {Doe, J},
+  annote = {
+    A note that spans
+
+    several lines
+  }
+}
+
+@article{MultilineMiddle2020,
+  title = {T},
+  abstract = {line one
+    line two
+    line three},
+  author = {Doe, J},
+  year = {2020},
+}
+
+@article{TwoPerLine2020, title = {T}, author = {Doe, J},
+  year = {2020}
+}
+
+@article{OneLine2020, title = {T}, author = {Doe, J}, year = {2020}}
+
+@article(Parens2020,
+  title = {T},
+  author = {Doe, J}
+)
+
+@ARTICLE{UpperCase2020,
+	TITLE = {T},
+	AUTHOR = {Doe, J},
+	YEAR = {2020}
+}
+
+@article{Aligned2020,
+  title         = {T},
+  author        = {Doe, J},
+  url           = {https://example.org/a_b?c=d},
+  file          = {:papers/Aligned2020.pdf:PDF},
+}
