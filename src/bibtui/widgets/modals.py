@@ -3346,7 +3346,11 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
 
     @work(thread=True)
     def _scan(self) -> None:
-        from bibtui.pdf.import_scan import ImportStatus, process_pdf
+        from bibtui.pdf.import_scan import (
+            ImportStatus,
+            entry_identity_keys,
+            process_pdf,
+        )
 
         seen_in_batch: set[str] = set()
         rows = []
@@ -3361,12 +3365,11 @@ class PdfImportReviewModal(_BaseModal["dict | None"]):
             if (
                 row.status in (ImportStatus.MATCHED, ImportStatus.LINK_EXISTING)
                 and row.entry
-                and row.entry.doi
             ):
-                seen_in_batch.add(normalize_doi(row.entry.doi))
+                seen_in_batch.update(entry_identity_keys(row.entry))
             rows.append(row)
-            hit_crossref = row.status in (ImportStatus.MATCHED, ImportStatus.LOOKUP_FAILED)
-            if hit_crossref and index < total and not self._cancel_requested:
+            hit_network = row.status in (ImportStatus.MATCHED, ImportStatus.LOOKUP_FAILED)
+            if hit_network and index < total and not self._cancel_requested:
                 time.sleep(self._CROSSREF_PAUSE_SECONDS)
         self.app.call_from_thread(self._on_scan_done, rows)
 

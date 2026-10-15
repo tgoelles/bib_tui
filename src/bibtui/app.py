@@ -596,13 +596,23 @@ class BibTuiApp(App):
         )
 
     def _existing_entries_by_doi(self) -> dict[str, BibEntry]:
-        """Map normalized DOI to the matching entry already in the library.
+        """Map identity keys to the matching entry already in the library.
+
+        Keys are normalized DOIs, plus arXiv DOIs for ``eprint``-only
+        preprints and ``isbn:<ISBN-13>`` for books — see
+        :func:`bibtui.pdf.import_scan.entry_identity_keys`.
 
         Values are the live entry objects (not copies) so PDF-import can
         link a PDF to an already-existing entry in place — see
         ``_on_pdf_import_review_done`` and ``PdfImportReviewModal``.
         """
-        return {normalize_doi(e.doi): e for e in self._entries if e.doi.strip()}
+        from bibtui.pdf.import_scan import entry_identity_keys
+
+        by_key: dict[str, BibEntry] = {}
+        for e in self._entries:
+            for key in entry_identity_keys(e):
+                by_key.setdefault(key, e)
+        return by_key
 
     def _on_pdf_import_review_done(self, result: dict | None) -> None:
         if not result:

@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Import books from PDF** — PDFs without a DOI are now scanned for an ISBN (first ten pages), and the book's metadata is fetched from Open Library ([#69](https://github.com/tgoelles/bib_tui/issues/69)).
+
 ### Fixed
+
+- **Import arXiv preprints from PDF** — arXiv DOIs are registered with DataCite, not CrossRef, so every arXiv PDF failed with "CrossRef lookup failed". arXiv PDFs are now looked up on the arXiv API (old `hep-th/…`-style ids too) and stored as `@misc` with `eprint`/`archiveprefix`/`primaryclass` ([#71](https://github.com/tgoelles/bib_tui/issues/71)).
 
 - **PDF fetch for DOIs pasted as links** — importing `https://doi.org/10.5194/egusphere-…` stored the whole link as the DOI, so the Copernicus/EGUsphere and Unpaywall lookups failed and no PDF was downloaded. The bare DOI is now stored, and existing link-form DOIs are handled too ([#73](https://github.com/tgoelles/bib_tui/issues/73)).
 - **Download progress and a working Cancel** — the Fetch PDF dialog shows how much has been downloaded (e.g. `20.5 / 41.1 MB (50%)`), so large preprints no longer look stuck. Cancel now really stops the download and removes the partial file.

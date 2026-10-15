@@ -61,6 +61,21 @@ def format_authors(raw: str) -> tuple[str, ...]:
     return tuple(_display_name(name) for name in split_authors(raw))
 
 
+def to_bibtex_name(name: str) -> str:
+    """``"Ada M. Lovelace"`` -> ``"Lovelace, Ada M."`` (BibTeX ``Last, First``).
+
+    For plain ``First Last`` names from metadata APIs (arXiv, Open Library)
+    that don't split given and family name. The last word is taken as the
+    surname; a name that already has a comma, or is a single word, is
+    returned as is.
+    """
+    name = " ".join(name.split())
+    if "," in name or " " not in name:
+        return name
+    given, family = name.rsplit(" ", 1)
+    return f"{family}, {given}"
+
+
 @lru_cache(maxsize=4096)
 def first_surname(raw: str) -> str:
     """Surname of the first author (``""`` when there is none), decoded."""
