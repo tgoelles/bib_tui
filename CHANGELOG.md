@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Editing one field could strip case-protection braces from another** ([#70](https://github.com/tgoelles/bib_tui/issues/70)) — e.g. changing the author rewrote `title = {{LiDAR-Based Forest Inventory}}` as `{LiDAR-Based Forest Inventory}`. Worse, a value that merely started and ended with a brace group (`{Starts} with … {with}`) was cut into an unbalanced string, then saved as invalid BibTeX. Field values are now kept exactly as written, and saving an edited entry only rewrites the fields you actually changed. Titles are shown, searched and looked up (OpenAlex, duplicate-title check) without the protection braces.
+- **Editing one field could strip case-protection braces from another** ([#70](https://github.com/tgoelles/bib_tui/issues/70)) — e.g. changing the author rewrote `title = {{LiDAR-Based Forest Inventory}}` as `{LiDAR-Based Forest Inventory}`. Worse, a value that merely started and ended with a brace group (`{Starts} with … {with}`) was cut into an unbalanced string, then saved as invalid BibTeX. Field values are now kept exactly as written, and saving an edited entry only rewrites the fields you actually changed. Titles are shown, searched and looked up (OpenAlex, duplicate-title check) as decoded plain text — `{{LiDAR}} in \textit{Fa\c{c}ades}` reads `LiDAR in Façades`.
 
 - **Import arXiv preprints from PDF** — arXiv DOIs are registered with DataCite, not CrossRef, so every arXiv PDF failed with "CrossRef lookup failed". arXiv PDFs are now looked up on the arXiv API (old `hep-th/…`-style ids too) and stored as `@misc` with `eprint`/`archiveprefix`/`primaryclass` ([#71](https://github.com/tgoelles/bib_tui/issues/71)).
 

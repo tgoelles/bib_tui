@@ -23,7 +23,8 @@ from bibtui.bib.citekeys import (
     is_canonical_author_year_key,
     make_unique_key,
 )
-from bibtui.bib.models import BibEntry, strip_braces
+from bibtui.bib.latex import decode_latex
+from bibtui.bib.models import BibEntry
 from bibtui.pdf.fetcher import pdf_filename
 from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
 from bibtui.utils import update_check
@@ -727,7 +728,7 @@ class BibTuiApp(App):
 
     @staticmethod
     def _normalized_title(title: str) -> str:
-        return " ".join(strip_braces(title or "").casefold().split())
+        return " ".join(decode_latex(title or "").casefold().split())
 
     def _resolve_import_key(self, incoming: BibEntry) -> tuple[str | None, str | None]:
         base_key = (incoming.key or "").strip()

@@ -1,22 +1,7 @@
-import re
 from dataclasses import dataclass, field
 
 from bibtui.bib.authors import first_surname
-
-# A brace not preceded by a backslash: BibTeX grouping / case protection, as
-# opposed to an escaped literal brace (``\{``).
-_GROUPING_BRACE_RE = re.compile(r"(?<!\\)[{}]")
-
-
-def strip_braces(value: str) -> str:
-    """Return *value* without BibTeX grouping braces, for display and search.
-
-    ``{{LiDAR}} for {GPS}`` → ``LiDAR for GPS``. Escaped braces (``\\{``) and
-    LaTeX commands are left alone. Never use this on a value that is written
-    back to the ``.bib`` file — the braces carry meaning there.
-    """
-    return _GROUPING_BRACE_RE.sub("", value)
-
+from bibtui.bib.latex import decode_latex
 
 READ_STATES: list[str] = ["", "to-read", "skimmed", "read"]
 
@@ -172,8 +157,14 @@ class BibEntry:
 
     @property
     def title_plain(self) -> str:
-        """Title without BibTeX grouping braces, for display and lookups."""
-        return strip_braces(self.title)
+        """Title decoded to plain text, for display and lookups.
+
+        ``{{LiDAR}} in \\textit{Fa\\c{c}ades}`` → ``LiDAR in Façades``. Decoding
+        rather than just dropping braces keeps command arguments and maths
+        intact (``$\\frac{1}{23}$`` → ``1/23``). Never write this back to the
+        ``.bib`` file — the braces carry meaning there.
+        """
+        return decode_latex(self.title)
 
     @property
     def title_short(self) -> str:
