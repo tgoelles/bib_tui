@@ -161,10 +161,10 @@ def _patch_entry_block(
     for f in bp_entry.fields:
         existing[f.key.lower()] = f
 
-    desired_bp = _to_bp_entry(desired)
-    desired_fields: dict[str, str] = {}
-    for f in desired_bp.fields:
-        desired_fields[f.key.lower()] = str(f.value)
+    desired_fields = _bp_field_map(_to_bp_entry(desired))
+    # Normalise the original through the same BibEntry pipeline as *desired*, so
+    # only genuine edits differ and untouched fields are never rewritten.
+    current_fields = _bp_field_map(_to_bp_entry(_to_bib_entry(bp_entry)))
 
     patched_lines = block_text.split("\n")
     deletions: set[int] = set()
@@ -182,8 +182,7 @@ def _patch_entry_block(
             continue
 
         new_value = desired_fields[key_lower]
-        old_value = str(field.value)
-        if new_value == old_value:
+        if new_value == current_fields.get(key_lower):
             continue
 
         eq_idx = original_line.find("=")
@@ -286,7 +285,11 @@ def _full_rewrite(entries: list[BibEntry], path: str) -> None:
 
 
 def _field_str(entry: bpmodel.Entry, key: str) -> str:
-    """Extract string value from a bibtexparser Entry field, stripping outer braces.
+    """Extract string value from a bibtexparser Entry field.
+
+    bibtexparser's ``RemoveEnclosingMiddleware`` has already removed the field's
+    outer delimiter, so any braces left are part of the value (e.g. case
+    protection in ``{{LiDAR}}``) and must be kept for a lossless round-trip.
 
     Field name lookup is case-insensitive: ``AUTHOR`` and ``author`` both work.
     """
@@ -303,11 +306,7 @@ def _field_str(entry: bpmodel.Entry, key: str) -> str:
         return ""
     val = f.value
     if isinstance(val, str):
-        val = val.strip()
-        # Strip outer curly braces that BibTeX uses for case protection
-        if val.startswith("{") and val.endswith("}"):
-            val = val[1:-1]
-        return val
+        return val.strip()
     return str(val).strip()
 
 

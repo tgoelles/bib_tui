@@ -143,8 +143,8 @@ _BUILTINS: tuple[ColumnSpec, ...] = (
         label="Title",
         name="Title",
         width=30,
-        render=lambda e, _b: e.title,
-        sort_key=lambda e: e.title.lower(),
+        render=lambda e, _b: e.title_plain,
+        sort_key=lambda e: e.title_plain.lower(),
         flex=True,
     ),
     ColumnSpec(

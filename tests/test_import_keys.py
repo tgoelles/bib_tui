@@ -51,6 +51,39 @@ def test_resolve_import_key_adds_suffix_for_different_title() -> None:
     assert key == "Goelles2025a"
 
 
+def test_resolve_import_key_same_title_ignores_protection_braces() -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app._entries = [
+        BibEntry(key="Goelles2025", entry_type="article", title="{{LiDAR}} Survey"),
+    ]
+
+    key, error = app._resolve_import_key(
+        BibEntry(key="Goelles2025", entry_type="article", title="LiDAR survey")
+    )
+
+    assert key is None
+    assert error is not None
+    assert "same title" in error
+
+
+def test_resolve_import_key_distinct_math_titles_get_suffix() -> None:
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    app._entries = [
+        BibEntry(
+            key="Goelles2025", entry_type="article", title=r"Bounds for $\frac{1}{23}$"
+        ),
+    ]
+
+    key, error = app._resolve_import_key(
+        BibEntry(
+            key="Goelles2025", entry_type="article", title=r"Bounds for $\frac{12}{3}$"
+        )
+    )
+
+    assert error is None
+    assert key == "Goelles2025a"
+
+
 def test_resolve_import_key_picks_next_free_suffix() -> None:
     app = BibTuiApp("tests/bib_examples/MyCollection.bib")
     app._entries = [

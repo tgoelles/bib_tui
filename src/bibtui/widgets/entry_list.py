@@ -136,7 +136,7 @@ def _entry_matches(
 ) -> bool:
     for field, value in filters:
         if field == "title":
-            if value not in entry.title.lower():
+            if value not in entry.title_plain.lower():
                 return False
         elif field == "author":
             if value not in entry.author.lower():
@@ -167,7 +167,7 @@ def _entry_matches(
                 return False
     for term in free_terms:
         if not (
-            term in entry.title.lower()
+            term in entry.title_plain.lower()
             or term in entry.author.lower()
             or term in entry.keywords.lower()
             or term in entry.key.lower()

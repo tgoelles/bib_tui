@@ -249,3 +249,34 @@ def test_set_field_unknown_goes_to_raw() -> None:
     e = BibEntry(key="k", entry_type="article")
     e.set_field("volume", "7")
     assert e.raw_fields["volume"] == "7"
+
+
+# ---------------------------------------------------------------------------
+# title_plain
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("{LiDAR-Based Forest Inventory}", "LiDAR-Based Forest Inventory"),
+        ("{American} Independence and {GPS}", "American Independence and GPS"),
+        ("Plain title", "Plain title"),
+        (r"Costs in \{braces\}", "Costs in {braces}"),
+        # Command arguments and maths must be decoded, not have their braces
+        # dropped (`\textitDNA`, `$\frac123$`).
+        (r"A \textit{DNA} model", "A DNA model"),
+        (r"Fa\c{c}ade", "Façade"),
+        (r"Bounds for $\frac{1}{23}$", "Bounds for 1/23"),
+        (r"Bounds for $\frac{12}{3}$", "Bounds for 12/3"),
+    ],
+)
+def test_title_plain(title: str, expected: str) -> None:
+    assert BibEntry(key="k", entry_type="article", title=title).title_plain == expected
+
+
+def test_title_plain_and_short_drop_protection_braces() -> None:
+    entry = BibEntry(key="k", entry_type="article", title="{{LiDAR}} Survey")
+    assert entry.title == "{{LiDAR}} Survey"  # stored value untouched
+    assert entry.title_plain == "LiDAR Survey"
+    assert entry.title_short == "LiDAR Survey"

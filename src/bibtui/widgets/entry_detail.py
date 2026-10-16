@@ -165,7 +165,7 @@ def _render_entry(
     lines: list[str] = []
 
     # Title, with the authors directly beneath it
-    lines.append(f"[bold {c['title']}]{entry.title or '(no title)'}[/]")
+    lines.append(f"[bold {c['title']}]{entry.title_plain or '(no title)'}[/]")
     lines.extend(_author_lines(entry.get_field("author"), content_width))
     lines.append("")
 
