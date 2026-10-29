@@ -23,6 +23,7 @@ from bibtui.bib.citekeys import (
     is_canonical_author_year_key,
     make_unique_key,
 )
+from bibtui.bib.latex import decode_latex
 from bibtui.bib.models import BibEntry
 from bibtui.pdf.fetcher import pdf_filename
 from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
@@ -727,7 +728,7 @@ class BibTuiApp(App):
 
     @staticmethod
     def _normalized_title(title: str) -> str:
-        return " ".join((title or "").casefold().split())
+        return " ".join(decode_latex(title or "").casefold().split())
 
     def _resolve_import_key(self, incoming: BibEntry) -> tuple[str | None, str | None]:
         base_key = (incoming.key or "").strip()
@@ -888,7 +889,7 @@ class BibTuiApp(App):
             self.notify("No entry selected.", severity="warning")
             return
 
-        title = entry.title.strip()
+        title = entry.title_plain.strip()
         doi = entry.doi.strip()
         query = title if title else doi
         if not query:

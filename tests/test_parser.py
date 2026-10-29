@@ -8,6 +8,7 @@ import bibtexparser as bibtexparser_lib
 import bibtui.bib.parser as parser_mod
 from bibtui.bib.models import BibEntry
 from bibtui.bib.parser import (
+    _strip_enclosing_group,
     bibtex_str_to_entry,
     entry_to_bibtex_str,
     load,
@@ -551,3 +552,120 @@ def test_bibtexparser_field_start_line_is_absolute() -> None:
     # Confirm relative offset calculation used by _patch_entry_block is correct.
     assert b_year.start_line - b.start_line == 1  # first field line in block
     assert b_author.start_line - b.start_line == 2  # second field line in block
+
+
+# ---------------------------------------------------------------------------
+# brace preservation (issue #70)
+# ---------------------------------------------------------------------------
+
+BRACED_SOURCE = """\
+@article{Lidar2020,
+  title = {{LiDAR-Based Forest Inventory}},
+  author = {Doe, J},
+  journal = {A {GPS} Journal},
+  year = {2020},
+  abstract = {{Starts} with braces and ends {with}},
+}
+"""
+
+
+def test_load_keeps_case_protection_braces(tmp_path) -> None:
+    path = tmp_path / "braced.bib"
+    path.write_text(BRACED_SOURCE, encoding="utf-8")
+
+    entry = load(str(path))[0]
+
+    assert entry.title == "{LiDAR-Based Forest Inventory}"
+    assert entry.journal == "A {GPS} Journal"
+    # Must not be cut into an unbalanced "Starts} ... {with".
+    assert entry.abstract == "{Starts} with braces and ends {with}"
+
+
+def test_save_editing_other_field_keeps_braced_fields_verbatim(tmp_path) -> None:
+    """Editing the author must not touch double-braced or brace-edged fields."""
+    path = tmp_path / "braced.bib"
+    path.write_text(BRACED_SOURCE, encoding="utf-8")
+
+    entry = load(str(path))[0]
+    entry.author = "Roe, R"
+    save([entry], str(path))
+
+    result = path.read_text(encoding="utf-8")
+    assert result == BRACED_SOURCE.replace("{Doe, J}", "{Roe, R}")
+
+
+def test_save_editing_braced_title_round_trips(tmp_path) -> None:
+    path = tmp_path / "braced.bib"
+    path.write_text(BRACED_SOURCE, encoding="utf-8")
+
+    entry = load(str(path))[0]
+    entry.title = "{LiDAR-Based Forest Inventory} in {Austria}"
+    save([entry], str(path))
+
+    assert "  title = {{LiDAR-Based Forest Inventory} in {Austria}}," in (
+        path.read_text(encoding="utf-8")
+    )
+    assert load(str(path))[0].title == entry.title
+
+
+def test_bibtex_str_round_trip_keeps_double_braces() -> None:
+    entry = bibtex_str_to_entry(BRACED_SOURCE)
+    again = bibtex_str_to_entry(entry_to_bibtex_str(entry))
+    assert again.title == "{LiDAR-Based Forest Inventory}"
+    assert again.abstract == entry.abstract
+
+
+# Web of Science style: every field wrapped in a second brace pair.
+WOS_SOURCE = """\
+@article{Wos2020,
+  Author = {Doe, John},
+  Title = {{Some {LiDAR} Title}},
+  Journal = {{Nature}},
+  Year = {{2020}},
+  DOI = {{10.1000/xyz}},
+  ranking = {{rank3}},
+}
+"""
+
+
+def test_load_unwraps_double_braced_identifier_fields(tmp_path) -> None:
+    path = tmp_path / "wos.bib"
+    path.write_text(WOS_SOURCE, encoding="utf-8")
+
+    entry = load(str(path))[0]
+
+    assert entry.year == "2020"
+    assert entry.doi == "10.1000/xyz"
+    assert entry.rating == 3
+    # Text fields keep their braces (case protection).
+    assert entry.title == "{Some {LiDAR} Title}"
+    assert entry.journal == "{Nature}"
+
+
+def test_save_editing_other_field_keeps_double_braced_identifiers(tmp_path) -> None:
+    path = tmp_path / "wos.bib"
+    path.write_text(WOS_SOURCE, encoding="utf-8")
+
+    entry = load(str(path))[0]
+    entry.author = "Roe, Richard"
+    save([entry], str(path))
+
+    result = path.read_text(encoding="utf-8")
+    assert result == WOS_SOURCE.replace("{Doe, John}", "{Roe, Richard}")
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("{2020}", "2020"),
+        ("{ 10.1000/xyz }", "10.1000/xyz"),
+        ("2020", "2020"),
+        ("{a} and {b}", "{a} and {b}"),
+        ("{a\\}", "{a\\}"),
+        ("{a \\{b\\}}", "a \\{b\\}"),
+        ("{{x}}", "{x}"),
+        ("{unbalanced", "{unbalanced"),
+    ],
+)
+def test_strip_enclosing_group(value: str, expected: str) -> None:
+    assert _strip_enclosing_group(value) == expected

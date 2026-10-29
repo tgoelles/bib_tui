@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 from bibtui.bib.authors import first_surname
+from bibtui.bib.latex import decode_latex
 
 READ_STATES: list[str] = ["", "to-read", "skimmed", "read"]
 
@@ -155,10 +156,22 @@ class BibEntry:
         return first_surname(self.author) or "Unknown"
 
     @property
+    def title_plain(self) -> str:
+        """Title decoded to plain text, for display and lookups.
+
+        ``{{LiDAR}} in \\textit{Fa\\c{c}ades}`` → ``LiDAR in Façades``. Decoding
+        rather than just dropping braces keeps command arguments and maths
+        intact (``$\\frac{1}{23}$`` → ``1/23``). Never write this back to the
+        ``.bib`` file — the braces carry meaning there.
+        """
+        return decode_latex(self.title)
+
+    @property
     def title_short(self) -> str:
-        if len(self.title) <= 60:
-            return self.title
-        return self.title[:57] + "..."
+        title = self.title_plain
+        if len(title) <= 60:
+            return title
+        return title[:57] + "..."
 
     @property
     def read_state_icon(self) -> str:
