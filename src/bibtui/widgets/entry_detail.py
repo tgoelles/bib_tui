@@ -191,7 +191,10 @@ def _render_entry(
     ]
 
     for label, key in standard_fields:
-        lines.append(field_line(label, entry.get_field(key)))
+        value = entry.get_field(key)
+        if key == "journal":
+            value = decode_latex(value)
+        lines.append(field_line(label, value))
 
     lines.append("")
     lines.append("─" * max(content_width, 10))

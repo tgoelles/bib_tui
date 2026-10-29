@@ -140,3 +140,10 @@ def test_author_column_renders_and_sorts_decoded_latex() -> None:
     e = _entry(author='Sch{\\"o}ner, Wolfgang and Winiwarter, Wilfried')
     assert spec.render(e, "") == "Schöner"
     assert spec.sort_key(e) == "schöner"
+
+
+def test_journal_column_decodes_braces() -> None:
+    spec = BUILTIN_COLUMNS["journal"]
+    entry = _entry(journal="{Nature}")
+    assert spec.render(entry, "") == "Nature"
+    assert spec.sort_key(entry) == "nature"

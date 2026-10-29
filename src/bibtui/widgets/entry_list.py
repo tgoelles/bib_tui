@@ -9,6 +9,7 @@ from textual.widget import Widget
 from textual.widgets import DataTable, Input, Static
 from textual.widgets._data_table import ColumnKey
 
+from bibtui.bib.latex import decode_latex
 from bibtui.bib.models import BibEntry
 from bibtui.widgets.columns import ColumnSpec, resolve_columns, spec_for
 
@@ -148,7 +149,8 @@ def _entry_matches(
             if not _year_matches(entry.year, value):
                 return False
         elif field == "journal":
-            journal = (entry.journal or entry.raw_fields.get("booktitle", "")).lower()
+            journal = entry.journal or entry.raw_fields.get("booktitle", "")
+            journal = decode_latex(journal).lower()
             if value not in journal:
                 return False
         elif field == "url":
