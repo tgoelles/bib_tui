@@ -7,6 +7,7 @@ touches more than it should (another entry, another field, formatting) fails.
 
 from pathlib import Path
 
+import pytest
 from textual.widgets import DataTable
 
 from bibtui.app import BibTuiApp
@@ -38,6 +39,16 @@ SOURCE = """\
   ranking = {rank4},
 }
 """
+
+
+@pytest.fixture(autouse=True)
+def _existing_config(tmp_path, monkeypatch):
+    """Use a config file that exists, like a configured install. Without one
+    (e.g. on CI) the first app started shows the first-run welcome dialog,
+    which swallows the test's key presses."""
+    config_file = tmp_path / "config.toml"
+    config_file.write_text("[updates]\ncheck_for_updates = false\n", encoding="utf-8")
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
 
 
 def _write_bib(tmp_path: Path) -> Path:
