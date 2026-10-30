@@ -1678,9 +1678,12 @@ class BibTuiApp(App):
         entry.keywords = keywords_str
         if delete_everywhere:
             for e in self._entries:
-                if e is not entry:
-                    kept = [k for k in e.keywords_list if k not in delete_everywhere]
-                    e.keywords = ", ".join(kept)
+                if e is entry or delete_everywhere.isdisjoint(e.keywords_list):
+                    # Leave entries without a deleted keyword alone, so their
+                    # keyword formatting (e.g. "a,b") isn't rewritten on save.
+                    continue
+                kept = [k for k in e.keywords_list if k not in delete_everywhere]
+                e.keywords = ", ".join(kept)
         self._dirty = True
         self.query_one(EntryList).refresh_entries(self._entries)
         self.query_one(EntryDetail).show_entry(entry)
