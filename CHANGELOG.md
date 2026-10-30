@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Changing an entry's cite key in the raw BibTeX editor lost the edit** ([#77](https://github.com/tgoelles/bib_tui/issues/77)) — the editor said "Entry updated" but nothing changed. Worse, renaming to a key another entry already had overwrote *that* entry. The edit now always applies to the entry you opened. Renaming onto an existing key is refused in the editor, which stays open with your text so you can fix the key. If the entry's PDF was only found by its old cite key, you get a warning that it is no longer linked.
 - **"Delete keyword everywhere" rewrote the keywords of every entry** — entries that never had the deleted keyword had their keyword list reformatted (`firn,ice` → `firn, ice`), adding unrelated changes all over the `.bib` file. Now only entries that contained the keyword are touched.
 - **Deleting entries left extra blank lines behind** — each deleted entry left its blank-line separator in the file, so blank lines piled up between entries and at the end of the file.
+- **PDF viewer closed together with bibtui, and printed into the TUI** — PDFs opened from bibtui (Open PDF, or <kbd>Space</kbd> in the Add PDF dialog) were started in bibtui's terminal session: the viewer's console warnings appeared on top of the interface, and quitting bibtui or closing its terminal closed the viewer too. The viewer is now started on its own, so it stays open and stays quiet.
 
 ## [1.1.1] - 2026-09-21
 
