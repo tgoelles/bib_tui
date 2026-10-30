@@ -52,6 +52,30 @@ def test_authors_short_unknown_when_empty() -> None:
     assert e.authors_short == "Unknown"
 
 
+def test_authors_short_decodes_latex() -> None:
+    e = BibEntry(key="k", entry_type="article", author='Sch{\\"o}ner, Wolfgang and X, Y')
+    assert e.authors_short == "Schöner"
+
+
+def test_authors_short_decodes_latex_without_a_comma() -> None:
+    e = BibEntry(key="k", entry_type="article", author="Wolfgang Mo{\\v{c}}nik")
+    assert e.authors_short == "Močnik"
+
+
+def test_authors_short_drops_braces_around_an_institution() -> None:
+    e = BibEntry(key="k", entry_type="article", author="{World Health Organization}")
+    assert e.authors_short == "Organization"
+
+
+def test_authors_short_respects_and_inside_braces() -> None:
+    e = BibEntry(key="k", entry_type="article", author="{Barnes and Noble}, Inc")
+    assert e.authors_short == "Barnes and Noble"
+
+
+def test_authors_short_unknown_for_only_et_al() -> None:
+    assert BibEntry(key="k", entry_type="article", author="others").authors_short == "Unknown"
+
+
 # ---------------------------------------------------------------------------
 # title_short
 # ---------------------------------------------------------------------------
@@ -225,3 +249,34 @@ def test_set_field_unknown_goes_to_raw() -> None:
     e = BibEntry(key="k", entry_type="article")
     e.set_field("volume", "7")
     assert e.raw_fields["volume"] == "7"
+
+
+# ---------------------------------------------------------------------------
+# title_plain
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("{LiDAR-Based Forest Inventory}", "LiDAR-Based Forest Inventory"),
+        ("{American} Independence and {GPS}", "American Independence and GPS"),
+        ("Plain title", "Plain title"),
+        (r"Costs in \{braces\}", "Costs in {braces}"),
+        # Command arguments and maths must be decoded, not have their braces
+        # dropped (`\textitDNA`, `$\frac123$`).
+        (r"A \textit{DNA} model", "A DNA model"),
+        (r"Fa\c{c}ade", "Façade"),
+        (r"Bounds for $\frac{1}{23}$", "Bounds for 1/23"),
+        (r"Bounds for $\frac{12}{3}$", "Bounds for 12/3"),
+    ],
+)
+def test_title_plain(title: str, expected: str) -> None:
+    assert BibEntry(key="k", entry_type="article", title=title).title_plain == expected
+
+
+def test_title_plain_and_short_drop_protection_braces() -> None:
+    entry = BibEntry(key="k", entry_type="article", title="{{LiDAR}} Survey")
+    assert entry.title == "{{LiDAR}} Survey"  # stored value untouched
+    assert entry.title_plain == "LiDAR Survey"
+    assert entry.title_short == "LiDAR Survey"

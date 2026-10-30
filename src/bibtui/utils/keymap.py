@@ -14,7 +14,7 @@ a terminal/OS that doesn't produce it.
 NOTE: this module is the source of truth only for the *Binding* key strings.
 Two other places describe these shortcuts in prose and are NOT derived from
 here — update them by hand alongside any change to this file:
-  - ``_HELP_SECTIONS`` in src/bibtui/widgets/modals.py (in-app ``?`` help screen)
+  - ``_HELP_PARTS`` in src/bibtui/widgets/modals.py (in-app ``?`` help screen)
   - docs/keybindings.md (project docs)
 """
 

@@ -15,8 +15,10 @@ import json
 import os
 import re
 import shutil
-import tempfile
+import secrets
 import urllib.request
+from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -30,6 +32,23 @@ from bibtui.utils.doi import normalize_doi
 
 class FetchError(Exception):
     """Raised when all PDF fetch strategies fail."""
+
+
+class FetchCancelled(Exception):
+    """Raised by a progress callback to abort the whole fetch.
+
+    Deliberately not a FetchError subclass, so strategies do not treat it as
+    "this source failed, try the next one".
+    """
+
+
+# Called as ``progress(url, bytes_downloaded, total_bytes_or_None)`` for every
+# chunk written by _download.  Set per call by fetch_pdf(progress=...); a
+# ContextVar keeps it thread-local without threading it through every strategy.
+ProgressCallback = Callable[[str, int, "int | None"], None]
+_progress_cb: ContextVar[ProgressCallback | None] = ContextVar(
+    "_progress_cb", default=None
+)
 
 
 @dataclass(frozen=True)
@@ -197,6 +216,20 @@ def _arxiv_id(entry: BibEntry) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def _create_tmp_file(dest: Path) -> tuple[int, str]:
+    """Create a unique temp file next to *dest*, returning ``(fd, path)``.
+
+    Unlike tempfile.mkstemp (always 0600), the file is created with mode 0666
+    filtered by the process umask, so the final PDF gets normal permissions.
+    """
+    while True:
+        tmp_path = str(dest.parent / f".{dest.name}.{secrets.token_hex(4)}.tmp")
+        try:
+            return os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666), tmp_path
+        except FileExistsError:
+            continue
+
+
 def _download(url: str, dest_path: str, timeout: int = 30) -> None:
     """Stream *url* to *dest_path*.
 
@@ -215,9 +248,12 @@ def _download(url: str, dest_path: str, timeout: int = 30) -> None:
     dest = Path(dest_path)
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp_path: str | None = None
+    progress = _progress_cb.get()
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             content_type = resp.headers.get("Content-Type", "")
+            length = resp.headers.get("Content-Length", "")
+            total = int(length) if length.isdigit() else None
             first_chunk = resp.read(65536)
             if not first_chunk:
                 raise FetchError(f"URL returned empty response: {url}")
@@ -229,19 +265,23 @@ def _download(url: str, dest_path: str, timeout: int = 30) -> None:
                     f"URL did not return a PDF (Content-Type: {content_type}): {url}"
                 )
 
-            fd, tmp_path = tempfile.mkstemp(
-                prefix=f".{dest.name}.", suffix=".tmp", dir=str(dest.parent)
-            )
+            fd, tmp_path = _create_tmp_file(dest)
             with os.fdopen(fd, "wb") as f:
                 f.write(first_chunk)
+                downloaded = len(first_chunk)
+                if progress:
+                    progress(url, downloaded, total)
                 while chunk := resp.read(65536):
                     f.write(chunk)
+                    downloaded += len(chunk)
+                    if progress:
+                        progress(url, downloaded, total)
                 f.flush()
                 os.fsync(f.fileno())
 
             os.replace(tmp_path, dest_path)
             tmp_path = None
-    except FetchError:
+    except (FetchError, FetchCancelled):
         raise
     except Exception as exc:
         raise FetchError(f"Download failed from {url}: {exc}") from exc
@@ -264,9 +304,7 @@ def _write_pdf_bytes(pdf_bytes: bytes, dest_path: str) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp_path: str | None = None
     try:
-        fd, tmp_path = tempfile.mkstemp(
-            prefix=f".{dest.name}.", suffix=".tmp", dir=str(dest.parent)
-        )
+        fd, tmp_path = _create_tmp_file(dest)
         with os.fdopen(fd, "wb") as f:
             f.write(pdf_bytes)
             f.flush()
@@ -316,6 +354,7 @@ def _copernicus_pdf_url(doi: str) -> str | None:
     - EGUsphere preprint: egusphere-{year}-{id}      → preprints/{year}/{doi_local}/{doi_local}.pdf
     - Published article: {abbrev}-{vol}-{page}-{year} → articles/{vol}/{page}/{year}/{doi_local}.pdf
     """
+    doi = normalize_doi(doi, lower=False)
     if not doi.lower().startswith(_COPERNICUS_PREFIX):
         return None
     doi_local = doi[len(_COPERNICUS_PREFIX) :]
@@ -388,7 +427,7 @@ def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
         if not works and not entry.doi and entry.title:
             works = cast(
                 list[dict[str, Any]],
-                pyalex.Works().search(entry.title).get(per_page=1),
+                pyalex.Works().search(entry.title_plain).get(per_page=1),
             )
 
         if not works:
@@ -441,6 +480,8 @@ def _try_openalex(entry: BibEntry, dest_path: str, api_key: str) -> str | None:
             except FetchError as exc:
                 last_error = str(exc)
         return last_error
+    except FetchCancelled:
+        raise
     except Exception:
         return "OpenAlex lookup failed"
     finally:
@@ -463,7 +504,8 @@ def _try_unpaywall(entry: BibEntry, dest_path: str, email: str) -> str | None:
         return "entry has no DOI"
     if not email:
         return "no email configured in Settings"
-    api_url = f"https://api.unpaywall.org/v2/{entry.doi}?email={email}"
+    doi = normalize_doi(entry.doi, lower=False)
+    api_url = f"https://api.unpaywall.org/v2/{doi}?email={email}"
     req = urllib.request.Request(
         api_url,
         headers={
@@ -554,14 +596,34 @@ def fetch_pdf(
     unpaywall_email: str = "",
     openalex_api_key: str = "",
     overwrite: bool = False,
+    progress: ProgressCallback | None = None,
 ) -> FetchResult:
     """Fetch a PDF for *entry* and save it under *dest_dir*.
 
     Tries arXiv → Copernicus → OpenAlex (optional) → Unpaywall → direct URL.
 
+    *progress*, if given, is called for each downloaded chunk; it may raise
+    FetchCancelled to abort (the partial file is removed).
+
     Returns the saved file path and provider on success.
     Raises FetchError (with a human-readable message) if all strategies fail.
     """
+    token = _progress_cb.set(progress)
+    try:
+        return _fetch_pdf(
+            entry, dest_dir, unpaywall_email, openalex_api_key, overwrite
+        )
+    finally:
+        _progress_cb.reset(token)
+
+
+def _fetch_pdf(
+    entry: BibEntry,
+    dest_dir: str,
+    unpaywall_email: str,
+    openalex_api_key: str,
+    overwrite: bool,
+) -> FetchResult:
     if not dest_dir:
         raise FetchError(
             "PDF base directory is not set. "

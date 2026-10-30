@@ -14,6 +14,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.command import DiscoveryHit, Hit, Hits, Provider
 from textual.containers import Horizontal
+from textual.markup import escape
 from textual.widgets import DataTable, Footer, Header, Input, TextArea
 
 from bibtui import DOCS_URL, __version__
@@ -23,6 +24,7 @@ from bibtui.bib.citekeys import (
     is_canonical_author_year_key,
     make_unique_key,
 )
+from bibtui.bib.latex import decode_latex
 from bibtui.bib.models import BibEntry
 from bibtui.pdf.fetcher import pdf_filename
 from bibtui.pdf.paths import find_pdf_for_entry, format_jabref_path, parse_jabref_path
@@ -215,7 +217,13 @@ class BibTuiApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="main-content"):
-            yield EntryList([], columns=self._config.table_columns, id="entry-list")
+            yield EntryList(
+                [],
+                columns=self._config.table_columns,
+                sort_column=self._config.sort_column,
+                sort_reverse=self._config.sort_reverse,
+                id="entry-list",
+            )
             yield EntryDetail(
                 default_csl_style=self._config.default_citation_style,
                 id="entry-detail",
@@ -517,24 +525,58 @@ class BibTuiApp(App):
         if entry is None:
             self.notify("No entry selected.", severity="warning")
             return
-        if self.query_one(EntryDetail).raw_mode:
-            self.push_screen(RawEditModal(entry), self._on_edit_done)
-        else:
-            self.push_screen(EditModal(entry), self._on_edit_done)
+        modal = (
+            RawEditModal(entry, taken_keys=[e.key for e in self._entries])
+            if self.query_one(EntryDetail).raw_mode
+            else EditModal(entry)
+        )
+        self.push_screen(modal, lambda result: self._on_edit_done(result, entry))
 
-    def _on_edit_done(self, result: BibEntry | None) -> None:
+    def _on_edit_done(self, result: BibEntry | None, original: BibEntry) -> None:
         if result is None:
             return
-        # Update in master list
-        for i, e in enumerate(self._entries):
-            if e.key == result.key:
-                self._entries[i] = result
-                break
+        # The raw editor lets the user change the cite key, so locate the entry
+        # that was opened by identity — matching on result.key would miss a
+        # renamed entry, or hit a different entry that already owns the new key.
+        idx = next((i for i, e in enumerate(self._entries) if e is original), None)
+        if idx is None:
+            self.notify("Entry no longer exists; edit discarded.", severity="error")
+            return
+        if result.key != original.key and any(
+            e.key == result.key for e in self._entries
+        ):
+            self.notify(
+                f"Cite key '{result.key}' is already used by another entry; "
+                "edit discarded.",
+                severity="error",
+            )
+            return
+        self._entries[idx] = result
         self._dirty = True
-        entry_list = self.query_one(EntryList)
-        entry_list.refresh_entries(self._entries)
-        self.query_one(EntryDetail).show_entry(result)
-        self.notify("Entry updated. Press [w] to write.", timeout=3)
+        self.query_one(EntryList).refresh_entries(self._entries)
+        if result.key != original.key:
+            # refresh_entries restores the cursor by the old key, which is gone.
+            self.call_after_refresh(self._jump_to_entry, result, "Renamed to")
+            self._warn_if_pdf_unlinked(original, result)
+        else:
+            self.query_one(EntryDetail).show_entry(result)
+        self.notify("Entry updated. Press [bold]w[/bold] to write.", timeout=3)
+
+    def _warn_if_pdf_unlinked(self, original: BibEntry, renamed: BibEntry) -> None:
+        """Warn when a rename loses a PDF that was found only by the old cite key.
+
+        Without a working ``file`` path, the PDF is found by its name starting
+        with the cite key, which a rename breaks.
+        """
+        base_dir = self._config.pdf_base_dir
+        old_pdf = find_pdf_for_entry(original.file, original.key, base_dir)
+        if old_pdf and not find_pdf_for_entry(renamed.file, renamed.key, base_dir):
+            self.notify(
+                f"PDF '{escape(os.path.basename(old_pdf))}' was found by the old "
+                "cite key and is no longer linked. Rename it or link it again.",
+                severity="warning",
+                timeout=8,
+            )
 
     def action_new_entry(self) -> None:
         self.push_screen(NewEntryChooserModal(), self._on_new_entry_choice)
@@ -590,13 +632,23 @@ class BibTuiApp(App):
         )
 
     def _existing_entries_by_doi(self) -> dict[str, BibEntry]:
-        """Map normalized DOI to the matching entry already in the library.
+        """Map identity keys to the matching entry already in the library.
+
+        Keys are normalized DOIs, plus arXiv DOIs for ``eprint``-only
+        preprints and ``isbn:<ISBN-13>`` for books — see
+        :func:`bibtui.pdf.import_scan.entry_identity_keys`.
 
         Values are the live entry objects (not copies) so PDF-import can
         link a PDF to an already-existing entry in place — see
         ``_on_pdf_import_review_done`` and ``PdfImportReviewModal``.
         """
-        return {normalize_doi(e.doi): e for e in self._entries if e.doi.strip()}
+        from bibtui.pdf.import_scan import entry_identity_keys
+
+        by_key: dict[str, BibEntry] = {}
+        for e in self._entries:
+            for key in entry_identity_keys(e):
+                by_key.setdefault(key, e)
+        return by_key
 
     def _on_pdf_import_review_done(self, result: dict | None) -> None:
         if not result:
@@ -711,7 +763,7 @@ class BibTuiApp(App):
 
     @staticmethod
     def _normalized_title(title: str) -> str:
-        return " ".join((title or "").casefold().split())
+        return " ".join(decode_latex(title or "").casefold().split())
 
     def _resolve_import_key(self, incoming: BibEntry) -> tuple[str | None, str | None]:
         base_key = (incoming.key or "").strip()
@@ -824,7 +876,7 @@ class BibTuiApp(App):
         if errors:
             self.notify("\n".join(errors), severity="warning", timeout=8)
 
-    def _jump_to_entry(self, result: BibEntry) -> None:
+    def _jump_to_entry(self, result: BibEntry, verb: str = "Added") -> None:
         """Move cursor to the given entry after the table has been rendered."""
         el = self.query_one(EntryList)
         try:
@@ -835,7 +887,7 @@ class BibTuiApp(App):
             preset_name, _ = el.active_preset
             if preset_name:
                 self.notify(
-                    f"Added '{result.key}' — hidden by filter '{preset_name}'",
+                    f"{verb} '{result.key}' — hidden by filter '{preset_name}'",
                     severity="warning",
                     timeout=6,
                 )
@@ -872,7 +924,7 @@ class BibTuiApp(App):
             self.notify("No entry selected.", severity="warning")
             return
 
-        title = entry.title.strip()
+        title = entry.title_plain.strip()
         doi = entry.doi.strip()
         query = title if title else doi
         if not query:
@@ -1196,6 +1248,11 @@ class BibTuiApp(App):
         save_config(self._config)
         self.query_one(EntryList).set_columns(keys)
         self.notify("Table columns updated.", timeout=3)
+
+    def on_entry_list_sort_changed(self, event: EntryList.SortChanged) -> None:
+        self._config.sort_column = event.column
+        self._config.sort_reverse = event.reverse
+        save_config(self._config)
 
     def action_reset_theme(self) -> None:
         self._config.theme = ""
@@ -1630,4 +1687,4 @@ class BibTuiApp(App):
         self._dirty = True
         self.query_one(EntryList).refresh_entries(self._entries)
         self.query_one(EntryDetail).show_entry(entry)
-        self.notify("Keywords updated. Press [w] to write.", timeout=3)
+        self.notify("Keywords updated. Press [bold]w[/bold] to write.", timeout=3)

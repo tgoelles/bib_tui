@@ -7,10 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Import books from PDF** — PDFs without a DOI are now scanned for an ISBN (first ten pages), and the book's metadata is fetched from Open Library ([#69](https://github.com/tgoelles/bib_tui/issues/69)).
+
 ### Fixed
 
+- **Editing one field could strip case-protection braces from another** ([#70](https://github.com/tgoelles/bib_tui/issues/70)) — e.g. changing the author rewrote `title = {{LiDAR-Based Forest Inventory}}` as `{LiDAR-Based Forest Inventory}`. Worse, a value that merely started and ended with a brace group (`{Starts} with … {with}`) was cut into an unbalanced string, then saved as invalid BibTeX. Text fields are now kept exactly as written, and saving an edited entry only rewrites the fields you actually changed. Identifier fields wrapped in an extra pair of braces, as Web of Science exports them (`year = {{2020}}`, `doi = {{10.…}}`), are unwrapped on load so sorting, DOI lookups and ratings keep working; the file itself is not changed. Titles and journals are shown and searched as decoded plain text, and titles are looked up that way too (OpenAlex, duplicate-title check) — `{{LiDAR}} in \textit{Fa\c{c}ades}` reads `LiDAR in Façades`.
+
+- **Import arXiv preprints from PDF** — arXiv DOIs are registered with DataCite, not CrossRef, so every arXiv PDF failed with "CrossRef lookup failed". arXiv PDFs are now looked up on the arXiv API (old `hep-th/…`-style ids too) and stored as `@misc` with `eprint`/`archiveprefix`/`primaryclass` ([#71](https://github.com/tgoelles/bib_tui/issues/71)).
+
+- **PDF fetch for DOIs pasted as links** — importing `https://doi.org/10.5194/egusphere-…` stored the whole link as the DOI, so the Copernicus/EGUsphere and Unpaywall lookups failed and no PDF was downloaded. The bare DOI is now stored, and existing link-form DOIs are handled too ([#73](https://github.com/tgoelles/bib_tui/issues/73)).
+- **Download progress and a working Cancel** — the Fetch PDF dialog shows how much has been downloaded (e.g. `20.5 / 41.1 MB (50%)`), so large preprints no longer look stuck. Cancel now really stops the download and removes the partial file.
+- **Permissions of downloaded PDFs** — fetched PDFs were readable only by you (`0600`); they now get normal permissions according to your umask.
+- **Saving could corrupt or lose edits for some entry layouts** ([#78](https://github.com/tgoelles/bib_tui/issues/78)):
+  - setting a rating or read state on an entry whose last field spans several lines (e.g. a multi-line `annote`) produced invalid BibTeX and the change was lost on reload;
+  - editing a field that shares a line with another (`title = {…}, author = {…},`) overwrote the other field;
+  - changing the entry type (e.g. article → book) was silently not saved;
+  - editing or removing a multi-line field reformatted the whole entry.
+
+  Fields are now patched as whole multi-line spans, the entry type is updated in place, and every patched entry is checked to reload with exactly the intended values before it is written (otherwise just that entry is re-serialized).
+- **Saving converted Windows (CRLF) `.bib` files to LF** ([#79](https://github.com/tgoelles/bib_tui/issues/79)), so a one-field edit changed every line of the file. The file's line endings are now kept.
+- **Changing an entry's cite key in the raw BibTeX editor lost the edit** ([#77](https://github.com/tgoelles/bib_tui/issues/77)) — the editor said "Entry updated" but nothing changed. Worse, renaming to a key another entry already had overwrote *that* entry. The edit now always applies to the entry you opened. Renaming onto an existing key is refused in the editor, which stays open with your text so you can fix the key. If the entry's PDF was only found by its old cite key, you get a warning that it is no longer linked.
 - **"Delete keyword everywhere" rewrote the keywords of every entry** — entries that never had the deleted keyword had their keyword list reformatted (`firn,ice` → `firn, ice`), adding unrelated changes all over the `.bib` file. Now only entries that contained the keyword are touched.
 - **Deleting entries left extra blank lines behind** — each deleted entry left its blank-line separator in the file, so blank lines piled up between entries and at the end of the file.
+
+## [1.1.1] - 2026-09-21
+
+Many small quality of life changes and bug fixes.
+
+### Changed
+
+- **Sort order is remembered** — the column you sorted by (and its direction) is saved to `config.toml` and restored on the next start. The default is now **Added**, newest first, instead of file order. The sort also keeps applying if you hide its column.
+- **Reorganized `?` help screen** — grouped into Keybindings, Search & filters (search syntax and saved filters together) and Command palette, with clearly separated headings, wrapped lines that hang under the description column, and a much shorter Filters section.
+- **Column picker matches the keyword picker** — columns are now a checklist toggled with <kbd>Enter</kbd> / <kbd>x</kbd> (Space no longer toggles), with a hint line in the same style as the other dialogs.
+- **Entry viewer** — the URL is now listed with the other fields (Author, Year, Journal, DOI, URL) instead of as a shortened link in the status row, and there is a blank line above the title. URLs — including ones in *Other fields*, such as `bdsk-url-1` — stay on a single line, cut with "…" when the detail pane is too narrow to show them whole, rather than wrapping onto the next line.
+- **Steadier status row** — the Read / Urgency / Rating / PDF labels above the title now have fixed widths, so they stay put while you flick through entries instead of shifting sideways as each entry's values change. In a narrow detail pane the four labels stack into two rows rather than running off the edge.
+- **Authors under the title, fixed height** — the author list moved from the field list to directly below the title and always takes exactly three lines (long lists are cut off with "…"), so the rest of the entry no longer jumps up and down as you move between entries. Authors are shown JabRef-style as `Last, First / Last, First`, with LaTeX escapes decoded (`Sch{\"o}ner` → `Schöner`) and names kept whole on one line wherever they fit.
+- **LaTeX in the table's Author column** — the first-author surname in the entry table (and its sort order, and the PDF/.bib import reports) now shows decoded characters (`Sch{\"o}ner` → `Schöner`) instead of the raw LaTeX.
+- **Start-up file picker preselects your last file** — when you launch bibtui without a file, the most recently opened one is already highlighted, so <kbd>Enter</kbd> reopens it.
+- **LaTeX in abstracts is rendered** — abstracts now show `±`, `μ`, `∼` and `°` instead of `$\pm$`, `\ensuremath{\mu}`, `$\sim$` and `$^{\circ}$`, and `--` becomes a proper en dash. The same decoding already applied to author names now also covers maths and spacing macros, so titles and citation previews improve too.
+- **Roomier entry viewer** — the text now keeps clear of the scroll bar instead of running right up against it, the abstract wraps to the width of the pane (it used to wrap at a fixed column and then get folded a second time, leaving every other line hanging at the left margin), and the rule under the fields spans the pane.
+
+### Fixed
+
+- **"Press w to write" hint** — after editing an entry or its keywords, the confirmation read "Press  to write." because `[w]` was swallowed as markup; it now shows the key.
+- **Square brackets in abstracts** — an abstract containing something like `[1]` or `[Ca2+]` had it silently swallowed as markup; it now shows literally.
 
 ## [1.1.0] - 2026-09-14
 

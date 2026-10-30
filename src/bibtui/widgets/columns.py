@@ -15,6 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from bibtui.bib.latex import decode_latex
 from bibtui.bib.models import READ_STATES, BibEntry
 from bibtui.pdf.paths import pdf_link_state
 from bibtui.utils.dates import DATE_ADDED_KEYS, extract_date_added, format_bib_date
@@ -42,7 +43,7 @@ def _truncate(text: str, width: int) -> str:
 
 
 def _journal_value(entry: BibEntry) -> str:
-    return entry.journal or entry.raw_fields.get("booktitle", "")
+    return decode_latex(entry.journal or entry.raw_fields.get("booktitle", ""))
 
 
 _PDF_STATE_ICONS = {"none": " ", "found": "■", "missing": "□"}
@@ -143,8 +144,8 @@ _BUILTINS: tuple[ColumnSpec, ...] = (
         label="Title",
         name="Title",
         width=30,
-        render=lambda e, _b: e.title,
-        sort_key=lambda e: e.title.lower(),
+        render=lambda e, _b: e.title_plain,
+        sort_key=lambda e: e.title_plain.lower(),
         flex=True,
     ),
     ColumnSpec(

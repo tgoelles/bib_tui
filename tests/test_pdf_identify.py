@@ -108,14 +108,18 @@ def test_arxiv_id_found_when_no_doi_present(tmp_path: Path) -> None:
 def test_old_style_arxiv_id_is_recognized(tmp_path: Path) -> None:
     """Pre-2007 preprints use <archive>/<7 digits> instead of YYMM.NNNNN —
     see pdf/fetcher.py:_arxiv_id, which already handles both forms."""
-    path = _write_pdf(tmp_path, "old_arxiv.pdf", ["arXiv:hep-th/9711200", "Some abstract"])
+    path = _write_pdf(
+        tmp_path, "old_arxiv.pdf", ["arXiv:hep-th/9711200", "Some abstract"]
+    )
     result = extract_identifier(path)
     assert result.doi is None
     assert result.arxiv_id == "hep-th/9711200"
 
 
 def test_old_style_arxiv_id_with_subject_class_is_recognized(tmp_path: Path) -> None:
-    path = _write_pdf(tmp_path, "old_arxiv2.pdf", ["See arxiv.org/abs/math.GT/0309136 for details"])
+    path = _write_pdf(
+        tmp_path, "old_arxiv2.pdf", ["See arxiv.org/abs/math.GT/0309136 for details"]
+    )
     result = extract_identifier(path)
     assert result.arxiv_id == "math.GT/0309136"
 
@@ -129,7 +133,10 @@ def test_multiple_distinct_dois_in_text_are_ambiguous(tmp_path: Path) -> None:
     result = extract_identifier(path)
     assert result.doi is None
     assert result.ambiguous
-    assert set(result.candidates) == {"10.1111/first-candidate", "10.2222/second-candidate"}
+    assert set(result.candidates) == {
+        "10.1111/first-candidate",
+        "10.2222/second-candidate",
+    }
 
 
 def test_repeated_doi_in_text_is_not_ambiguous(tmp_path: Path) -> None:
@@ -192,3 +199,39 @@ def test_various_valid_dois_are_matched(tmp_path: Path, value: str) -> None:
     path = _write_pdf(tmp_path, "valid.pdf", [f"identifier {value} end"])
     result = extract_identifier(path)
     assert result.doi == value
+
+
+def test_isbn_found_for_a_book_without_doi(tmp_path: Path) -> None:
+    path = _write_pdf(
+        tmp_path,
+        "book.pdf",
+        [
+            "Deep Learning",
+            "ISBN 978-0-262-03561-3 (hardcover)",
+            "ISBN-10: 0262035618",  # same book — deduplicated
+            "ISBN (eBook): 978-3-030-51586-7",
+        ],
+    )
+    result = extract_identifier(path)
+    assert result.doi is None
+    assert result.arxiv_id is None
+    assert result.isbns == ["9780262035613", "9783030515867"]
+
+
+def test_isbn_with_bad_checksum_or_no_label_is_ignored(tmp_path: Path) -> None:
+    path = _write_pdf(
+        tmp_path, "nolabel.pdf", ["Order no. 9780262035613", "ISBN 978-0-262-03561-4"]
+    )
+    result = extract_identifier(path)
+    assert result.isbns == []
+
+
+def test_doi_wins_over_isbn(tmp_path: Path) -> None:
+    path = _write_pdf(
+        tmp_path,
+        "both.pdf",
+        ["ISBN 978-0-262-03561-3", "doi: 10.1007/978-3-030-51586-7"],
+    )
+    result = extract_identifier(path)
+    assert result.doi == "10.1007/978-3-030-51586-7"
+    assert result.isbns == []
