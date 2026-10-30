@@ -55,7 +55,11 @@ class EntryList(Widget):
 
     search_text: reactive[str] = reactive("")
 
-    _DEFAULT_SEARCH_PLACEHOLDER = "Search… (a:smith j:nature y:2025 k:ice c:smith2020)"
+    # "?" opens the help screen only outside the search box (inside, it's
+    # typed), hence "Esc ?". The hint comes first: the pane is often only
+    # 30-50 columns wide, and the end of a long placeholder is cut off.
+    _HELP_HINT = "(Esc ? help)"
+    _DEFAULT_SEARCH_PLACEHOLDER = f"Search {_HELP_HINT}… a:(smith OR jones) rt:>=3"
 
     class SortChanged(Message):
         """The user picked a new sort by clicking a column header."""
@@ -256,7 +260,7 @@ class EntryList(Widget):
     def _update_search_placeholder(self) -> None:
         search = self.query_one("#search-input", Input)
         search.placeholder = (
-            f"Search within {self._preset_name}…"
+            f"Search within {self._preset_name} {self._HELP_HINT}…"
             if self._preset_name
             else self._DEFAULT_SEARCH_PLACEHOLDER
         )
