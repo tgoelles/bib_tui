@@ -26,6 +26,7 @@ def test_search_and_filters_are_grouped_together() -> None:
     assert list(sections) == [
         "Search — press s",
         "Field prefixes",
+        "Words and phrases",
         "Year filters",
         "Boolean search",
         "Examples",

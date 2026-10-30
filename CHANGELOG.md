@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Boolean search: `OR`, `NOT` and parentheses** ([#88](https://github.com/tgoelles/bib_tui/issues/88)) — search and saved filters now work like Web of Science's Advanced Search: `a:smith OR a:jones`, `k:ice NOT r:read`, `(t:glacier OR t:"ice sheet") y:2015-`, and a prefix for a whole group, `a:(smith OR jones)`. Typing `OR` used to quietly narrow the results to entries containing the letters "or". A half-typed query still filters as you type; an invalid one shows a hint and keeps the last valid result, and the filter editor refuses to save it. See the `?` help screen and the search guide; the search box itself now shows an example and how to open the help (<kbd>Esc</kbd> <kbd>?</kbd>).
 - **Search by rating** — `rt:` / `rating:` filters by star rating, with the same comparisons and ranges as the year filter: `rt:>=3`, `rt:2-4`, `rt:0` for unrated entries. A plain number matches exactly.
 
+### Changed
+
+- **Search matches whole words** ([#88](https://github.com/tgoelles/bib_tui/issues/88)) — like Web of Science, `ice` now finds "ice" and "ice-sheet" but no longer "price", "Alice" or "iceberg". Use `*` for any run of letters (`ice*`, `glacier*` for plurals, `*berg`) and quotes for a phrase (`"sea ice"`, which also finds "sea-ice"). Authors are LaTeX-decoded before matching, so `a:schöner` finds `Sch{\"o}ner`. Cite keys and URLs still match any part (`c:2025`). **Saved filters** that relied on part-word matches (e.g. `t:glac`) need a `*`. While typing, a half-written word matches nothing until it's complete.
+
 ## [1.2.0] - 2026-10-30
 
 ### Added

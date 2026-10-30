@@ -18,6 +18,34 @@ once. Multiple words are combined with AND — every word must match somewhere:
 glacier melt
 ```
 
+## Whole words, truncation and phrases
+
+A search word matches **whole words**, like in Web of Science: `ice` finds
+"ice" and "ice-sheet", but not "price", "Alice" or "iceberg". Use `*` for any
+run of letters, and quotes for a phrase:
+
+```text
+ice              # the word "ice" (also in "ice-sheet")
+ice*             # words starting with "ice": iceberg, icefield, ice
+glacier*         # glacier, glaciers, glacierized
+*berg            # words ending in "berg": iceberg
+"sea ice"        # the phrase, also written "sea-ice"
+t:"ice sheet*"   # "ice sheet", "ice sheets" in the title
+```
+
+There is no automatic plural handling: `glacier` doesn't find "glaciers", so
+add a `*` when you want both.
+
+- Punctuation between words is flexible: `ice-sheet` also finds "ice sheet",
+  and `a:o'brien` finds "O’Brien" with a typographic apostrophe.
+- LaTeX is decoded first, so `a:schöner` finds `Sch{\"o}ner` and
+  `t:façades` finds `Fa\c{c}ades`.
+- Cite keys and URLs aren't prose: `c:` and `u:` match any part
+  (`c:2025`, `u:arxiv`), and a plain word also finds any part of a cite key.
+
+While you type, a half-written word matches nothing until it's complete
+(`gla` doesn't find "glacier"); type `gla*` to see matches early.
+
 ## Field prefixes
 
 To search a specific field, prefix a term. Both a short and a long form work.
@@ -101,7 +129,7 @@ a:smith t:glacier            # Smith, with "glacier" in the title
 j:nature AND y:2025          # in Nature, published in 2025
 k:ice a:jones                # tagged "ice", authored by Jones
 y:2010-                      # published 2010 or later
-c:smith2020                  # an exact cite-key lookup
+c:smith2020                  # a cite-key lookup (also finds smith2020a)
 r:to-read pr:high            # still to read, high urgency
 ```
 
