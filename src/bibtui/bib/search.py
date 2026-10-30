@@ -2,8 +2,11 @@
 
 A query is a list of terms. A term is a plain word (searched in title, author,
 keywords and cite key) or ``prefix:value`` for one field (``a:smith``,
-``y:2010-``). Terms combine with boolean operators, as in Web of Science's
-Advanced Search::
+``y:2010-``). Text matches whole words, as in Web of Science: ``ice`` finds
+"ice" and "ice-sheet" but not "price" or "iceberg"; ``ice*`` finds words
+starting with "ice"; ``"sea ice"`` finds the phrase. Cite keys and URLs aren't
+prose and keep matching any part (``c:2020``). Terms combine with boolean
+operators, as in Web of Science's Advanced Search::
 
     a:(smith OR jones) k:ice              either author, tagged ice
     (t:glacier OR t:"ice sheet") y:2015-  either topic, 2015 or later
@@ -28,6 +31,7 @@ completed by typing more — ``OR OR``, a stray ``)``, ``()`` — raises
 :class:`QueryError`.
 """
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -220,39 +224,80 @@ def _rating_matches(rating: int, value: str) -> bool:
     return value.isdigit() and rating == int(value)
 
 
-def _term_matches(entry: BibEntry, field: str | None, value: str) -> bool:
-    """Whether one (already lower-cased) term matches *entry*."""
-    if field is None:
-        return (
-            value in entry.title_plain.lower()
-            or value in entry.author.lower()
-            or value in entry.keywords.lower()
-            or value in entry.key.lower()
+# A term splits into runs of word characters, "*" wildcards, and anything else.
+_TERM_PARTS = re.compile(r"(\*|[^\w*]+)")
+
+
+def _word_matcher(value: str) -> Callable[[str], bool]:
+    """Return a test for whether a (lower-cased) text contains *value* as
+    whole words.
+
+    * Word edges: ``ice`` doesn't match inside "price" or "iceberg".
+    * ``*`` stands for any run of word characters: ``ice*``, ``*berg``,
+      ``gla*er``.
+    * Punctuation or a space between words matches any punctuation or space
+      in the text, so ``"sea ice"``, ``ice-sheet`` and ``o'brien`` also find
+      "sea-ice", "ice sheet" and "O’Brien" (typographic apostrophe).
+    * Punctuation at the start or end must be there as typed (``c++``).
+
+    A value with no word characters at all (``#``, ``--``) is matched as a
+    plain substring.
+    """
+    if not re.search(r"[\w*]", value):
+        return lambda text: value in text
+    parts = [p for p in _TERM_PARTS.split(value) if p]
+    regex = []
+    for i, part in enumerate(parts):
+        if part == "*":
+            regex.append(r"\w*")
+        elif re.fullmatch(r"[^\w*]+", part) and 0 < i < len(parts) - 1:
+            regex.append(r"\W+")
+        else:
+            regex.append(re.escape(part))
+    if re.match(r"\w", value):
+        regex.insert(0, r"(?<!\w)")
+    if re.search(r"\w$", value):
+        regex.append(r"(?!\w)")
+    search = re.compile("".join(regex)).search
+    return lambda text: search(text) is not None
+
+
+def _term_matcher(field: str | None, value: str) -> Matcher:
+    """A matcher for one (already lower-cased) term in *field* (``None`` for a
+    plain word, searched in title, author, keywords and cite key)."""
+    if field in (None, "title", "author", "keywords", "journal"):
+        words = _word_matcher(value)
+        if field is None:
+            return lambda entry: (
+                words(entry.title_plain.lower())
+                or words(decode_latex(entry.author).lower())
+                or words(entry.keywords.lower())
+                or value in entry.key.lower()
+            )
+        if field == "title":
+            return lambda entry: words(entry.title_plain.lower())
+        if field == "author":
+            return lambda entry: words(decode_latex(entry.author).lower())
+        if field == "keywords":
+            return lambda entry: words(entry.keywords.lower())
+        return lambda entry: words(
+            decode_latex(entry.journal or entry.raw_fields.get("booktitle", "")).lower()
         )
-    if field == "title":
-        return value in entry.title_plain.lower()
-    if field == "author":
-        return value in entry.author.lower()
-    if field == "keywords":
-        return value in entry.keywords.lower()
     if field == "year":
-        return _year_matches(entry.year, value)
-    if field == "journal":
-        journal = entry.journal or entry.raw_fields.get("booktitle", "")
-        return value in decode_latex(journal).lower()
+        return lambda entry: _year_matches(entry.year, value)
     if field == "url":
-        return value in entry.url.lower()
+        return lambda entry: value in entry.url.lower()
     if field == "citekey":
-        return value in entry.key.lower()
+        return lambda entry: value in entry.key.lower()
     if field == "read_state":
         # Exact match, not substring: "read" and "to-read" are distinct
         # states and a substring match would conflate them.
-        return value == entry.read_state.lower()
+        return lambda entry: value == entry.read_state.lower()
     if field == "priority":
-        return value == entry.priority_label.lower()
+        return lambda entry: value == entry.priority_label.lower()
     if field == "rating":
-        return _rating_matches(entry.rating, value)
-    return False
+        return lambda entry: _rating_matches(entry.rating, value)
+    return lambda entry: False
 
 
 # ---------------------------------------------------------------------------
@@ -346,9 +391,7 @@ class _Parser:
         token = self._tokens[self._pos]
         self._pos += 1
         if token.kind == "term":
-            term_field = token.field or field
-            value = token.value
-            return lambda entry: _term_matches(entry, term_field, value)
+            return _term_matcher(token.field or field, token.value)
 
         # "(" or "prefix:(" — a prefix applies to the group's plain words;
         # a term with its own prefix inside the group keeps that prefix.

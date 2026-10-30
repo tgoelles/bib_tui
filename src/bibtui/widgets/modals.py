@@ -1769,10 +1769,10 @@ _HELP_PARTS = [
                     ("Esc", "Clear the search (the active filter stays on)"),
                     (
                         None,
-                        "Plain text searches title, author, keywords and key. "
-                        "Several terms are ANDed (writing AND is optional); "
-                        "see Boolean search for OR and NOT. "
-                        'Quote a value with spaces: k:"sea ice".',
+                        "Plain text searches whole words in title, author and "
+                        "keywords, and any part of the cite key. Several terms "
+                        "are ANDed (writing AND is optional); see Boolean search "
+                        "for OR and NOT.",
                     ),
                 ],
             ),
@@ -1789,6 +1789,16 @@ _HELP_PARTS = [
                     ("r: / state:", "Filter by read state"),
                     ("pr: / urgency:", "Filter by urgency"),
                     ("rt: / rating:", "Filter by rating: rt:>=3, rt:2-4, rt:0"),
+                ],
+            ),
+            (
+                "Words and phrases",
+                [
+                    ("ice", "The word ice, also in ice-sheet; not iceberg"),
+                    ("ice*", "Words starting with ice: iceberg, icefield"),
+                    ("*berg", "Words ending in berg: iceberg"),
+                    ('"sea ice"', "The phrase, also sea-ice"),
+                    (None, "Cite keys and URLs match any part: c:2025."),
                 ],
             ),
             (
@@ -1822,7 +1832,7 @@ _HELP_PARTS = [
                     ("a:smith t:glacier", "Combined"),
                     ("j:nature AND y:2025", "Journal + year"),
                     ("k:ice a:jones", "Keyword + author"),
-                    ("c:smith2020", "Exact cite key"),
+                    ("c:smith2020", "Cite key, any part"),
                     ("r:to-read", "Entries still to read"),
                     ("pr:high", "High-urgency entries"),
                 ],

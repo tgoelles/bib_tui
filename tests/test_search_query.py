@@ -240,7 +240,7 @@ def test_apostrophe_is_an_ordinary_character() -> None:
         ("k:ice NOT", ["Smith2020", "Jones2016"]),
         ("a:(", ["Smith2020", "Jones2016", "Brown2010"]),
         ("NOT", ["Smith2020", "Jones2016", "Brown2010"]),
-        ('t:"ice sh', ["Jones2016"]),
+        ('t:"ice sheet', ["Jones2016"]),
         # A leading or doubled AND has always been ignored.
         ("AND a:smith", ["Smith2020"]),
         ("a:smith AND AND y:2020", ["Smith2020"]),
@@ -310,3 +310,78 @@ def test_rating_prefix(query: str, matching_ratings: list[int]) -> None:
 def test_rating_combines_with_other_fields() -> None:
     assert matches_query(_entry(rating=4, read_state="to-read"), "rt:>=4 r:to-read")
     assert not matches_query(_entry(rating=4, read_state="read"), "rt:>=4 r:to-read")
+
+
+# ---------------------------------------------------------------------------
+# Whole words, * truncation and phrases (#88, step 2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("query", "title", "matches"),
+    [
+        # Whole words: no hits inside other words.
+        ("t:ice", "Ice cores", True),
+        ("t:ice", "The price of ice-sheet loss", True),
+        ("t:ice", "Price of tea", False),
+        ("t:ice", "Icebergs", False),
+        ("t:glacier", "Glaciers", False),
+        # * truncation, anywhere in the word.
+        ("t:ice*", "Icebergs", True),
+        ("t:ice*", "Ice cores", True),
+        ("t:ice*", "Price of tea", False),
+        ("t:glacier*", "Glaciers", True),
+        ("t:*berg", "Icebergs and the berg", True),
+        ("t:*bergs", "Icebergs", True),
+        ("t:gla*er", "Glacier", True),
+        ("t:*", "Anything", True),
+        # Phrases: words in this order, any punctuation between them.
+        ('t:"sea ice"', "Arctic sea ice", True),
+        ('t:"sea ice"', "Arctic sea-ice extent", True),
+        ('t:"sea ice"', "Ice on the sea", False),
+        ('t:"sea ic*"', "Sea icebergs", True),
+        ("t:ice-sheet", "Ice sheet dynamics", True),
+        ("t:ice-sheet", "Ice-sheet dynamics", True),
+        # Punctuation at the edges must be there as typed.
+        ("t:c++", "Fast C++ code", True),
+        ("t:c++", "Fast C code", False),
+        # No word characters: plain substring.
+        ("t:#", "Issue #5", True),
+        # Matching is on the decoded title.
+        ("t:façades", r"LiDAR of Fa\c{c}ades", True),
+    ],
+)
+def test_whole_word_matching(query: str, title: str, matches: bool) -> None:
+    assert matches_query(_entry(title=title), query) is matches
+
+
+def test_whole_words_apply_to_free_terms_and_every_text_field() -> None:
+    e = _entry(
+        key="Price2020",
+        title="Glacier melt",
+        author="Price, Ann",
+        keywords="sea ice",
+        journal="Nature Geoscience",
+    )
+    assert matches_query(e, "melt")
+    assert not matches_query(e, "mel")
+    assert matches_query(e, "a:price") and not matches_query(e, "a:pri")
+    assert matches_query(e, "k:ice") and not matches_query(e, "k:ic")
+    assert matches_query(e, "j:nature") and not matches_query(e, "j:geo")
+    assert matches_query(e, "j:geo*")
+
+
+def test_author_matches_decoded_latex() -> None:
+    e = _entry(author=r"Sch{\"o}ner, Wolfgang and O'Brien, Pat")
+    assert matches_query(e, "a:schöner")
+    assert matches_query(e, "a:o'brien")
+    assert matches_query(e, "a:o’brien")  # typographic apostrophe
+
+
+def test_cite_keys_and_urls_keep_matching_any_part() -> None:
+    e = _entry(key="Goelles2025a", url="https://doi.org/10.5194/tc-2024")
+    assert matches_query(e, "c:2025")
+    assert matches_query(e, "c:oell")
+    assert matches_query(e, "u:5194/tc")
+    # A plain word also looks at the cite key, as a substring.
+    assert matches_query(e, "goelles2025")
