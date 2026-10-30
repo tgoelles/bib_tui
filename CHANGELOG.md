@@ -42,6 +42,14 @@ Many small quality of life changes and bug fixes.
 
 - **"Press w to write" hint** — after editing an entry or its keywords, the confirmation read "Press  to write." because `[w]` was swallowed as markup; it now shows the key.
 - **Square brackets in abstracts** — an abstract containing something like `[1]` or `[Ca2+]` had it silently swallowed as markup; it now shows literally.
+- **Saving could corrupt or lose edits for some entry layouts** ([#78](https://github.com/tgoelles/bib_tui/issues/78)):
+  - setting a rating or read state on an entry whose last field spans several lines (e.g. a multi-line `annote`) produced invalid BibTeX and the change was lost on reload;
+  - editing a field that shares a line with another (`title = {…}, author = {…},`) overwrote the other field;
+  - changing the entry type (e.g. article → book) was silently not saved;
+  - editing or removing a multi-line field reformatted the whole entry.
+
+  Fields are now patched as whole multi-line spans, the entry type is updated in place, and every patched entry is checked to reload with exactly the intended values before it is written (otherwise just that entry is re-serialized).
+- **Saving converted Windows (CRLF) `.bib` files to LF** ([#79](https://github.com/tgoelles/bib_tui/issues/79)), so a one-field edit changed every line of the file. The file's line endings are now kept.
 
 ## [1.1.0] - 2026-09-14
 
