@@ -34,6 +34,7 @@ Quote a value that contains a space, e.g. `k:"sea ice"`:
 | `c:` / `citekey:`      | cite key           | `c:smith2020`      |
 | `r:` / `state:`        | read state         | `r:to-read`        |
 | `pr:` / `urgency:`     | urgency            | `pr:high`          |
+| `rt:` / `rating:`      | rating, range or comparison | `rt:>=3`  |
 
 ## Year ranges
 
@@ -51,10 +52,49 @@ y:<=2015         # 2015 or earlier (same as y:-2015)
 
 An entry with no year never matches a range or comparison.
 
+## Rating
+
+`rt:` takes the same comparisons and ranges, but a plain number matches
+exactly. `0` means unrated:
+
+```text
+rt:5             # five stars
+rt:>=3           # three stars or more
+rt:2-4           # two to four stars
+rt:0             # not rated yet
+NOT rt:0         # rated at all
+```
+
+## Boolean search
+
+For "either of these" or "but not that", use `OR` and `NOT`, and group with
+parentheses — the same logic as Web of Science's Advanced Search:
+
+```text
+a:smith OR a:jones                     # either author
+a:(smith OR jones)                     # the same: a prefix applies to a whole group
+a:(smith OR jones) k:ice               # either author, tagged ice
+k:ice NOT r:read                       # ice papers you haven't read yet
+(t:glacier OR t:"ice sheet") y:2015-   # either topic, 2015 or later
+j:(nature OR science)                  # either journal
+```
+
+`NOT` binds tightest, then `AND`, then `OR`, so `k:snow y:2016 OR a:smith`
+means "(snow and 2016) or Smith". Use parentheses when in doubt.
+
+- `AND`, `OR` and `NOT` work in any case (`or` too), but only as separate
+  words. To search for the word itself, quote or prefix it: `t:"or"`, `t:not`.
+- A plain word inside a prefixed group gets that prefix; a term with its own
+  prefix keeps it: `a:(smith OR t:snow)`.
+- Parentheses inside quotes are literal: `t:"(in)stability"`.
+- While you type, an unfinished query still filters: `a:(smith OR` shows Smith.
+  A query that can't be finished by typing more, like `OR OR` or a stray `)`,
+  shows a short hint under the search box and keeps the last valid result.
+
 ## Combine terms
 
-Prefixes and plain words can be mixed freely. The optional `AND` keyword reads
-naturally but changes nothing — terms are always ANDed:
+Prefixes and plain words can be mixed freely. Terms are combined with AND; the
+optional `AND` keyword reads naturally but changes nothing:
 
 ```text
 a:smith t:glacier            # Smith, with "glacier" in the title

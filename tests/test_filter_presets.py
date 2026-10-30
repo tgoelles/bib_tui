@@ -592,3 +592,71 @@ async def test_edit_highlighted_preset_updates_name_and_query() -> None:
         assert updated.query == "y:2010-"
         assert preset_modal._store.active == "Project X"
         assert load_filters().find("Project X").query == "y:2010-"
+
+
+# ---------------------------------------------------------------------------
+# Boolean queries (#88): invalid input in the search box and in filters
+# ---------------------------------------------------------------------------
+
+
+async def test_invalid_search_keeps_last_valid_result_and_shows_hint() -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        el = app.query_one(EntryList)
+        search = app.query_one("#search-input")
+        hint = app.query_one("#search-hint")
+
+        search.value = "y:2020 OR y:2021"
+        await pilot.pause()
+        valid = [e.key for e in el.filtered_entries]
+        assert valid
+        assert not hint.display
+
+        search.value = "y:2020 OR y:2021 OR OR"
+        await pilot.pause()
+        assert [e.key for e in el.filtered_entries] == valid
+        assert hint.display
+        assert "OR needs a term on both sides" in str(hint.render())
+
+        search.value = "y:2020 OR y:2021 OR y:2022"
+        await pilot.pause()
+        assert not hint.display
+        assert len(el.filtered_entries) > len(valid)
+
+
+async def test_invalid_saved_filter_matches_nothing_and_says_so() -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        el = app.query_one(EntryList)
+        el.set_preset("Broken", "OR y:2020")
+        await pilot.pause()
+
+        assert el.filtered_entries == []
+        assert "invalid query" in str(app.query_one("#preset-bar").render())
+
+
+async def test_filter_edit_refuses_invalid_query() -> None:
+    app = BibTuiApp(BIB)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        results: list = []
+        app.push_screen(
+            FilterEditModal(name="Mine", query="a:(smith OR)"), results.append
+        )
+        await pilot.pause()
+        modal = app.screen
+
+        modal.action_save()
+        await pilot.pause()
+
+        assert app.screen is modal
+        assert results == []
+        error = str(modal.query_one("#filter-edit-error").render())
+        assert "Invalid query" in error
+
+        modal.query_one("#filter-query").value = "a:(smith OR jones)"
+        modal.action_save()
+        await pilot.pause()
+        assert results == [("Mine", "a:(smith OR jones)")]

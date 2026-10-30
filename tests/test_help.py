@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from rich.text import Text
-from textual.widgets import Label, Static
+from textual.widgets import Input, Label, Static
 
 from bibtui.app import BibTuiApp
 from bibtui.widgets.modals import (
@@ -27,6 +27,7 @@ def test_search_and_filters_are_grouped_together() -> None:
         "Search — press s",
         "Field prefixes",
         "Year filters",
+        "Boolean search",
         "Examples",
         "Saved filters — press f",
     ]
@@ -117,3 +118,26 @@ def test_an_empty_description_does_not_crash_the_help_screen() -> None:
     raise IndexError and take the whole ``?`` screen down."""
     lines = _build_help_section("Demo", [("k", "")])[1:]
     assert Text.from_markup(lines[0]).plain.rstrip() == "  k"
+
+
+async def test_search_placeholder_points_to_help_and_it_works(
+    tmp_path, monkeypatch
+) -> None:
+    """The search box hints "Esc ? help": "?" typed in the box is text, so
+    Esc must leave the box and "?" must then open the help screen."""
+    config_file = tmp_path / "config.toml"
+    monkeypatch.setattr("bibtui.utils.config.CONFIG_PATH", config_file)
+    config_file.write_text("[updates]\ncheck_for_updates = false\n", encoding="utf-8")
+    app = BibTuiApp("tests/bib_examples/MyCollection.bib")
+    async with app.run_test(size=(110, 40)) as pilot:
+        await pilot.pause()
+        search = app.query_one("#search-input", Input)
+        assert "Esc ? help" in search.placeholder
+        assert " OR " in search.placeholder and "rt:" in search.placeholder
+
+        search.focus()
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.press("question_mark")
+        await pilot.pause()
+        assert isinstance(app.screen, HelpModal)
