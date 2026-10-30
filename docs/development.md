@@ -44,6 +44,10 @@ By default pytest skips two groups of tests:
 - `slow`: the exhaustive save-integrity sweep that edits every entry in the
   example libraries (about 20 s). Run it with `uv run pytest -m slow`.
 
+These tests are skipped even when you name them directly
+(`uv run pytest tests/test_fetcher.py::test_…` reports them as deselected), so
+add `-m network` or `-m slow` when running one on its own.
+
 CI runs everything except `network` (`uv run pytest -m "not network"`) across
 Python 3.12–3.14, so the slow sweep runs there.
 

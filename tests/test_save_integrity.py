@@ -65,7 +65,7 @@ def _field_line_spans(block_text: str) -> dict[str, range] | None:
     ):
         return None
     lines = block_text.splitlines()
-    close = max(i for i, text in enumerate(lines) if text.strip() in "})")
+    close = max(i for i, text in enumerate(lines) if text.strip() in ("}", ")"))
     bounds = [line for line, _ in starts] + [close]
     return {key: range(first, bounds[n + 1]) for n, (first, key) in enumerate(starts)}
 
@@ -236,6 +236,32 @@ def test_duplicate_key_block_is_preserved_when_other_entry_edited(tmp_path) -> N
 
     assert path.read_text(encoding="utf-8") == source.replace(
         "{First},\n}", "{First},\n  ranking = {rank2},\n}"
+    )
+
+
+def test_string_macros_survive_edit_of_entry_using_them(tmp_path) -> None:
+    """The patch check must resolve the file's @string macros like load() does;
+    otherwise every edit re-serialized the entry, inlining ``jgr`` and turning
+    the month macro ``jan`` into the literal ``{jan}``."""
+    source = (
+        '@string{jgr = "J. Geophys. Res."}\n\n'
+        "@article{m,\n"
+        "  title = {T},\n"
+        "  journal = jgr,\n"
+        "  month = jan,\n"
+        "  year = {2020},\n"
+        "}\n"
+    )
+    path = tmp_path / "macro.bib"
+    path.write_text(source, encoding="utf-8")
+
+    entries = parser.load(str(path))
+    assert entries[0].journal == "J. Geophys. Res."
+    entries[0].rating = 3
+    parser.save(entries, str(path))
+
+    assert path.read_text(encoding="utf-8") == source.replace(
+        "{2020},\n}", "{2020},\n  ranking = {rank3},\n}"
     )
 
 

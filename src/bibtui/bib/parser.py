@@ -303,16 +303,22 @@ def _validate_entry_text(entry_text: str, expected_key: str) -> bool:
     return lib.entries[0].key == expected_key
 
 
-def _entry_text_matches(entry_text: str, expected: BibEntry) -> bool:
+def _entry_text_matches(
+    entry_text: str, expected: BibEntry, strings_text: str = ""
+) -> bool:
     """Return True if *entry_text* parses back to exactly *expected*.
 
     Stricter than :func:`_validate_entry_text`: besides the key it compares the
     entry type and every field value, so a patch that parses but carries the
     wrong data (a swallowed field, a clobbered value) is rejected.
+
+    *strings_text* holds the file's ``@string`` definitions. *expected* was
+    loaded with them resolved (``journal = jgr`` → ``J. Geophys. Res.``), so the
+    patch must be parsed with them too or every macro would look like a change.
     """
     try:
         text = entry_text if entry_text.endswith("\n") else entry_text + "\n"
-        lib = bibtexparser.parse_string(text)
+        lib = bibtexparser.parse_string(strings_text + text)
     except Exception:
         return False
     if len(lib.entries) != 1:
@@ -564,6 +570,8 @@ def save(entries: list[BibEntry], path: str) -> None:
         _full_rewrite(entries, path, newline)
         return
 
+    strings_text = "".join(s.raw + "\n" for s in source_lib.strings)
+
     blocks = _parse_source_blocks(original_text, src_lib=source_lib)
     if not any(block.kind == "entry" for block in blocks):
         _full_rewrite(entries, path, newline)
@@ -600,7 +608,7 @@ def save(entries: list[BibEntry], path: str) -> None:
 
             # Validate changed blocks before writing: the patch must parse back to
             # exactly the desired entry, otherwise serialize the entry instead.
-            if not _entry_text_matches(candidate, current):
+            if not _entry_text_matches(candidate, current, strings_text):
                 fallback = _serialize_entry(current)
                 if not _validate_entry_text(fallback, current.key):
                     _full_rewrite(entries, path, newline)
