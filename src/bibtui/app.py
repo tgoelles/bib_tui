@@ -14,6 +14,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.command import DiscoveryHit, Hit, Hits, Provider
 from textual.containers import Horizontal
+from textual.markup import escape
 from textual.widgets import DataTable, Footer, Header, Input, TextArea
 
 from bibtui import DOCS_URL, __version__
@@ -525,7 +526,7 @@ class BibTuiApp(App):
             self.notify("No entry selected.", severity="warning")
             return
         modal = (
-            RawEditModal(entry)
+            RawEditModal(entry, taken_keys=[e.key for e in self._entries])
             if self.query_one(EntryDetail).raw_mode
             else EditModal(entry)
         )
@@ -555,10 +556,27 @@ class BibTuiApp(App):
         self.query_one(EntryList).refresh_entries(self._entries)
         if result.key != original.key:
             # refresh_entries restores the cursor by the old key, which is gone.
-            self.call_after_refresh(self._jump_to_entry, result)
+            self.call_after_refresh(self._jump_to_entry, result, "Renamed to")
+            self._warn_if_pdf_unlinked(original, result)
         else:
             self.query_one(EntryDetail).show_entry(result)
         self.notify("Entry updated. Press [bold]w[/bold] to write.", timeout=3)
+
+    def _warn_if_pdf_unlinked(self, original: BibEntry, renamed: BibEntry) -> None:
+        """Warn when a rename loses a PDF that was found only by the old cite key.
+
+        Without a working ``file`` path, the PDF is found by its name starting
+        with the cite key, which a rename breaks.
+        """
+        base_dir = self._config.pdf_base_dir
+        old_pdf = find_pdf_for_entry(original.file, original.key, base_dir)
+        if old_pdf and not find_pdf_for_entry(renamed.file, renamed.key, base_dir):
+            self.notify(
+                f"PDF '{escape(os.path.basename(old_pdf))}' was found by the old "
+                "cite key and is no longer linked. Rename it or link it again.",
+                severity="warning",
+                timeout=8,
+            )
 
     def action_new_entry(self) -> None:
         self.push_screen(NewEntryChooserModal(), self._on_new_entry_choice)
@@ -858,7 +876,7 @@ class BibTuiApp(App):
         if errors:
             self.notify("\n".join(errors), severity="warning", timeout=8)
 
-    def _jump_to_entry(self, result: BibEntry) -> None:
+    def _jump_to_entry(self, result: BibEntry, verb: str = "Added") -> None:
         """Move cursor to the given entry after the table has been rendered."""
         el = self.query_one(EntryList)
         try:
@@ -869,7 +887,7 @@ class BibTuiApp(App):
             preset_name, _ = el.active_preset
             if preset_name:
                 self.notify(
-                    f"Added '{result.key}' — hidden by filter '{preset_name}'",
+                    f"{verb} '{result.key}' — hidden by filter '{preset_name}'",
                     severity="warning",
                     timeout=6,
                 )

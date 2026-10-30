@@ -38,7 +38,7 @@ def test_entry_updated_hint_shows_the_write_key(monkeypatch) -> None:
     app._entries = [entry]
     _list, _detail, notes = wire_dummies(app, monkeypatch)
 
-    app._on_edit_done(BibEntry(key="k", entry_type="article", title="new"))
+    app._on_edit_done(BibEntry(key="k", entry_type="article", title="new"), entry)
 
     assert _rendered(notes) == ["Entry updated. Press w to write."]
     assert app._entries[0].title == "new"
