@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-10-30
 
 ### Added
 
@@ -14,13 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Editing one field could strip case-protection braces from another** ([#70](https://github.com/tgoelles/bib_tui/issues/70)) — e.g. changing the author rewrote `title = {{LiDAR-Based Forest Inventory}}` as `{LiDAR-Based Forest Inventory}`. Worse, a value that merely started and ended with a brace group (`{Starts} with … {with}`) was cut into an unbalanced string, then saved as invalid BibTeX. Text fields are now kept exactly as written, and saving an edited entry only rewrites the fields you actually changed. Identifier fields wrapped in an extra pair of braces, as Web of Science exports them (`year = {{2020}}`, `doi = {{10.…}}`), are unwrapped on load so sorting, DOI lookups and ratings keep working; the file itself is not changed. Titles and journals are shown and searched as decoded plain text, and titles are looked up that way too (OpenAlex, duplicate-title check) — `{{LiDAR}} in \textit{Fa\c{c}ades}` reads `LiDAR in Façades`.
-
 - **Import arXiv preprints from PDF** — arXiv DOIs are registered with DataCite, not CrossRef, so every arXiv PDF failed with "CrossRef lookup failed". arXiv PDFs are now looked up on the arXiv API (old `hep-th/…`-style ids too) and stored as `@misc` with `eprint`/`archiveprefix`/`primaryclass` ([#71](https://github.com/tgoelles/bib_tui/issues/71)).
-
 - **PDF fetch for DOIs pasted as links** — importing `https://doi.org/10.5194/egusphere-…` stored the whole link as the DOI, so the Copernicus/EGUsphere and Unpaywall lookups failed and no PDF was downloaded. The bare DOI is now stored, and existing link-form DOIs are handled too ([#73](https://github.com/tgoelles/bib_tui/issues/73)).
 - **Download progress and a working Cancel** — the Fetch PDF dialog shows how much has been downloaded (e.g. `20.5 / 41.1 MB (50%)`), so large preprints no longer look stuck. Cancel now really stops the download and removes the partial file.
 - **Permissions of downloaded PDFs** — fetched PDFs were readable only by you (`0600`); they now get normal permissions according to your umask.
 - **Saving could corrupt or lose edits for some entry layouts** ([#78](https://github.com/tgoelles/bib_tui/issues/78)):
+
   - setting a rating or read state on an entry whose last field spans several lines (e.g. a multi-line `annote`) produced invalid BibTeX and the change was lost on reload;
   - editing a field that shares a line with another (`title = {…}, author = {…},`) overwrote the other field;
   - changing the entry type (e.g. article → book) was silently not saved;
