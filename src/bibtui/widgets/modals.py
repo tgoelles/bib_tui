@@ -3,7 +3,7 @@ import re
 import textwrap
 import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Collection, Iterable
 from pathlib import Path
 from typing import TypeVar
 from urllib.parse import urlparse
@@ -15,6 +15,7 @@ from textual.actions import SkipAction
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.markup import escape
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
@@ -2000,9 +2001,12 @@ class RawEditModal(_BaseModal[BibEntry | None]):
     }
     """
 
-    def __init__(self, entry: BibEntry, **kwargs):
+    def __init__(self, entry: BibEntry, taken_keys: Collection[str] = (), **kwargs):
         super().__init__(**kwargs)
         self._entry = entry
+        # Keys of the *other* entries: renaming onto one is refused here, with
+        # the text kept, rather than after the modal has closed.
+        self._taken_keys = frozenset(taken_keys) - {entry.key}
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -2030,9 +2034,15 @@ class RawEditModal(_BaseModal[BibEntry | None]):
         error = self.query_one("#raw-edit-error", Static)
         try:
             entry = bibtex_str_to_entry(text)
-            self.dismiss(entry)
         except Exception as e:
             error.update(f"Parse error: {e}")
+            return
+        if entry.key in self._taken_keys:
+            error.update(
+                f"Cite key '{escape(entry.key)}' is already used by another entry."
+            )
+            return
+        self.dismiss(entry)
 
     def action_save(self) -> None:
         self._save()
