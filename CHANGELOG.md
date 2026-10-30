@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Boolean search: `OR`, `NOT` and parentheses** ([#88](https://github.com/tgoelles/bib_tui/issues/88)) — search and saved filters now work like Web of Science's Advanced Search: `a:smith OR a:jones`, `k:ice NOT r:read`, `(t:glacier OR t:"ice sheet") y:2015-`, and a prefix for a whole group, `a:(smith OR jones)`. Typing `OR` used to quietly narrow the results to entries containing the letters "or". A half-typed query still filters as you type; an invalid one shows a hint and keeps the last valid result, and the filter editor refuses to save it. See the `?` help screen and the search guide.
+- **Search by rating** — `rt:` / `rating:` filters by star rating, with the same comparisons and ranges as the year filter: `rt:>=3`, `rt:2-4`, `rt:0` for unrated entries. A plain number matches exactly.
 
 ## [1.2.0] - 2026-10-30
 

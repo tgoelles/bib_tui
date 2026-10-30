@@ -1788,6 +1788,7 @@ _HELP_PARTS = [
                     ("c: / citekey:", "Filter by cite key"),
                     ("r: / state:", "Filter by read state"),
                     ("pr: / urgency:", "Filter by urgency"),
+                    ("rt: / rating:", "Filter by rating: rt:>=3, rt:2-4, rt:0"),
                 ],
             ),
             (

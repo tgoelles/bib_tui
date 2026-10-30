@@ -8,6 +8,7 @@ Advanced Search::
     a:(smith OR jones) k:ice              either author, tagged ice
     (t:glacier OR t:"ice sheet") y:2015-  either topic, 2015 or later
     k:ice NOT r:read                      ice papers not yet read
+    rt:>=4 OR pr:high                     well rated, or urgent
 
 Grammar — ``NOT`` binds tightest, then ``AND`` (also implied between terms),
 then ``OR``::
@@ -59,6 +60,9 @@ FIELD_PREFIXES: dict[str, str] = {
     "pr": "priority",
     "priority": "priority",
     "urgency": "priority",
+    "rt": "rating",
+    "rating": "rating",
+    "rank": "rating",
 }
 
 _OPERATORS = {"AND", "OR", "NOT"}
@@ -188,6 +192,34 @@ def _year_matches(entry_year: str, value: str) -> bool:
     return value in entry_year
 
 
+def _rating_matches(rating: int, value: str) -> bool:
+    """Match a ``rating:`` value: ``3`` (exactly), ``>=3``, ``>3``, ``<=2``,
+    ``<2``, or a range ``3-5`` / ``4-`` / ``-2``. ``0`` means unrated.
+
+    Unlike a year, a plain number matches exactly: ``rt:3`` must not match 13.
+    A value that isn't a number or range matches nothing.
+    """
+    for op in (">=", "<=", ">", "<"):
+        if value.startswith(op):
+            bound = value[len(op) :]
+            if not bound.isdigit():
+                return False
+            return {
+                ">=": rating >= int(bound),
+                "<=": rating <= int(bound),
+                ">": rating > int(bound),
+                "<": rating < int(bound),
+            }[op]
+    if "-" in value:
+        low, _, high = value.partition("-")
+        if (low and not low.isdigit()) or (high and not high.isdigit()):
+            return False
+        if not (low or high):
+            return False
+        return (not low or rating >= int(low)) and (not high or rating <= int(high))
+    return value.isdigit() and rating == int(value)
+
+
 def _term_matches(entry: BibEntry, field: str | None, value: str) -> bool:
     """Whether one (already lower-cased) term matches *entry*."""
     if field is None:
@@ -218,6 +250,8 @@ def _term_matches(entry: BibEntry, field: str | None, value: str) -> bool:
         return value == entry.read_state.lower()
     if field == "priority":
         return value == entry.priority_label.lower()
+    if field == "rating":
+        return _rating_matches(entry.rating, value)
     return False
 
 

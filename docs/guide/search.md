@@ -34,6 +34,7 @@ Quote a value that contains a space, e.g. `k:"sea ice"`:
 | `c:` / `citekey:`      | cite key           | `c:smith2020`      |
 | `r:` / `state:`        | read state         | `r:to-read`        |
 | `pr:` / `urgency:`     | urgency            | `pr:high`          |
+| `rt:` / `rating:`      | rating, range or comparison | `rt:>=3`  |
 
 ## Year ranges
 
@@ -50,6 +51,19 @@ y:<=2015         # 2015 or earlier (same as y:-2015)
 ```
 
 An entry with no year never matches a range or comparison.
+
+## Rating
+
+`rt:` takes the same comparisons and ranges, but a plain number matches
+exactly. `0` means unrated:
+
+```text
+rt:5             # five stars
+rt:>=3           # three stars or more
+rt:2-4           # two to four stars
+rt:0             # not rated yet
+NOT rt:0         # rated at all
+```
 
 ## Boolean search
 

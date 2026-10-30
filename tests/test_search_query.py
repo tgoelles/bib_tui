@@ -270,3 +270,43 @@ def test_invalid_queries_raise(query: str, message: str) -> None:
 
 def test_empty_query_matches_everything() -> None:
     assert _keys("") == ["Smith2020", "Jones2016", "Brown2010"]
+
+
+# ---------------------------------------------------------------------------
+# Rating
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("query", "matching_ratings"),
+    [
+        ("rt:3", [3]),
+        ("rating:3", [3]),
+        ("rank:3", [3]),
+        ("rt:0", [0]),
+        ("rt:>=3", [3, 4, 5]),
+        ("rt:>3", [4, 5]),
+        ("rt:<=2", [0, 1, 2]),
+        ("rt:<2", [0, 1]),
+        ("rt:2-4", [2, 3, 4]),
+        ("rt:4-", [4, 5]),
+        ("rt:-1", [0, 1]),
+        ("rt:>=1", [1, 2, 3, 4, 5]),  # rated at all
+        ("rt:>=4 OR rt:0", [0, 4, 5]),
+        ("NOT rt:0", [1, 2, 3, 4, 5]),
+        # Not a number or range: matches nothing rather than everything.
+        ("rt:high", []),
+        ("rt:>x", []),
+        ("rt:a-b", []),
+        ("rt:-", []),
+    ],
+)
+def test_rating_prefix(query: str, matching_ratings: list[int]) -> None:
+    matcher = compile_query(query)
+    entries = [_entry(key=f"R{n}", rating=n) for n in range(6)]
+    assert [e.rating for e in entries if matcher(e)] == matching_ratings
+
+
+def test_rating_combines_with_other_fields() -> None:
+    assert matches_query(_entry(rating=4, read_state="to-read"), "rt:>=4 r:to-read")
+    assert not matches_query(_entry(rating=4, read_state="read"), "rt:>=4 r:to-read")
