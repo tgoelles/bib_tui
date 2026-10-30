@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Boolean search: `OR`, `NOT` and parentheses** ([#88](https://github.com/tgoelles/bib_tui/issues/88)) — search and saved filters now work like Web of Science's Advanced Search: `a:smith OR a:jones`, `k:ice NOT r:read`, `(t:glacier OR t:"ice sheet") y:2015-`, and a prefix for a whole group, `a:(smith OR jones)`. Typing `OR` used to quietly narrow the results to entries containing the letters "or". A half-typed query still filters as you type; an invalid one shows a hint and keeps the last valid result, and the filter editor refuses to save it. See the `?` help screen and the search guide.
+
 ## [1.2.0] - 2026-10-30
 
 ### Added

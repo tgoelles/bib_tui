@@ -1,7 +1,11 @@
 """Unit tests for the search/filter query syntax (bibtui.widgets.entry_list)."""
 
+import re
+
+import pytest
+
 from bibtui.bib.models import BibEntry
-from bibtui.widgets.entry_list import matches_query
+from bibtui.bib.search import QueryError, compile_query, matches_query
 
 
 def _entry(**kwargs) -> BibEntry:
@@ -108,9 +112,8 @@ def test_unbalanced_quote_falls_back_instead_of_raising() -> None:
 
 
 def test_hash_in_query_is_not_treated_as_a_comment() -> None:
-    # shlex.split's default already disables '#' comment-stripping, but this
-    # locks the behavior in: a citekey or title containing '#' must search
-    # in full, not get silently truncated at the '#'.
+    # A citekey or title containing '#' must search in full, not get
+    # silently truncated at the '#' as a shell-style comment would be.
     e = _entry(key="rfc-2119#section3")
     assert matches_query(e, "c:rfc-2119#section3")
 
@@ -143,3 +146,127 @@ def test_priority_prefix_matches_label() -> None:
 def test_priority_unset_label() -> None:
     e = _entry(priority=0)
     assert matches_query(e, "pr:unset")
+
+
+# ---------------------------------------------------------------------------
+# Boolean operators (#88)
+# ---------------------------------------------------------------------------
+
+SMITH = _entry(
+    key="Smith2020",
+    author="Smith, John",
+    title="Glacier melt",
+    keywords="ice",
+    journal="Nature",
+    year="2020",
+    read_state="read",
+)
+JONES = _entry(
+    key="Jones2016",
+    author="Jones, Ann",
+    title="Ice sheet dynamics",
+    keywords="ice, snow",
+    journal="Science",
+    year="2016",
+    read_state="to-read",
+)
+BROWN = _entry(
+    key="Brown2010",
+    author="Brown, Bo",
+    title="Snow cover",
+    keywords="snow",
+    journal="Nature",
+    year="2010",
+)
+LIBRARY = [SMITH, JONES, BROWN]
+
+
+def _keys(query: str) -> list[str]:
+    matcher = compile_query(query)
+    return [e.key for e in LIBRARY if matcher(e)]
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("a:smith OR a:jones", ["Smith2020", "Jones2016"]),
+        ("a:smith or a:jones", ["Smith2020", "Jones2016"]),
+        ("a:(smith OR jones)", ["Smith2020", "Jones2016"]),
+        ("a:(smith OR jones) k:snow", ["Jones2016"]),
+        ("k:ice NOT r:read", ["Jones2016"]),
+        ("NOT j:nature", ["Jones2016"]),
+        ("NOT NOT j:nature", ["Smith2020", "Brown2010"]),
+        ("j:(nature OR science) y:2015-", ["Smith2020", "Jones2016"]),
+        ('(t:glacier OR t:"ice sheet") y:2015-', ["Smith2020", "Jones2016"]),
+        # AND binds tighter than OR, NOT tighter than AND.
+        ("k:snow y:2016 OR a:smith", ["Smith2020", "Jones2016"]),
+        ("k:snow (y:2016 OR a:smith)", ["Jones2016"]),
+        ("k:snow AND NOT y:2016 OR a:smith", ["Smith2020", "Brown2010"]),
+        # A prefixed term inside a field group keeps its own field.
+        ("a:(smith OR t:snow)", ["Smith2020", "Brown2010"]),
+        # Year groups use the range syntax.
+        ("y:(2010 OR 2020)", ["Smith2020", "Brown2010"]),
+    ],
+)
+def test_boolean_queries(query: str, expected: list[str]) -> None:
+    assert _keys(query) == expected
+
+
+def test_operators_are_terms_when_quoted_or_prefixed() -> None:
+    e = _entry(title="To be or not to be")
+    assert matches_query(e, 't:"or"')
+    assert matches_query(e, "t:not")
+    assert not matches_query(_entry(title="Glacier"), "t:not")
+
+
+def test_quoted_parentheses_are_literal() -> None:
+    e = _entry(title="The (in)stability of ice")
+    assert matches_query(e, 't:"(in)stability"')
+
+
+def test_apostrophe_is_an_ordinary_character() -> None:
+    e = _entry(author="O'Brien, Pat")
+    assert matches_query(e, "a:o'brien")
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        # Half-typed queries filter as if the missing part weren't there yet.
+        ("a:smith OR", ["Smith2020"]),
+        ("a:smith OR (", ["Smith2020"]),
+        ("a:(smith OR jones", ["Smith2020", "Jones2016"]),
+        ("(k:snow", ["Jones2016", "Brown2010"]),
+        ("k:ice NOT", ["Smith2020", "Jones2016"]),
+        ("a:(", ["Smith2020", "Jones2016", "Brown2010"]),
+        ("NOT", ["Smith2020", "Jones2016", "Brown2010"]),
+        ('t:"ice sh', ["Jones2016"]),
+        # A leading or doubled AND has always been ignored.
+        ("AND a:smith", ["Smith2020"]),
+        ("a:smith AND AND y:2020", ["Smith2020"]),
+    ],
+)
+def test_incomplete_queries_still_filter(query: str, expected: list[str]) -> None:
+    assert _keys(query) == expected
+
+
+@pytest.mark.parametrize(
+    ("query", "message"),
+    [
+        ("OR a:smith", "OR needs a term on both sides"),
+        ("a:smith OR OR a:jones", "OR needs a term on both sides"),
+        ("(a:smith OR)", "OR needs a term on both sides"),
+        ("a:smith)", "')' without a matching '('"),
+        ("()", "empty parentheses"),
+        ("a:() k:ice", "empty parentheses"),
+        ("NOT OR a:smith", "NOT needs a term after it"),
+        ("(NOT)", "NOT needs a term after it"),
+    ],
+)
+def test_invalid_queries_raise(query: str, message: str) -> None:
+    with pytest.raises(QueryError, match=re.escape(message)):
+        compile_query(query)
+
+
+def test_empty_query_matches_everything() -> None:
+    assert _keys("") == ["Smith2020", "Jones2016", "Brown2010"]

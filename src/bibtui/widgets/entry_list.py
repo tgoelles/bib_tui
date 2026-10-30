@@ -1,5 +1,3 @@
-import shlex
-
 from rich.text import Text
 from textual import events, on
 from textual.app import ComposeResult
@@ -9,184 +7,14 @@ from textual.widget import Widget
 from textual.widgets import DataTable, Input, Static
 from textual.widgets._data_table import ColumnKey
 
-from bibtui.bib.latex import decode_latex
 from bibtui.bib.models import BibEntry
+from bibtui.bib.search import Matcher, QueryError, compile_query
 from bibtui.widgets.columns import ColumnSpec, resolve_columns, spec_for
 
 # Extra horizontal budget beyond the sum of fixed column widths: DataTable pads
 # every cell (1 char each side) and the widget itself has a small border/gutter.
 # Chosen so the default 11-column layout reproduces the historical title sizing.
 _TITLE_PADDING = 2
-
-_FIELD_PREFIXES: dict[str, str] = {
-    "t": "title",
-    "title": "title",
-    "a": "author",
-    "author": "author",
-    "j": "journal",
-    "journal": "journal",
-    "k": "keywords",
-    "kw": "keywords",
-    "keyword": "keywords",
-    "keywords": "keywords",
-    "y": "year",
-    "year": "year",
-    "u": "url",
-    "url": "url",
-    "c": "citekey",
-    "citekey": "citekey",
-    "key": "citekey",
-    "r": "read_state",
-    "state": "read_state",
-    "read": "read_state",
-    "pr": "priority",
-    "priority": "priority",
-    "urgency": "priority",
-}
-
-
-def _tokenize(query: str) -> list[str]:
-    """Split a query string into whitespace-separated tokens, honoring quotes.
-
-    ``shlex.split`` (with its default whitespace-splitting mode) lets
-    ``k:"sea ice"`` keep its embedded space as one token's value while still
-    leaving ``:`` untouched, so field prefixes are unaffected. An unbalanced
-    quote — the normal state of things while the user is still typing —
-    raises ``ValueError`` in shlex; fall back to a plain split rather than
-    losing the query.
-
-    ``comments=False`` is already ``shlex.split``'s default — unlike a raw
-    ``shlex.shlex`` instance, the convenience function disables ``#``
-    comment-stripping unless asked for — but it's passed explicitly here so
-    a search for a citekey or title containing ``#`` is visibly safe rather
-    than relying on a default a future stdlib change (or a future edit)
-    could flip.
-    """
-    try:
-        return shlex.split(query, comments=False)
-    except ValueError:
-        return query.split()
-
-
-def _parse_query(query: str) -> tuple[list[tuple[str, str]], list[str]]:
-    """Split a query into field filters and free-text terms.
-
-    Each token is either ``prefix:value`` (field filter) or a plain word
-    (searched across all fields). Multiple tokens are ANDed. The keyword
-    ``AND`` (case-insensitive) is ignored, allowing queries like
-    ``j:nature AND y:2025``.
-    """
-    filters: list[tuple[str, str]] = []
-    free_terms: list[str] = []
-    for token in _tokenize(query):
-        if token.upper() == "AND":
-            continue
-        if ":" in token:
-            prefix, _, value = token.partition(":")
-            field = _FIELD_PREFIXES.get(prefix.lower())
-            if field and value:
-                filters.append((field, value.lower()))
-                continue
-        free_terms.append(token.lower())
-    return filters, free_terms
-
-
-def _year_matches(entry_year: str, value: str) -> bool:
-    """Match a ``y:`` filter value against an entry's year.
-
-    Supports an exact/substring match (``2010``), a closed range
-    (``2010-2020``), an open range (``2010-`` = 2010 or later, ``-2010`` = up
-    to 2010), and comparisons (``>2010``, ``>=2010``, ``<2010``, ``<=2010``).
-    A non-numeric entry year never satisfies a range or comparison — only
-    the plain substring form can match it.
-    """
-    for op, op_len in ((">=", 2), ("<=", 2), (">", 1), ("<", 1)):
-        if value.startswith(op):
-            bound_str = value[op_len:]
-            if not bound_str.isdigit() or not entry_year.isdigit():
-                return False
-            bound, year = int(bound_str), int(entry_year)
-            if op == ">=":
-                return year >= bound
-            if op == "<=":
-                return year <= bound
-            if op == ">":
-                return year > bound
-            return year < bound
-
-    if "-" in value:
-        y_min_str, _, y_max_str = value.partition("-")
-        if entry_year.isdigit():
-            year = int(entry_year)
-            try:
-                if y_min_str and y_max_str:
-                    return int(y_min_str) <= year <= int(y_max_str)
-                if y_min_str:  # "2010-" → 2010 or later
-                    return year >= int(y_min_str)
-                if y_max_str:  # "-2010" → up to 2010
-                    return year <= int(y_max_str)
-            except ValueError:
-                pass
-        return value in entry_year
-
-    return value in entry_year
-
-
-def _entry_matches(
-    entry, filters: list[tuple[str, str]], free_terms: list[str]
-) -> bool:
-    for field, value in filters:
-        if field == "title":
-            if value not in entry.title_plain.lower():
-                return False
-        elif field == "author":
-            if value not in entry.author.lower():
-                return False
-        elif field == "keywords":
-            if value not in entry.keywords.lower():
-                return False
-        elif field == "year":
-            if not _year_matches(entry.year, value):
-                return False
-        elif field == "journal":
-            journal = entry.journal or entry.raw_fields.get("booktitle", "")
-            journal = decode_latex(journal).lower()
-            if value not in journal:
-                return False
-        elif field == "url":
-            if value not in entry.url.lower():
-                return False
-        elif field == "citekey":
-            if value not in entry.key.lower():
-                return False
-        elif field == "read_state":
-            # Exact match, not substring: "read" and "to-read" are distinct
-            # states and a substring match would conflate them.
-            if value != entry.read_state.lower():
-                return False
-        elif field == "priority":
-            if value != entry.priority_label.lower():
-                return False
-    for term in free_terms:
-        if not (
-            term in entry.title_plain.lower()
-            or term in entry.author.lower()
-            or term in entry.keywords.lower()
-            or term in entry.key.lower()
-        ):
-            return False
-    return True
-
-
-def matches_query(entry, query: str) -> bool:
-    """Return whether *entry* matches a full query string.
-
-    Thin wrapper around :func:`_parse_query` + :func:`_entry_matches` so
-    saved filter presets (:mod:`bibtui.utils.filters`) and the live search
-    box share exactly one implementation of the query syntax.
-    """
-    filters, free_terms = _parse_query(query)
-    return _entry_matches(entry, filters, free_terms)
 
 
 class EntryList(Widget):
@@ -214,6 +42,11 @@ class EntryList(Widget):
     EntryList #preset-bar {
         height: 1;
         color: $accent;
+        padding: 0 1;
+    }
+    EntryList #search-hint {
+        height: 1;
+        color: $error;
         padding: 0 1;
     }
     """
@@ -258,6 +91,10 @@ class EntryList(Widget):
         # `_apply_filters`. Empty name means no preset is active.
         self._preset_name: str = ""
         self._preset_query: str = ""
+        # The last search that parsed, kept on screen while the query in the
+        # box is invalid (e.g. "a OR OR") so the list doesn't go empty.
+        self._last_valid_search: Matcher | None = None
+        self._preset_invalid = False
 
     def set_pdf_base_dir(self, base_dir: str) -> None:
         self._pdf_base_dir = base_dir
@@ -268,6 +105,7 @@ class EntryList(Widget):
             placeholder=self._DEFAULT_SEARCH_PLACEHOLDER,
             id="search-input",
         )
+        yield Static("", id="search-hint")
         yield DataTable(id="entry-table", cursor_type="row")
 
     def on_mount(self) -> None:
@@ -366,11 +204,35 @@ class EntryList(Widget):
         refines further within it, exactly like typing two ANDed terms.
         """
         base = self._all_entries
+        self._preset_invalid = False
         if self._preset_query:
-            base = [e for e in base if matches_query(e, self._preset_query)]
+            try:
+                preset = compile_query(self._preset_query)
+            except QueryError:
+                # A filter saved before the query syntax changed; the filter
+                # bar says so, and nothing matches until it's edited.
+                self._preset_invalid = True
+                base = []
+            else:
+                base = [e for e in base if preset(e)]
+
+        hint = self.query_one("#search-hint", Static)
+        hint.display = False
         search = self.query_one("#search-input", Input).value.strip()
+        matcher: Matcher | None = None
         if search:
-            base = [e for e in base if matches_query(e, search)]
+            try:
+                matcher = compile_query(search)
+            except QueryError as error:
+                matcher = self._last_valid_search
+                hint.update(f"Invalid query: {error}. Showing the last valid result.")
+                hint.display = True
+            else:
+                self._last_valid_search = matcher
+        else:
+            self._last_valid_search = None
+        if matcher is not None:
+            base = [e for e in base if matcher(e)]
         self._populate_table(self._sorted(base))
         self._update_preset_bar()
 
@@ -381,10 +243,14 @@ class EntryList(Widget):
             bar.display = False
             return
         bar.display = True
+        status = (
+            "[$error]invalid query, edit it with f → e[/]"
+            if self._preset_invalid
+            else f"{len(self._filtered)} / {len(self._all_entries)}"
+        )
         bar.update(
             f"Filter: [bold]{self._preset_name}[/bold]  "
-            f"[dim]{self._preset_query}[/dim]  "
-            f"{len(self._filtered)} / {len(self._all_entries)}"
+            f"[dim]{self._preset_query}[/dim]  {status}"
         )
 
     def _update_search_placeholder(self) -> None:

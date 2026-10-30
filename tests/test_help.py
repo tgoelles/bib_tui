@@ -27,6 +27,7 @@ def test_search_and_filters_are_grouped_together() -> None:
         "Search — press s",
         "Field prefixes",
         "Year filters",
+        "Boolean search",
         "Examples",
         "Saved filters — press f",
     ]

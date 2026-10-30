@@ -40,6 +40,7 @@ from bibtui.bib.citation_preview import available_csl_styles, default_csl_style_
 from bibtui.bib.citekeys import author_year_base
 from bibtui.bib.models import COMMON_FIELDS, ENTRY_TYPES, BibEntry
 from bibtui.bib.parser import bibtex_str_to_entry, entry_to_bibtex_str
+from bibtui.bib.search import QueryError, compile_query
 from bibtui.bib.validate import validate_entry
 from bibtui.pdf.paths import pdf_link_state
 from bibtui.utils.config import Config
@@ -1769,7 +1770,8 @@ _HELP_PARTS = [
                     (
                         None,
                         "Plain text searches title, author, keywords and key. "
-                        "Several terms are ANDed (writing AND is optional). "
+                        "Several terms are ANDed (writing AND is optional); "
+                        "see Boolean search for OR and NOT. "
                         'Quote a value with spaces: k:"sea ice".',
                     ),
                 ],
@@ -1796,6 +1798,20 @@ _HELP_PARTS = [
                     ("y:-2015", "Up to 2015"),
                     ("y:>2015", "Greater than (>= for or equal)"),
                     ("y:<2015", "Less than (<= for or equal)"),
+                ],
+            ),
+            (
+                "Boolean search",
+                [
+                    ("a:smith OR a:jones", "Either term"),
+                    ("k:ice NOT r:read", "Exclude a term"),
+                    ("(t:ice OR t:snow) y:2015-", "Group with parentheses"),
+                    ("a:(smith OR jones)", "One prefix for the whole group"),
+                    (
+                        None,
+                        "NOT binds tightest, then AND, then OR. Quote a word "
+                        'to search for it literally: t:"or".',
+                    ),
                 ],
             ),
             (
@@ -2295,6 +2311,11 @@ class FilterEditModal(_BaseModal["tuple[str, str] | None"]):
             return
         if not query:
             error.update("Query is required.")
+            return
+        try:
+            compile_query(query)
+        except QueryError as e:
+            error.update(f"Invalid query: {e}.")
             return
         self.dismiss((name, query))
 
